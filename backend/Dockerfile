@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
-RUN npm run build && npm prune --production
+RUN npx prisma generate && npm run build && npm prune --production
 
 # Stage 2: Production runtime
 FROM node:20-alpine

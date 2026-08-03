@@ -1,0 +1,20 @@
+# Base node image for development
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency configs
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose port
+EXPOSE 5005
+
+# Start application in development mode with watch
+CMD ["npm", "run", "start:dev"]

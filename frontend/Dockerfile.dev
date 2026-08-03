@@ -1,0 +1,23 @@
+# Base node image for development
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency configs
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy source code
+COPY . .
+
+# Expose Metro server port
+EXPOSE 8081
+
+# Disable opening browser when starting Expo
+ENV BROWSER=none
+
+# Start application in web mode
+CMD ["npm", "run", "web"]

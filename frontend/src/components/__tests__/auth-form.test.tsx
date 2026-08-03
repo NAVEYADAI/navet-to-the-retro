@@ -16,8 +16,8 @@ jest.mock('@/hooks/use-color-scheme', () => ({
 }));
 
 describe('AuthForm Component', () => {
-  it('renders Login fields by default', () => {
-    const { getByPlaceholderText, queryByPlaceholderText } = render(<AuthForm />);
+  it('renders Login fields by default', async () => {
+    const { getByPlaceholderText, queryByPlaceholderText } = await render(<AuthForm />);
 
     // Login screen should have username and password
     expect(getByPlaceholderText('Username')).toBeTruthy();
@@ -29,21 +29,21 @@ describe('AuthForm Component', () => {
     expect(queryByPlaceholderText('Last Name')).toBeNull();
   });
 
-  it('switches to Sign Up fields when toggle is clicked', () => {
-    const { getByText, getByPlaceholderText } = render(<AuthForm />);
+  it('switches to Sign Up fields when toggle is clicked', async () => {
+    const { getByText, findByPlaceholderText, findByText } = await render(<AuthForm />);
 
     // Click on toggle link
     const toggleLink = getByText("Don't have an account? Sign up here");
     fireEvent.press(toggleLink);
 
-    // Register screen should now show email and name fields
-    expect(getByPlaceholderText('Username')).toBeTruthy();
-    expect(getByPlaceholderText('Email Address')).toBeTruthy();
-    expect(getByPlaceholderText('First Name')).toBeTruthy();
-    expect(getByPlaceholderText('Last Name')).toBeTruthy();
-    expect(getByPlaceholderText('Password')).toBeTruthy();
+    // Use findBy queries to wait for state transition and re-rendering to complete
+    expect(await findByPlaceholderText('Username')).toBeTruthy();
+    expect(await findByPlaceholderText('Email Address')).toBeTruthy();
+    expect(await findByPlaceholderText('First Name')).toBeTruthy();
+    expect(await findByPlaceholderText('Last Name')).toBeTruthy();
+    expect(await findByPlaceholderText('Password')).toBeTruthy();
 
     // The link should toggle back
-    expect(getByText('Already have an account? Log in here')).toBeTruthy();
+    expect(await findByText('Already have an account? Log in here')).toBeTruthy();
   });
 });

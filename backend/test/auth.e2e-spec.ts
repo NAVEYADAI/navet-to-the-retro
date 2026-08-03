@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma.service';
+jest.setTimeout(30000);
 
 describe('AuthController (e2e)', () => {
   let app: INestApplication;
@@ -17,7 +18,6 @@ describe('AuthController (e2e)', () => {
   };
 
   beforeAll(async () => {
-    jest.setTimeout(30000);
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

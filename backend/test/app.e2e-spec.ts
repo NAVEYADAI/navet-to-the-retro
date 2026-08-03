@@ -3,13 +3,10 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+jest.setTimeout(30000);
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
-
-  beforeAll(() => {
-    jest.setTimeout(30000);
-  });
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({

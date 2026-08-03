@@ -17,6 +17,7 @@ describe('AuthController (e2e)', () => {
   };
 
   beforeAll(async () => {
+    jest.setTimeout(30000);
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

@@ -1,0 +1,8 @@
+node_modules
+dist
+.expo
+npm-debug.log
+.git
+.gitignore
+fly.toml
+Dockerfile.dev

@@ -33,7 +33,11 @@ export default function HomeScreen() {
   const [backendStatus, setBackendStatus] = useState<string>('Connecting to backend...');
 
   useEffect(() => {
-    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5005';
+    const backendUrl =
+      process.env.EXPO_PUBLIC_BACKEND_URL ||
+      (Platform.OS === 'web' && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
+        ? 'https://navet-to-retro-backend.fly.dev'
+        : 'http://localhost:5005');
     
     fetch(backendUrl)
       .then((res) => {
@@ -56,7 +60,7 @@ export default function HomeScreen() {
         <ThemedView style={styles.heroSection}>
           <AnimatedIcon />
           <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
+            Welcome Nave to the Retro!
           </ThemedText>
         </ThemedView>
 

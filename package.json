@@ -1,0 +1,15 @@
+{
+  "name": "navet-to-the-retro",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "deploy": "./deploy.sh",
+    "test": "npm run test --prefix backend && npm run test --prefix frontend",
+    "test:back": "npm run test --prefix backend",
+    "test:back:e2e": "npm run test:e2e --prefix backend",
+    "test:front": "npm run test --prefix frontend"
+  }
+}

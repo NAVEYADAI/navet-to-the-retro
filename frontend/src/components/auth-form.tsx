@@ -24,7 +24,6 @@ export function AuthForm() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [teamName, setTeamName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
 
@@ -46,7 +45,7 @@ export function AuthForm() {
     const endpoint = isLogin ? 'login' : 'register';
     const payload = isLogin
       ? { username, password }
-      : { username, email, password, firstName, lastName, teamName };
+      : { username, email, password, firstName, lastName };
 
     try {
       const response = await fetch(`${backendUrl}/auth/${endpoint}`, {
@@ -63,13 +62,8 @@ export function AuthForm() {
         throw new Error(data.message || 'Authentication failed');
       }
 
-      if (isLogin) {
-        await login(data.accessToken, data.user);
-      } else {
-        setIsLogin(true);
-        setPassword('');
-        setErrorMessage('Registration successful! Please login.');
-      }
+      // Auto-log in on both login and register since both return accessToken and user
+      await login(data.accessToken, data.user);
     } catch (err: any) {
       setErrorMessage(err.message || 'An error occurred. Please try again.');
     } finally {
@@ -166,23 +160,6 @@ export function AuthForm() {
             </View>
           )}
 
-          {!isLogin && (
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  color: theme.text,
-                  borderColor: theme.backgroundSelected,
-                  backgroundColor: theme.backgroundElement,
-                },
-              ]}
-              placeholder="Team Name (Optional)"
-              placeholderTextColor={theme.textSecondary}
-              value={teamName}
-              onChangeText={setTeamName}
-              autoCapitalize="words"
-            />
-          )}
 
           <TextInput
             style={[

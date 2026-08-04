@@ -54,9 +54,11 @@ describe('AuthController (e2e)', () => {
         .send(testUser)
         .expect(201)
         .expect((res) => {
-          expect(res.body.username).toBe(testUser.username);
-          expect(res.body.email).toBe(testUser.email);
-          expect(res.body.password).toBeUndefined(); // Password must be hidden
+          expect(res.body.accessToken).toBeDefined();
+          expect(res.body.user).toBeDefined();
+          expect(res.body.user.username).toBe(testUser.username);
+          expect(res.body.user.email).toBe(testUser.email);
+          expect(res.body.user.password).toBeUndefined(); // Password must be hidden
         });
     });
 

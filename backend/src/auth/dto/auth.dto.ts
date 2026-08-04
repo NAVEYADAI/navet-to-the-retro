@@ -4,7 +4,6 @@ export class RegisterDto {
   password!: string;
   firstName?: string;
   lastName?: string;
-  teamName?: string;
 }
 
 export class LoginDto {

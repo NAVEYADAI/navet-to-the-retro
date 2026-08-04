@@ -64,7 +64,7 @@ describe('AuthService', () => {
   describe('register', () => {
     it('should successfully register a new user', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(null);
-      mockTx.user.create.mockResolvedValue(mockUser);
+      mockPrismaService.user.create.mockResolvedValue(mockUser);
 
       const dto = {
         username: 'testuser',
@@ -76,8 +76,9 @@ describe('AuthService', () => {
 
       const result = await service.register(dto);
       expect(result).toBeDefined();
-      expect(result.username).toBe(dto.username);
-      expect((result as any).password).toBeUndefined(); // Excludes password
+      expect(result.accessToken).toBeDefined();
+      expect(result.user.username).toBe(dto.username);
+      expect((result.user as any).password).toBeUndefined(); // Excludes password
     });
 
     it('should throw ConflictException if user already exists', async () => {

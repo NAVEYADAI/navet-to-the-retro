@@ -19,5 +19,5 @@ RUN npx prisma generate
 # Expose port
 EXPOSE 5005
 
-# Start application in development mode with watch
-CMD ["sh", "-c", "npx prisma generate && npm run start:dev"]
+# Start application in development mode with watch, monitoring schema.prisma changes
+CMD ["sh", "-c", "npx prisma generate && (npx nodemon --watch prisma/schema.prisma --exec \"npx prisma generate\" & npm run start:dev)"]

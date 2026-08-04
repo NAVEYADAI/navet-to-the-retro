@@ -1,6 +1,6 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { CreateTeamDto, AddMemberDto } from './dto/teams.dto';
+import { CreateTeamDto, AddMemberDto, UpdateMemberDto } from './dto/teams.dto';
 
 @Injectable()
 export class TeamsService {
@@ -16,7 +16,8 @@ export class TeamsService {
         members: {
           create: {
             userId: creatorId,
-            role: 'TEAM_LEADER'
+            role: 'TEAM_LEADER',
+            isAdmin: true
           }
         }
       },
@@ -28,7 +29,7 @@ export class TeamsService {
     return team;
   }
 
-  async addMember(teamId: number, dto: AddMemberDto) {
+  async addMember(teamId: number, dto: AddMemberDto, requesterId: number) {
     // Check if team exists
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
@@ -37,11 +38,32 @@ export class TeamsService {
       throw new NotFoundException('Team not found');
     }
 
+    // Verify requester is a member and has TEAM_LEADER role
+    const requesterMembership = await this.prisma.teamMember.findUnique({
+      where: {
+        userId_teamId: {
+          userId: requesterId,
+          teamId: teamId
+        }
+      }
+    });
+    if (!requesterMembership || requesterMembership.role !== 'TEAM_LEADER') {
+      throw new ForbiddenException('Only team leaders can add members to the team');
+    }
+
+    // Find user to add by username
+    const userToJoin = await this.prisma.user.findUnique({
+      where: { username: dto.username }
+    });
+    if (!userToJoin) {
+      throw new NotFoundException(`User with username '${dto.username}' not found`);
+    }
+
     // Check if already a member
     const existingMember = await this.prisma.teamMember.findUnique({
       where: {
         userId_teamId: {
-          userId: dto.userId,
+          userId: userToJoin.id,
           teamId: teamId
         }
       }
@@ -53,7 +75,7 @@ export class TeamsService {
     return this.prisma.teamMember.create({
       data: {
         teamId: teamId,
-        userId: dto.userId,
+        userId: userToJoin.id,
         role: dto.role
       },
       include: {
@@ -109,6 +131,73 @@ export class TeamsService {
 
     return this.prisma.teamMember.findMany({
       where: { teamId: teamId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      }
+    });
+  }
+
+  async updateMember(teamId: number, memberId: number, dto: UpdateMemberDto, requesterId: number) {
+    // 1. Verify team exists
+    const team = await this.prisma.team.findUnique({
+      where: { id: teamId }
+    });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
+    // 2. Verify requester is a member of this team AND is an admin
+    const requesterMembership = await this.prisma.teamMember.findUnique({
+      where: {
+        userId_teamId: {
+          userId: requesterId,
+          teamId: teamId
+        }
+      }
+    });
+    if (!requesterMembership || !requesterMembership.isAdmin) {
+      throw new ForbiddenException('Only team admins can manage members');
+    }
+
+    // 3. Verify target member belongs to this team
+    const targetMember = await this.prisma.teamMember.findFirst({
+      where: {
+        id: memberId,
+        teamId: teamId
+      }
+    });
+    if (!targetMember) {
+      throw new NotFoundException('Team member not found in this team');
+    }
+
+    // 4. If we are removing the admin status of the last admin, prevent it!
+    if (dto.isAdmin === false && targetMember.isAdmin) {
+      const adminCount = await this.prisma.teamMember.count({
+        where: {
+          teamId: teamId,
+          isAdmin: true
+        }
+      });
+      if (adminCount <= 1) {
+        throw new ConflictException('Cannot remove admin status from the only admin in the team');
+      }
+    }
+
+    // 5. Update target member
+    return this.prisma.teamMember.update({
+      where: { id: memberId },
+      data: {
+        role: dto.role,
+        isAdmin: dto.isAdmin
+      },
       include: {
         user: {
           select: {

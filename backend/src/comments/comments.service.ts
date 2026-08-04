@@ -6,21 +6,21 @@ import { CreateCommentDto } from './dto/comments.dto';
 export class CommentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateCommentDto, authorId: number) {
-    // Check if team exists
-    const team = await this.prisma.team.findUnique({
-      where: { id: dto.teamId }
+  async create(sprintId: number, dto: CreateCommentDto, authorId: number) {
+    // 1. Verify sprint exists
+    const sprint = await this.prisma.sprint.findUnique({
+      where: { id: sprintId }
     });
-    if (!team) {
-      throw new NotFoundException('Team not found');
+    if (!sprint) {
+      throw new NotFoundException('Sprint not found');
     }
 
-    // Verify user belongs to the team
+    // 2. Verify user belongs to the team of the sprint
     const membership = await this.prisma.teamMember.findUnique({
       where: {
         userId_teamId: {
           userId: authorId,
-          teamId: dto.teamId
+          teamId: sprint.teamId
         }
       }
     });
@@ -28,11 +28,15 @@ export class CommentsService {
       throw new ForbiddenException('You are not a member of this team');
     }
 
+    // 3. Create comment
     return this.prisma.comment.create({
       data: {
         content: dto.content,
+        type: dto.type,
+        isAnonymous: dto.isAnonymous ?? false,
         authorId: authorId,
-        teamId: dto.teamId
+        teamId: sprint.teamId,
+        sprintId: sprintId
       },
       include: {
         author: {
@@ -47,31 +51,32 @@ export class CommentsService {
     });
   }
 
-  async getCommentsForTeam(teamId: number, requestorId: number) {
-    // Check if team exists
-    const team = await this.prisma.team.findUnique({
-      where: { id: teamId }
+  async getCommentsForSprint(sprintId: number, requesterId: number) {
+    // 1. Verify sprint exists
+    const sprint = await this.prisma.sprint.findUnique({
+      where: { id: sprintId }
     });
-    if (!team) {
-      throw new NotFoundException('Team not found');
+    if (!sprint) {
+      throw new NotFoundException('Sprint not found');
     }
 
-    // Verify requesting user is a member of the team
-    const membership = await this.prisma.teamMember.findUnique({
+    // 2. Verify requester is a member of the team
+    const requesterMembership = await this.prisma.teamMember.findUnique({
       where: {
         userId_teamId: {
-          userId: requestorId,
-          teamId: teamId
+          userId: requesterId,
+          teamId: sprint.teamId
         }
       }
     });
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this team');
+    if (!requesterMembership) {
+      throw new ForbiddenException('You do not belong to this team');
     }
 
-    return this.prisma.comment.findMany({
-      where: { teamId: teamId },
-      orderBy: { createdAt: 'desc' },
+    // 3. Fetch comments
+    const comments = await this.prisma.comment.findMany({
+      where: { sprintId: sprintId },
+      orderBy: { createdAt: 'asc' },
       include: {
         author: {
           select: {
@@ -82,6 +87,24 @@ export class CommentsService {
           }
         }
       }
+    });
+
+    const isAdmin = requesterMembership.isAdmin;
+
+    // 4. Return comments, masking author if comment is anonymous and requester is not an admin
+    return comments.map(c => {
+      if (c.isAnonymous && !isAdmin) {
+        return {
+          ...c,
+          author: {
+            id: 0,
+            username: 'Anonymous',
+            firstName: 'Anonymous',
+            lastName: ''
+          }
+        };
+      }
+      return c;
     });
   }
 }

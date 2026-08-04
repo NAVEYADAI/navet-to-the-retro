@@ -36,6 +36,7 @@ model Team {
   creator    User         @relation("TeamCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   members    TeamMember[]
   comments   Comment[]
+  sprints    Sprint[]
 }
 
 model TeamMember {
@@ -43,6 +44,7 @@ model TeamMember {
   userId    Int
   teamId    Int
   role      TeamRole @default(DEVELOPER)
+  isAdmin   Boolean  @default(false)
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -51,13 +53,35 @@ model TeamMember {
   @@unique([userId, teamId])
 }
 
-model Comment {
-  id        Int      @id @default(autoincrement())
-  content   String
-  createdAt DateTime @default(now())
-  authorId  Int
-  teamId    Int
+enum CommentType {
+  KEEP
+  IMPROVE
+}
 
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  team   Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+model Sprint {
+  id          Int       @id @default(autoincrement())
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  teamId      Int
+  createdAt   DateTime  @default(now())
+
+  team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  comments Comment[]
+}
+
+model Comment {
+  id          Int         @id @default(autoincrement())
+  content     String
+  type        CommentType
+  isAnonymous Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  authorId    Int
+  teamId      Int
+  sprintId    Int
+
+  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sprint Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
 }

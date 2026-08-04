@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 
+import axios from 'axios';
+
 const storage = {
   getItem: async (key: string) => {
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -49,18 +51,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ? 'https://navet-to-retro-backend.fly.dev'
             : 'http://localhost:5005';
             
-          const response = await fetch(`${backendUrl}/auth/me`, {
+          const response = await axios.get(`${backendUrl}/auth/me`, {
             headers: { 'Authorization': `Bearer ${savedToken}` }
           });
-          if (response.ok) {
-            const userData = await response.json();
-            setToken(savedToken);
-            setUser(userData);
-          } else {
-            await storage.removeItem('userToken');
-          }
+          setToken(savedToken);
+          setUser(response.data);
         }
       } catch (e) {
+        await storage.removeItem('userToken');
         console.error('Failed to restore session', e);
       } finally {
         setLoading(false);

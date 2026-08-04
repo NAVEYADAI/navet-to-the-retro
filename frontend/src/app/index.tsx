@@ -4,27 +4,34 @@ import {
   TouchableOpacity,
   View,
   Platform,
-  TextInput,
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { CreateTeamForm } from '@/components/create-team-form';
+import { TeamList } from '@/components/team-list';
+import { AccountDetails } from '@/components/account-details';
+import { SprintRetroBoard } from '@/components/sprint-retro-board';
 import { BottomTabInset, MaxContentWidth, Spacing, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/context/auth-context';
+import axios from 'axios';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
   const { user, token, logout } = useAuth();
 
-  // State
+  // Navigation / View states
+  const [activeView, setActiveView] = useState<'dashboard' | 'retro'>('dashboard');
+  const [selectedSprint, setSelectedSprint] = useState<any>(null);
+  const [selectedTeam, setSelectedTeam] = useState<any>(null);
+
+  // Dashboard Data states
   const [teams, setTeams] = useState<any[]>([]);
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
-  const [newTeamName, setNewTeamName] = useState('');
-  const [newMainOffice, setNewMainOffice] = useState('');
   const [teamCreateLoading, setTeamCreateLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -43,14 +50,20 @@ export default function HomeScreen() {
   const fetchMyTeams = async (authToken: string) => {
     setIsLoadingTeams(true);
     try {
-      const response = await fetch(`${getBackendUrl()}/teams/user/me`, {
+      const response = await axios.get(`${getBackendUrl()}/teams/user/me`, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
         },
       });
-      if (response.ok) {
-        const data = await response.json();
-        setTeams(data);
+      const data = response.data;
+      setTeams(data);
+      
+      // Refresh selected team to keep data up-to-date when returning from updates
+      if (selectedTeam) {
+        const updatedTeam = data.find((t: any) => t.id === selectedTeam.id);
+        if (updatedTeam) {
+          setSelectedTeam(updatedTeam);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch teams:', err);
@@ -59,39 +72,25 @@ export default function HomeScreen() {
     }
   };
 
-  const handleCreateTeam = async () => {
+  const handleCreateTeamSubmit = async (name: string, mainOffice: string) => {
     setErrorMessage(null);
-    if (!newTeamName.trim()) {
-      setErrorMessage('Team name is required.');
-      return;
-    }
-
     setTeamCreateLoading(true);
     try {
-      const response = await fetch(`${getBackendUrl()}/teams`, {
-        method: 'POST',
+      await axios.post(`${getBackendUrl()}/teams`, {
+        name: name,
+        mainOffice: mainOffice,
+      }, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: newTeamName,
-          mainOffice: newMainOffice,
-        }),
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create team');
-      }
-
-      setNewTeamName('');
-      setNewMainOffice('');
       if (token) {
         await fetchMyTeams(token);
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Something went wrong.');
+      setErrorMessage(err.response?.data?.message || err.message || 'Something went wrong.');
+      throw err;
     } finally {
       setTeamCreateLoading(false);
     }
@@ -99,6 +98,30 @@ export default function HomeScreen() {
 
   if (!user) return null;
 
+  /* View Router: Sprint Retro Board */
+  if (activeView === 'retro' && selectedSprint && selectedTeam) {
+    return (
+      <ThemedView style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
+          <SprintRetroBoard
+            sprint={selectedSprint}
+            team={selectedTeam}
+            token={token || ''}
+            user={user}
+            theme={theme}
+            onBack={() => {
+              setActiveView('dashboard');
+              if (token) {
+                fetchMyTeams(token);
+              }
+            }}
+          />
+        </SafeAreaView>
+      </ThemedView>
+    );
+  }
+
+  /* View Router: Dashboard */
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -118,7 +141,7 @@ export default function HomeScreen() {
             </View>
 
             {/* Error Message banner */}
-            {errorMessage && (
+            {!!errorMessage && (
               <View style={styles.errorBanner}>
                 <ThemedText style={styles.errorText}>{errorMessage}</ThemedText>
               </View>
@@ -131,126 +154,33 @@ export default function HomeScreen() {
                 <ThemedText type="default">Loading your teams...</ThemedText>
               </View>
             ) : teams.length === 0 ? (
-              /* User has NO teams: show creation workspace */
-              <View style={[styles.infoSection, { backgroundColor: theme.backgroundElement }]}>
-                <ThemedText type="subtitle" style={styles.sectionHeader}>
-                  Create your first development team
-                </ThemedText>
-                <ThemedText type="default" style={styles.sectionDescription}>
-                  You don't belong to any development team yet. Create one below to start collecting retro notes.
-                </ThemedText>
-
-                <View style={styles.form}>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        color: theme.text,
-                        borderColor: theme.backgroundSelected,
-                        backgroundColor: theme.background,
-                      },
-                    ]}
-                    placeholder="Team Name (e.g. R&D Core)"
-                    placeholderTextColor={theme.textSecondary}
-                    value={newTeamName}
-                    onChangeText={setNewTeamName}
-                  />
-
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        color: theme.text,
-                        borderColor: theme.backgroundSelected,
-                        backgroundColor: theme.background,
-                      },
-                    ]}
-                    placeholder="Main Office / Headquarters (Optional)"
-                    placeholderTextColor={theme.textSecondary}
-                    value={newMainOffice}
-                    onChangeText={setNewMainOffice}
-                  />
-
-                  <TouchableOpacity
-                    style={[styles.button, { backgroundColor: theme.text }]}
-                    onPress={handleCreateTeam}
-                    disabled={teamCreateLoading}
-                  >
-                    {teamCreateLoading ? (
-                      <ActivityIndicator color={theme.background} />
-                    ) : (
-                      <ThemedText style={[styles.buttonText, { color: theme.background }]}>
-                        Create Team (Team Leader)
-                      </ThemedText>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
+              /* User has NO teams: show creation form */
+              <CreateTeamForm
+                onSubmit={handleCreateTeamSubmit}
+                isLoading={teamCreateLoading}
+                theme={theme}
+              />
             ) : (
-              /* User HAS teams: show team details */
-              <View style={styles.teamsList}>
-                <ThemedText type="subtitle" style={styles.sectionHeader}>
-                  My Teams
-                </ThemedText>
-                {teams.map((team) => (
-                  <View
-                    key={team.id}
-                    style={[styles.infoSection, { backgroundColor: theme.backgroundElement }]}
-                  >
-                    <View style={styles.teamHeaderRow}>
-                      <ThemedText type="subtitle" style={{ fontWeight: 'bold' }}>
-                        {team.name}
-                      </ThemedText>
-                      <View style={[styles.roleBadge, { backgroundColor: theme.backgroundSelected }]}>
-                        <ThemedText style={[styles.roleText, { color: theme.text }]}>
-                          {team.roleInTeam.replace('_', ' ')}
-                        </ThemedText>
-                      </View>
-                    </View>
-
-                    {team.mainOffice && (
-                      <View style={styles.infoRow}>
-                        <ThemedText type="default" style={{ fontWeight: 'bold' }}>
-                          Office Location:{' '}
-                        </ThemedText>
-                        <ThemedText type="default">{team.mainOffice}</ThemedText>
-                      </View>
-                    )}
-
-                    <View style={styles.membersContainer}>
-                      <ThemedText type="default" style={{ fontWeight: 'bold', marginBottom: Spacing.one }}>
-                        Members ({team.members?.length || 0}):
-                      </ThemedText>
-                      {team.members?.map((member: any) => (
-                        <View key={member.id} style={styles.memberItem}>
-                          <ThemedText type="default">
-                            • {member.user?.firstName} {member.user?.lastName} (@{member.user?.username})
-                          </ThemedText>
-                          <ThemedText type="code" style={{ fontSize: 11, opacity: 0.8 }}>
-                            [{member.role.replace('_', ' ')}]
-                          </ThemedText>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                ))}
-              </View>
+              /* User HAS teams: show team list */
+              <TeamList
+                teams={teams}
+                token={token || ''}
+                userId={user.id}
+                onAddMemberSuccess={() => token && fetchMyTeams(token)}
+                onSelectSprint={(sprint, team) => {
+                  setSelectedSprint(sprint);
+                  setSelectedTeam(team);
+                  setActiveView('retro');
+                }}
+                theme={theme}
+              />
             )}
 
-            {/* Account Details footer */}
-            <View style={[styles.infoSection, { backgroundColor: theme.backgroundElement }]}>
-              <ThemedText type="subtitle" style={styles.sectionHeader}>
-                Account Details
-              </ThemedText>
-              <View style={styles.infoRow}>
-                <ThemedText type="default" style={{ fontWeight: 'bold' }}>Username: </ThemedText>
-                <ThemedText type="default">{user.username}</ThemedText>
-              </View>
-              <View style={styles.infoRow}>
-                <ThemedText type="default" style={{ fontWeight: 'bold' }}>Email: </ThemedText>
-                <ThemedText type="default">{user.email}</ThemedText>
-              </View>
-            </View>
+            {/* Account Details section */}
+            <AccountDetails
+              user={user}
+              theme={theme}
+            />
 
             <TouchableOpacity
               style={[styles.button, { backgroundColor: '#e53935' }]}
@@ -314,70 +244,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
-  infoSection: {
-    padding: Spacing.three,
-    borderRadius: 10,
-    gap: Spacing.two,
-  },
-  sectionHeader: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: Spacing.one,
-  },
-  sectionDescription: {
-    opacity: 0.8,
-    marginBottom: Spacing.two,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  form: {
-    gap: Spacing.two,
-  },
-  input: {
-    height: 46,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: Spacing.three,
-    fontSize: 15,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    gap: Spacing.one,
-  },
   loadingContainer: {
     padding: Spacing.four,
     alignItems: 'center',
     gap: Spacing.two,
-  },
-  teamsList: {
-    gap: Spacing.three,
-  },
-  teamHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.one,
-  },
-  roleBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  roleText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  membersContainer: {
-    marginTop: Spacing.two,
-    paddingTop: Spacing.two,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
-  },
-  memberItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
   },
   errorBanner: {
     backgroundColor: '#ffebee',

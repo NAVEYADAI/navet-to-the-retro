@@ -6,6 +6,11 @@ export class CreateTeamDto {
 }
 
 export class AddMemberDto {
-  userId!: number;
+  username!: string;
   role!: TeamRole;
+}
+
+export class UpdateMemberDto {
+  role?: TeamRole;
+  isAdmin?: boolean;
 }

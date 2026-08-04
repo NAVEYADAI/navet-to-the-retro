@@ -3,7 +3,7 @@ import { CommentsService } from './comments.service';
 import { AuthService } from '../auth/auth.service';
 import { CreateCommentDto } from './dto/comments.dto';
 
-@Controller('comments')
+@Controller('sprints/:sprintId/comments')
 export class CommentsController {
   constructor(
     private readonly commentsService: CommentsService,
@@ -13,18 +13,19 @@ export class CommentsController {
   @Post()
   async create(
     @Headers('authorization') authHeader: string,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
     @Body() dto: CreateCommentDto
   ) {
     const user = await this.authService.validateToken(authHeader);
-    return this.commentsService.create(dto, user.id);
+    return this.commentsService.create(sprintId, dto, user.id);
   }
 
-  @Get('team/:teamId')
-  async getCommentsForTeam(
+  @Get()
+  async getCommentsForSprint(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number
+    @Param('sprintId', ParseIntPipe) sprintId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
-    return this.commentsService.getCommentsForTeam(teamId, user.id);
+    return this.commentsService.getCommentsForSprint(sprintId, user.id);
   }
 }

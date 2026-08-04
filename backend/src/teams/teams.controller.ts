@@ -1,7 +1,7 @@
-import { Controller, Post, Get, Body, Param, Headers, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Headers, ParseIntPipe } from '@nestjs/common';
 import { TeamsService } from './teams.service';
 import { AuthService } from '../auth/auth.service';
-import { CreateTeamDto, AddMemberDto } from './dto/teams.dto';
+import { CreateTeamDto, AddMemberDto, UpdateMemberDto } from './dto/teams.dto';
 
 @Controller('teams')
 export class TeamsController {
@@ -25,8 +25,8 @@ export class TeamsController {
     @Param('id', ParseIntPipe) teamId: number,
     @Body() dto: AddMemberDto
   ) {
-    await this.authService.validateToken(authHeader);
-    return this.teamsService.addMember(teamId, dto);
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamsService.addMember(teamId, dto, user.id);
   }
 
   @Get('user/me')
@@ -42,5 +42,16 @@ export class TeamsController {
   ) {
     await this.authService.validateToken(authHeader);
     return this.teamsService.getTeamMembers(teamId);
+  }
+
+  @Patch(':teamId/members/:memberId')
+  async updateMember(
+    @Headers('authorization') authHeader: string,
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('memberId', ParseIntPipe) memberId: number,
+    @Body() dto: UpdateMemberDto
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamsService.updateMember(teamId, memberId, dto, user.id);
   }
 }

@@ -11,6 +11,7 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { Spacing, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import axios from 'axios';
 import { useAuth } from '@/context/auth-context';
 
 export function AuthForm() {
@@ -48,24 +49,13 @@ export function AuthForm() {
       : { username, email, password, firstName, lastName };
 
     try {
-      const response = await fetch(`${backendUrl}/auth/${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Authentication failed');
-      }
+      const response = await axios.post(`${backendUrl}/auth/${endpoint}`, payload);
+      const data = response.data;
 
       // Auto-log in on both login and register since both return accessToken and user
       await login(data.accessToken, data.user);
     } catch (err: any) {
-      setErrorMessage(err.message || 'An error occurred. Please try again.');
+      setErrorMessage(err.response?.data?.message || err.message || 'An error occurred. Please try again.');
     } finally {
       setFormLoading(false);
     }

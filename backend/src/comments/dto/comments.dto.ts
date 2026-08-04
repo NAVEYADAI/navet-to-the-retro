@@ -1,4 +1,7 @@
+import { CommentType } from '@prisma/client';
+
 export class CreateCommentDto {
   content!: string;
-  teamId!: number;
+  type!: CommentType;
+  isAnonymous?: boolean;
 }

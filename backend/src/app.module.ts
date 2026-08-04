@@ -6,9 +6,10 @@ import { AuthModule } from './auth/auth.module';
 import { LoggingMiddleware } from './logging.middleware';
 import { TeamsModule } from './teams/teams.module';
 import { CommentsModule } from './comments/comments.module';
+import { SprintsModule } from './sprints/sprints.module';
 
 @Module({
-  imports: [AuthModule, TeamsModule, CommentsModule],
+  imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule],
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })

@@ -24,12 +24,22 @@ describe('AuthService', () => {
     createdAt: new Date(),
   };
 
+  const mockTx = {
+    user: {
+      create: jest.fn(),
+    },
+    team: {
+      create: jest.fn(),
+    },
+  };
+
   const mockPrismaService = {
     user: {
       findFirst: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
     },
+    $transaction: jest.fn((cb) => cb(mockTx)),
   };
 
   beforeEach(async () => {
@@ -54,7 +64,7 @@ describe('AuthService', () => {
   describe('register', () => {
     it('should successfully register a new user', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(null);
-      mockPrismaService.user.create.mockResolvedValue(mockUser);
+      mockTx.user.create.mockResolvedValue(mockUser);
 
       const dto = {
         username: 'testuser',

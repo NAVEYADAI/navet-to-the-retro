@@ -24,6 +24,7 @@ export function AuthForm() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [teamName, setTeamName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
 
@@ -45,7 +46,7 @@ export function AuthForm() {
     const endpoint = isLogin ? 'login' : 'register';
     const payload = isLogin
       ? { username, password }
-      : { username, email, password, firstName, lastName };
+      : { username, email, password, firstName, lastName, teamName };
 
     try {
       const response = await fetch(`${backendUrl}/auth/${endpoint}`, {
@@ -163,6 +164,24 @@ export function AuthForm() {
                 onChangeText={setLastName}
               />
             </View>
+          )}
+
+          {!isLogin && (
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  borderColor: theme.backgroundSelected,
+                  backgroundColor: theme.backgroundElement,
+                },
+              ]}
+              placeholder="Team Name (Optional)"
+              placeholderTextColor={theme.textSecondary}
+              value={teamName}
+              onChangeText={setTeamName}
+              autoCapitalize="words"
+            />
           )}
 
           <TextInput

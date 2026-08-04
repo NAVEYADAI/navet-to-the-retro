@@ -8,11 +8,52 @@ generator client {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  email     String   @unique
+  id        Int          @id @default(autoincrement())
+  username  String       @unique
+  email     String       @unique
   password  String
   firstName String?
   lastName  String?
+  createdAt DateTime     @default(now())
+  members   TeamMember[]
+  comments  Comment[]
+}
+
+enum TeamRole {
+  TEAM_LEADER      // ראש צוות
+  PRODUCT_MANAGER   // מנהל מוצר
+  TESTER           // בודק
+  DEVELOPER        // מפתח
+}
+
+model Team {
+  id        Int          @id @default(autoincrement())
+  name      String
+  createdAt DateTime     @default(now())
+  members   TeamMember[]
+  comments  Comment[]
+}
+
+model TeamMember {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  teamId    Int
+  role      TeamRole @default(DEVELOPER)
   createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  createdAt DateTime @default(now())
+  authorId  Int
+  teamId    Int
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  team   Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 }

@@ -233,60 +233,71 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                     boxShadow: type === 'KEEP'
                       ? '0 0 30px rgba(0,230,118,0.6), 0 8px 30px rgba(0,0,0,0.25)'
                       : '0 0 30px rgba(255,23,68,0.6), 0 8px 30px rgba(0,0,0,0.25)',
-                    transition: 'transform 0.8s cubic-bezier(0.34, 1.8, 0.64, 1), box-shadow 0.4s ease',
-                    transform: type === 'KEEP' ? 'rotate(0deg)' : 'rotate(180deg)',
+                    transition: 'box-shadow 0.4s ease, transform 0.2s ease',
                     display: 'flex',
                     flexDirection: 'column',
                     '&:hover': {
-                      transform: type === 'KEEP' ? 'scale(1.14) rotate(0deg)' : 'scale(1.14) rotate(180deg)',
+                      transform: 'scale(1.12)',
                       boxShadow: type === 'KEEP'
                         ? '0 0 45px rgba(0,230,118,0.85), 0 12px 35px rgba(0,0,0,0.3)'
                         : '0 0 45px rgba(255,23,68,0.85), 0 12px 35px rgba(0,0,0,0.3)',
                     },
                     '&:active': {
-                      transform: type === 'KEEP' ? 'scale(0.88) rotate(-20deg)' : 'scale(0.88) rotate(200deg)',
+                      transform: 'scale(0.92)',
                     },
                   }}
                 >
-                  {/* Top Half: KEEP (Neon Emerald Vivid Green) */}
-                  <Box sx={{
-                    height: '50%',
-                    background: 'linear-gradient(135deg, #00e676 0%, #059669 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}>
+                  {/* Inner Rotating Background Halves & Icons */}
+                  <Box
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      transition: 'transform 0.85s cubic-bezier(0.34, 1.8, 0.64, 1)',
+                      transform: type === 'KEEP' ? 'rotate(0deg)' : 'rotate(180deg)',
+                    }}
+                  >
+                    {/* Top Half: KEEP (Neon Emerald Vivid Green) */}
                     <Box sx={{
-                      transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
-                      transition: 'transform 0.8s cubic-bezier(0.34, 1.8, 0.64, 1)',
-                      zIndex: 5,
+                      height: '50%',
+                      background: 'linear-gradient(135deg, #00e676 0%, #059669 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                      overflow: 'hidden',
                     }}>
-                      <Typography sx={{ fontSize: 28, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.4))' }}>👍</Typography>
+                      <Box sx={{
+                        transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
+                        transition: 'transform 0.85s cubic-bezier(0.34, 1.8, 0.64, 1)',
+                        zIndex: 5,
+                      }}>
+                        <Typography sx={{ fontSize: 28, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.4))' }}>👍</Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Bottom Half: IMPROVE (Electric Crimson Vivid Rose) */}
+                    <Box sx={{
+                      height: '50%',
+                      background: 'linear-gradient(135deg, #ff1744 0%, #b71c1c 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}>
+                      <Box sx={{
+                        transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
+                        transition: 'transform 0.85s cubic-bezier(0.34, 1.8, 0.64, 1)',
+                        zIndex: 5,
+                      }}>
+                        <Typography sx={{ fontSize: 28, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.4))' }}>🔧</Typography>
+                      </Box>
                     </Box>
                   </Box>
 
-                  {/* Bottom Half: IMPROVE (Electric Crimson Vivid Rose) */}
-                  <Box sx={{
-                    height: '50%',
-                    background: 'linear-gradient(135deg, #ff1744 0%, #b71c1c 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative',
-                    overflow: 'hidden',
-                  }}>
-                    <Box sx={{
-                      transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
-                      transition: 'transform 0.8s cubic-bezier(0.34, 1.8, 0.64, 1)',
-                      zIndex: 5,
-                    }}>
-                      <Typography sx={{ fontSize: 28, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.4))' }}>🔧</Typography>
-                    </Box>
-                  </Box>
-
-                  {/* Smooth Natural Golden Sand Dune Layer (Sits behind icons at the bottom) */}
+                  {/* Smooth Sand Dune Layer — Fixed at PHYSICAL BOTTOM of sphere (behind icons) */}
                   <Box
                     key={`sand-dune-${type}`}
                     sx={{
@@ -294,18 +305,21 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                       bottom: 0,
                       left: 0,
                       right: 0,
-                      height: '46%',
+                      height: '44%',
                       zIndex: 2,
                       pointerEvents: 'none',
                       overflow: 'hidden',
-                      background: 'linear-gradient(180deg, #fef08a 0%, #eab308 50%, #ca8a04 100%)',
+                      // Dynamic Sand Tint matching lower half: Red tint when KEEP (Red is bottom), Green tint when IMPROVE (Green is bottom)
+                      background: type === 'KEEP'
+                        ? 'linear-gradient(180deg, rgba(254,202,202,0.9) 0%, rgba(239,68,68,0.95) 50%, rgba(185,28,28,0.95) 100%)'
+                        : 'linear-gradient(180deg, rgba(167,243,208,0.9) 0%, rgba(16,185,129,0.95) 50%, rgba(4,120,87,0.95) 100%)',
                       borderRadius: '50% 50% 0 0',
-                      boxShadow: 'inset 0 4px 8px rgba(255,255,255,0.7), 0 -2px 8px rgba(0,0,0,0.2)',
-                      animation: 'sandSettle 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                      boxShadow: 'inset 0 4px 10px rgba(255,255,255,0.7), 0 -2px 8px rgba(0,0,0,0.2)',
+                      animation: 'sandSettle 0.85s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
                     }}
                   />
 
-                  {/* Center Orifice with Glass Bead */}
+                  {/* Center Glass Funnel Bead */}
                   <Box
                     sx={{
                       position: 'absolute',
@@ -328,14 +342,14 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                         width: 9,
                         height: 9,
                         borderRadius: '50%',
-                        backgroundColor: '#eab308',
-                        boxShadow: '0 0 8px #eab308',
+                        backgroundColor: type === 'KEEP' ? '#ef4444' : '#10b981',
+                        boxShadow: `0 0 8px ${type === 'KEEP' ? '#ef4444' : '#10b981'}`,
                         animation: 'sandStream 1s ease-in-out infinite',
                       }}
                     />
                   </Box>
 
-                  {/* Natural Trickling Sand Grains flowing down into the dune */}
+                  {/* Trickling Sand Grains flowing down to gravity */}
                   {[
                     { left: '46%', delay: '0s', duration: '0.9s' },
                     { left: '50%', delay: '0.2s', duration: '1.1s' },
@@ -350,8 +364,8 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                         width: 5,
                         height: 5,
                         borderRadius: '50%',
-                        backgroundColor: '#fef08a',
-                        boxShadow: '0 0 4px #eab308',
+                        backgroundColor: type === 'KEEP' ? '#fca5a5' : '#6ee7b7',
+                        boxShadow: `0 0 4px ${type === 'KEEP' ? '#f87171' : '#34d399'}`,
                         zIndex: 3,
                         animation: `sandTrickle ${p.duration} linear infinite`,
                         animationDelay: p.delay,

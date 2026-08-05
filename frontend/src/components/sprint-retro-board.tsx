@@ -219,39 +219,39 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
               )}
 
               {/* Yin-Yang / Hourglass Sand Toy Toggle Wheel */}
-              <Box sx={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 4, my: 1 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 4, my: 1.5 }}>
                 <Box
                   onClick={toggleType}
                   sx={{
-                    width: 96,
-                    height: 96,
+                    width: 108,
+                    height: 108,
                     borderRadius: '50%',
                     overflow: 'hidden',
-                    border: `4px solid ${isDark ? '#818cf8' : '#ffffff'}`,
+                    border: '4px solid #ffffff',
                     position: 'relative',
                     cursor: 'pointer',
-                    boxShadow: isDark
-                      ? '0 8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(99,102,241,0.4)'
-                      : '0 8px 24px rgba(0,0,0,0.15), 0 0 16px rgba(99,102,241,0.25)',
-                    transition: 'transform 0.75s cubic-bezier(0.68, -0.6, 0.32, 1.6), box-shadow 0.3s ease',
+                    boxShadow: type === 'KEEP'
+                      ? '0 0 30px rgba(0,230,118,0.6), 0 8px 30px rgba(0,0,0,0.25)'
+                      : '0 0 30px rgba(255,23,68,0.6), 0 8px 30px rgba(0,0,0,0.25)',
+                    transition: 'transform 0.8s cubic-bezier(0.34, 1.8, 0.64, 1), box-shadow 0.4s ease',
                     transform: type === 'KEEP' ? 'rotate(0deg)' : 'rotate(180deg)',
                     display: 'flex',
                     flexDirection: 'column',
                     '&:hover': {
-                      transform: type === 'KEEP' ? 'scale(1.12) rotate(0deg)' : 'scale(1.12) rotate(180deg)',
-                      boxShadow: isDark
-                        ? '0 12px 32px rgba(0,0,0,0.6), 0 0 25px rgba(99,102,241,0.6)'
-                        : '0 12px 32px rgba(0,0,0,0.2), 0 0 20px rgba(99,102,241,0.4)',
+                      transform: type === 'KEEP' ? 'scale(1.14) rotate(0deg)' : 'scale(1.14) rotate(180deg)',
+                      boxShadow: type === 'KEEP'
+                        ? '0 0 45px rgba(0,230,118,0.85), 0 12px 35px rgba(0,0,0,0.3)'
+                        : '0 0 45px rgba(255,23,68,0.85), 0 12px 35px rgba(0,0,0,0.3)',
                     },
                     '&:active': {
-                      transform: type === 'KEEP' ? 'scale(0.9) rotate(-15deg)' : 'scale(0.9) rotate(195deg)',
+                      transform: type === 'KEEP' ? 'scale(0.88) rotate(-20deg)' : 'scale(0.88) rotate(200deg)',
                     },
                   }}
                 >
-                  {/* Top Half: KEEP (Emerald Vivid Green) */}
+                  {/* Top Half: KEEP (Neon Emerald Vivid Green) */}
                   <Box sx={{
                     height: '50%',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    background: 'linear-gradient(135deg, #00e676 0%, #059669 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -260,16 +260,16 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                   }}>
                     <Box sx={{
                       transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
-                      transition: 'transform 0.75s cubic-bezier(0.68, -0.6, 0.32, 1.6)',
+                      transition: 'transform 0.8s cubic-bezier(0.34, 1.8, 0.64, 1)',
                     }}>
-                      <Typography sx={{ fontSize: 24, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.25))' }}>👍</Typography>
+                      <Typography sx={{ fontSize: 28, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.4))' }}>👍</Typography>
                     </Box>
                   </Box>
 
-                  {/* Bottom Half: IMPROVE (Rose Vivid Crimson) */}
+                  {/* Bottom Half: IMPROVE (Electric Crimson Vivid Rose) */}
                   <Box sx={{
                     height: '50%',
-                    background: 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)',
+                    background: 'linear-gradient(135deg, #ff1744 0%, #b71c1c 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -278,25 +278,25 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                   }}>
                     <Box sx={{
                       transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
-                      transition: 'transform 0.75s cubic-bezier(0.68, -0.6, 0.32, 1.6)',
+                      transition: 'transform 0.8s cubic-bezier(0.34, 1.8, 0.64, 1)',
                     }}>
-                      <Typography sx={{ fontSize: 24, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.25))' }}>🔧</Typography>
+                      <Typography sx={{ fontSize: 28, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.4))' }}>🔧</Typography>
                     </Box>
                   </Box>
 
-                  {/* Center Orifice with Glass/Hourglass Stream Bead */}
+                  {/* Center Orifice with Glowing Glass Funnel Bead */}
                   <Box
                     sx={{
                       position: 'absolute',
                       top: '50%',
                       left: '50%',
                       transform: 'translate(-50%, -50%)',
-                      width: 22,
-                      height: 22,
+                      width: 26,
+                      height: 26,
                       borderRadius: '50%',
                       backgroundColor: '#ffffff',
-                      boxShadow: '0 0 10px rgba(255,255,255,0.9), inset 0 2px 4px rgba(0,0,0,0.25)',
-                      zIndex: 5,
+                      boxShadow: '0 0 14px rgba(255,255,255,1), inset 0 2px 4px rgba(0,0,0,0.3)',
+                      zIndex: 6,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -304,33 +304,59 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                   >
                     <Box
                       sx={{
-                        width: 8,
-                        height: 8,
+                        width: 10,
+                        height: 10,
                         borderRadius: '50%',
-                        backgroundColor: '#f59e0b',
-                        boxShadow: '0 0 8px #f59e0b',
-                        animation: 'sandStream 1.2s ease-in-out infinite',
+                        backgroundColor: '#ffb703',
+                        boxShadow: '0 0 10px #ffb703, 0 0 20px #fb8500',
+                        animation: 'sandStream 1s ease-in-out infinite',
                       }}
                     />
                   </Box>
 
-                  {/* Trickling Sand Particles (children's toy sand effect) */}
+                  {/* Cascading Toy Sand Beads (Triggers tumble on rotate!) */}
+                  <Box key={`beads-${type}`} sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }}>
+                    {[
+                      { left: '38%', delay: '0s', color: '#ffea00' },
+                      { left: '46%', delay: '0.1s', color: '#00e676' },
+                      { left: '52%', delay: '0.2s', color: '#ff1744' },
+                      { left: '58%', delay: '0.3s', color: '#ffb703' },
+                      { left: '64%', delay: '0.4s', color: '#ffffff' },
+                    ].map((bead, idx) => (
+                      <Box
+                        key={idx}
+                        sx={{
+                          position: 'absolute',
+                          top: '25%',
+                          left: bead.left,
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          backgroundColor: bead.color,
+                          boxShadow: `0 0 6px ${bead.color}`,
+                          animation: 'beadCascade 0.9s cubic-bezier(0.25, 1, 0.5, 1) forwards',
+                          animationDelay: bead.delay,
+                        }}
+                      />
+                    ))}
+                  </Box>
+
+                  {/* Continuous trickle background particles */}
                   {[
-                    { left: '42%', delay: '0s', duration: '1s' },
-                    { left: '50%', delay: '0.35s', duration: '0.9s' },
-                    { left: '58%', delay: '0.7s', duration: '1.2s' },
+                    { left: '44%', delay: '0.15s', duration: '0.9s' },
+                    { left: '56%', delay: '0.45s', duration: '1.1s' },
                   ].map((p, idx) => (
                     <Box
-                      key={idx}
+                      key={`p-${idx}`}
                       sx={{
                         position: 'absolute',
-                        top: '30%',
+                        top: '28%',
                         left: p.left,
-                        width: 4,
-                        height: 4,
+                        width: 5,
+                        height: 5,
                         borderRadius: '50%',
-                        backgroundColor: '#fde047',
-                        boxShadow: '0 0 4px #eab308',
+                        backgroundColor: '#ffea00',
+                        boxShadow: '0 0 6px #ffea00',
                         zIndex: 4,
                         animation: `sandFall ${p.duration} linear infinite`,
                         animationDelay: p.delay,
@@ -341,16 +367,17 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                 </Box>
 
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography sx={{ fontSize: 12, color: theme.textSecondary, fontFamily: 'Rubik, sans-serif', mb: 0.5, fontWeight: 500 }}>
+                  <Typography sx={{ fontSize: 12, color: theme.textSecondary, fontFamily: 'Rubik, sans-serif', mb: 0.5, fontWeight: 600 }}>
                     {Strings.retroBoard.spinLabel} ⏳
                   </Typography>
                   <Typography sx={{
-                    fontSize: 18,
-                    fontWeight: 800,
-                    color: type === 'KEEP' ? '#10b981' : '#f43f5e',
+                    fontSize: 20,
+                    fontWeight: 900,
+                    color: type === 'KEEP' ? '#00c853' : '#ff1744',
                     fontFamily: 'Rubik, sans-serif',
-                    letterSpacing: -0.3,
+                    letterSpacing: -0.4,
                     transition: 'color 0.3s ease',
+                    textShadow: type === 'KEEP' ? '0 0 12px rgba(0,230,118,0.4)' : '0 0 12px rgba(255,23,68,0.4)',
                   }}>
                     {type === 'KEEP' ? Strings.retroBoard.keepLabel : Strings.retroBoard.improveLabel}
                   </Typography>
@@ -434,9 +461,15 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
             {/* Column 1: KEEP */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid #2e7d32', backgroundColor: 'rgba(46, 125, 50, 0.06)', textAlign: 'center' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#2e7d32', fontFamily: 'Rubik, sans-serif' }}>
-                    {Strings.retroBoard.keepColumnHeader}
+                <Box sx={{
+                  p: 1.8,
+                  borderRadius: '14px',
+                  background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
+                  boxShadow: '0 4px 14px rgba(16,185,129,0.3)',
+                  textAlign: 'center',
+                }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#ffffff', fontFamily: 'Rubik, sans-serif', letterSpacing: -0.3 }}>
+                    👍 {Strings.retroBoard.keepColumnHeader}
                   </Typography>
                 </Box>
 
@@ -447,24 +480,32 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                 ) : (
                   keepComments.map((comment, index) => (
                     <Grow in={true} key={comment.id} timeout={(index % 8) * 100 + 300}>
-                      <Card sx={{ backgroundColor: keepBg, borderRight: '5px solid #2e7d32', borderRadius: 2.5, boxShadow: '0px 3px 6px rgba(0,0,0,0.03)' }}>
+                      <Card sx={{
+                        backgroundColor: isDark ? 'rgba(16,185,129,0.08)' : '#ecfdf5',
+                        borderRight: '5px solid #10b981',
+                        borderLeft: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
+                        borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
+                        borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
+                        borderRadius: '16px',
+                        boxShadow: '0px 4px 12px rgba(0,0,0,0.04)',
+                      }}>
                         <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.5, textAlign: 'right' }}>
-                          <Typography sx={{ color: keepText, fontWeight: '500', lineHeight: 1.5, fontFamily: 'Rubik, sans-serif', fontSize: 14 }}>
+                          <Typography sx={{ color: isDark ? '#a7f3d0' : '#065f46', fontWeight: '500', lineHeight: 1.5, fontFamily: 'Rubik, sans-serif', fontSize: 14 }}>
                             {comment.content}
                           </Typography>
-                          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', pt: 1, borderTop: '1px solid rgba(0,0,0,0.03)' }}>
+                          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', pt: 1, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` }}>
                             {comment.isAnonymous ? (
-                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', fontStyle: 'italic', color: '#ff8f00', fontFamily: 'Rubik, sans-serif' }}>
+                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', fontStyle: 'italic', color: '#f59e0b', fontFamily: 'Rubik, sans-serif' }}>
                                 {comment.author.username !== 'Anonymous' && isAdmin
                                   ? Strings.retroBoard.anonymousByAdmin(comment.author.username)
                                   : Strings.retroBoard.anonymousAuthor}
                               </Typography>
                             ) : (
-                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', color: keepMetaText, fontFamily: 'Rubik, sans-serif' }}>
+                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', color: isDark ? '#34d399' : '#047857', fontFamily: 'Rubik, sans-serif' }}>
                                 @{comment.author.username}
                               </Typography>
                             )}
-                            <Typography sx={{ fontSize: 11, color: keepMetaText, opacity: 0.7, fontFamily: 'Rubik, sans-serif' }}>
+                            <Typography sx={{ fontSize: 11, color: isDark ? '#6ee7b7' : '#047857', opacity: 0.7, fontFamily: 'Rubik, sans-serif' }}>
                               {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </Typography>
                           </Box>
@@ -479,9 +520,15 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
             {/* Column 2: IMPROVE */}
             <Grid size={{ xs: 12, md: 6 }}>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid #c62828', backgroundColor: 'rgba(198, 40, 40, 0.06)', textAlign: 'center' }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#c62828', fontFamily: 'Rubik, sans-serif' }}>
-                    {Strings.retroBoard.improveColumnHeader}
+                <Box sx={{
+                  p: 1.8,
+                  borderRadius: '14px',
+                  background: 'linear-gradient(135deg, #ff1744 0%, #b71c1c 100%)',
+                  boxShadow: '0 4px 14px rgba(255,23,68,0.3)',
+                  textAlign: 'center',
+                }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#ffffff', fontFamily: 'Rubik, sans-serif', letterSpacing: -0.3 }}>
+                    🔧 {Strings.retroBoard.improveColumnHeader}
                   </Typography>
                 </Box>
 
@@ -492,24 +539,32 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                 ) : (
                   improveComments.map((comment, index) => (
                     <Grow in={true} key={comment.id} timeout={(index % 8) * 100 + 350}>
-                      <Card sx={{ backgroundColor: improveBg, borderRight: '5px solid #c62828', borderRadius: 2.5, boxShadow: '0px 3px 6px rgba(0,0,0,0.03)' }}>
+                      <Card sx={{
+                        backgroundColor: isDark ? 'rgba(255,23,68,0.08)' : '#fff1f2',
+                        borderRight: '5px solid #ff1744',
+                        borderLeft: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
+                        borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
+                        borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
+                        borderRadius: '16px',
+                        boxShadow: '0px 4px 12px rgba(0,0,0,0.04)',
+                      }}>
                         <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.5, textAlign: 'right' }}>
-                          <Typography sx={{ color: improveText, fontWeight: '500', lineHeight: 1.5, fontFamily: 'Rubik, sans-serif', fontSize: 14 }}>
+                          <Typography sx={{ color: isDark ? '#fecdd3' : '#9f1239', fontWeight: '500', lineHeight: 1.5, fontFamily: 'Rubik, sans-serif', fontSize: 14 }}>
                             {comment.content}
                           </Typography>
-                          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', pt: 1, borderTop: '1px solid rgba(0,0,0,0.03)' }}>
+                          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', pt: 1, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` }}>
                             {comment.isAnonymous ? (
-                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', fontStyle: 'italic', color: '#ff8f00', fontFamily: 'Rubik, sans-serif' }}>
+                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', fontStyle: 'italic', color: '#f59e0b', fontFamily: 'Rubik, sans-serif' }}>
                                 {comment.author.username !== 'Anonymous' && isAdmin
                                   ? Strings.retroBoard.anonymousByAdmin(comment.author.username)
                                   : Strings.retroBoard.anonymousAuthor}
                               </Typography>
                             ) : (
-                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', color: improveMetaText, fontFamily: 'Rubik, sans-serif' }}>
+                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', color: isDark ? '#fb7185' : '#be123c', fontFamily: 'Rubik, sans-serif' }}>
                                 @{comment.author.username}
                               </Typography>
                             )}
-                            <Typography sx={{ fontSize: 11, color: improveMetaText, opacity: 0.7, fontFamily: 'Rubik, sans-serif' }}>
+                            <Typography sx={{ fontSize: 11, color: isDark ? '#fda4af' : '#be123c', opacity: 0.7, fontFamily: 'Rubik, sans-serif' }}>
                               {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </Typography>
                           </Box>

@@ -57,16 +57,41 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     }
     @keyframes sandFall {
       0% {
-        transform: translateY(-24px) scale(1);
-        opacity: 0.9;
+        transform: translateY(-28px) scale(0.6);
+        opacity: 0;
       }
-      70% {
-        transform: translateY(22px) scale(0.8);
-        opacity: 0.8;
+      20% {
+        opacity: 1;
+        transform: translateY(-15px) scale(1.1);
+      }
+      80% {
+        opacity: 1;
+        transform: translateY(28px) scale(1);
       }
       100% {
-        transform: translateY(32px) scale(0.3);
         opacity: 0;
+        transform: translateY(38px) scale(0.5);
+      }
+    }
+    @keyframes beadCascade {
+      0% {
+        transform: translateY(-38px) scale(0.3) rotate(0deg);
+        opacity: 0;
+      }
+      25% {
+        opacity: 1;
+        transform: translateY(-10px) scale(1.2) rotate(45deg);
+      }
+      70% {
+        opacity: 1;
+        transform: translateY(24px) scale(1) rotate(180deg);
+      }
+      85% {
+        transform: translateY(34px) scale(1.15) rotate(220deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(42px) scale(0.4) rotate(360deg);
       }
     }
     @keyframes sandStream {

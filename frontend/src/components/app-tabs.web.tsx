@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   Tabs,
   TabList,
@@ -19,10 +19,10 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton>ראשי</TabButton>
+            <TabButton icon="🏠">ראשי</TabButton>
           </TabTrigger>
           <TabTrigger name="settings" href="/settings" asChild>
-            <TabButton>הגדרות</TabButton>
+            <TabButton icon="⚙️">הגדרות</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -30,23 +30,39 @@ export default function AppTabs() {
   );
 }
 
-export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+export function TabButton({ children, isFocused, icon, ...props }: TabTriggerSlotProps & { icon?: string }) {
+  const scheme = useColorScheme();
+  const isDark = scheme === 'dark';
+
   return (
-    <Pressable {...props} style={({ pressed }) => [pressed && styles.pressed]}>
-      <View
-        style={[
-          styles.tabButtonView,
-          isFocused && styles.tabButtonViewActive,
-        ]}
+    <Pressable {...props} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          padding: '7px 16px',
+          borderRadius: 10,
+          backgroundColor: isFocused
+            ? (isDark ? 'rgba(129,140,248,0.15)' : 'rgba(99,102,241,0.08)')
+            : 'transparent',
+          transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+          cursor: 'pointer',
+        }}
       >
+        {icon && <span style={{ fontSize: 14 }}>{icon}</span>}
         <ThemedText
           type="smallBold"
           themeColor={isFocused ? 'text' : 'textSecondary'}
-          style={[styles.tabButtonText, isFocused && styles.tabButtonTextActive]}
+          style={{
+            fontSize: 13,
+            fontWeight: isFocused ? '700' : '500',
+            letterSpacing: -0.2,
+          }}
         >
           {children}
         </ThemedText>
-      </View>
+      </div>
     </Pressable>
   );
 }
@@ -55,33 +71,58 @@ export function CustomTabList(props: TabListProps) {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   const { logout, user } = useAuth();
-  const navRef = useRef<View>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const isDark = scheme === 'dark';
-  const navBg = isDark ? 'rgba(15, 15, 20, 0.85)' : 'rgba(255, 255, 255, 0.82)';
-  const borderColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+
+  // Apply web-only CSS properties via ref after mount
+  useEffect(() => {
+    if (Platform.OS === 'web' && containerRef.current) {
+      const el = containerRef.current;
+      el.style.backdropFilter = 'blur(20px) saturate(1.8)';
+      el.style.webkitBackdropFilter = 'blur(20px) saturate(1.8)';
+      el.style.boxShadow = isDark
+        ? '0 4px 30px rgba(0,0,0,0.4), 0 0 1px rgba(255,255,255,0.05) inset'
+        : '0 4px 30px rgba(0,0,0,0.06), 0 0 1px rgba(255,255,255,0.8) inset';
+      el.style.animation = 'navSlideIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both';
+      el.style.transition = 'background 0.3s ease, border-color 0.3s ease';
+    }
+  }, [isDark]);
 
   return (
     <View
       {...props}
-      ref={navRef}
+      ref={containerRef as any}
       style={[
         styles.tabListContainer,
         {
-          backgroundColor: navBg,
-          borderColor,
-        }
+          backgroundColor: isDark ? 'rgba(10,10,18,0.82)' : 'rgba(255,255,255,0.78)',
+          borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+        },
       ]}
     >
       <View style={styles.innerContainer}>
         {/* Brand (Right side in RTL) */}
         <View style={styles.brandContainer}>
-          <View style={[styles.brandSquare, { backgroundColor: colors.text }]}>
-            <ThemedText style={{ fontWeight: '800', fontSize: 14, color: colors.background, letterSpacing: -0.5 }}>R</ThemedText>
-          </View>
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: isDark
+                ? 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)'
+                : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
+            }}
+          >
+            <span style={{ color: '#fff', fontWeight: 800, fontSize: 16, fontFamily: 'Rubik, sans-serif' }}>R</span>
+          </div>
           <View style={styles.brandTextBlock}>
             <ThemedText style={[styles.brandTitle, { color: colors.text }]}>לוח רטרו</ThemedText>
-            <ThemedText style={[styles.brandSubtitle, { color: colors.textSecondary }]}>Retro Board</ThemedText>
+            <ThemedText style={[styles.brandSubtitle, { color: isDark ? '#818cf8' : '#6366f1' }]}>RETRO BOARD</ThemedText>
           </View>
         </View>
 
@@ -94,21 +135,67 @@ export function CustomTabList(props: TabListProps) {
         {!!user ? (
           <View style={styles.leftActions}>
             <View style={styles.userInfo}>
-              <ThemedText style={[styles.greetingLabel, { color: colors.textSecondary }]}>שלום,</ThemedText>
-              <ThemedText style={[styles.greetingName, { color: colors.text }]}>
-                {user.firstName || user.email?.split('@')[0]}
-              </ThemedText>
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 8,
+                  background: isDark
+                    ? 'linear-gradient(135deg, #334155 0%, #1e293b 100%)'
+                    : 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: isDark ? '#818cf8' : '#4f46e5',
+                  fontFamily: 'Rubik, sans-serif',
+                }}
+              >
+                {(user.firstName?.[0] || user.email?.[0] || '?').toUpperCase()}
+              </div>
+              <View>
+                <ThemedText style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>
+                  {user.firstName || user.email?.split('@')[0]}
+                </ThemedText>
+                <ThemedText style={{ fontSize: 10, color: colors.textSecondary, opacity: 0.7 }}>
+                  מחובר
+                </ThemedText>
+              </View>
             </View>
             <TouchableOpacity
-              style={[styles.logoutButton, { borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)' }]}
               onPress={logout}
-              activeOpacity={0.65}
+              activeOpacity={0.6}
             >
-              <ThemedText style={[styles.logoutText, { color: colors.textSecondary }]}>יציאה</ThemedText>
+              <div
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+                  transition: 'all 0.2s ease',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: colors.textSecondary,
+                  fontFamily: 'Rubik, sans-serif',
+                }}
+                onMouseEnter={(e) => {
+                  (e.target as HTMLElement).style.borderColor = '#ef4444';
+                  (e.target as HTMLElement).style.color = '#ef4444';
+                  (e.target as HTMLElement).style.background = 'rgba(239,68,68,0.06)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.target as HTMLElement).style.borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
+                  (e.target as HTMLElement).style.color = colors.textSecondary;
+                  (e.target as HTMLElement).style.background = 'transparent';
+                }}
+              >
+                יציאה
+              </div>
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={{ width: 120 }} />
+          <View style={{ width: 140 }} />
         )}
       </View>
     </View>
@@ -117,35 +204,23 @@ export function CustomTabList(props: TabListProps) {
 
 const styles = StyleSheet.create({
   tabListContainer: {
-    position: 'fixed',
-    top: 12,
+    position: 'fixed' as any,
+    top: 14,
     left: 0,
     right: 0,
-    height: 60,
+    height: 62,
     zIndex: 1000,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 16,
     borderWidth: 1,
-    width: '92%',
-    maxWidth: MaxContentWidth,
-    marginHorizontal: 'auto',
-    // Web-only CSS injection for blur + animation + shadow
-    ...(Platform.OS === 'web' ? {
-      backdropFilter: 'blur(16px)',
-      WebkitBackdropFilter: 'blur(16px)',
-      boxShadow: '0 4px 24px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05)',
-      animation: 'navSlideIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both',
-    } as any : {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
-    }),
+    width: '94%',
+    maxWidth: MaxContentWidth + 40,
+    marginHorizontal: 'auto' as any,
   },
   innerContainer: {
     width: '100%',
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: 20,
     flexDirection: 'row-reverse',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -155,31 +230,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  brandSquare: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   brandTextBlock: {
     flexDirection: 'column',
     alignItems: 'flex-end',
     gap: 0,
   },
   brandTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: -0.3,
-    lineHeight: 18,
+    letterSpacing: -0.4,
+    lineHeight: 20,
   },
   brandSubtitle: {
-    fontSize: 10,
-    fontWeight: '500',
-    letterSpacing: 0.5,
-    opacity: 0.5,
-    lineHeight: 13,
-    textTransform: 'uppercase',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    lineHeight: 12,
   },
   navLinks: {
     flexDirection: 'row-reverse',
@@ -189,52 +255,11 @@ const styles = StyleSheet.create({
   leftActions: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: 12,
   },
   userInfo: {
     flexDirection: 'row-reverse',
-    alignItems: 'baseline',
-    gap: 4,
-  },
-  greetingLabel: {
-    fontSize: 12,
-    fontWeight: '400',
-  },
-  greetingName: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  pressed: {
-    opacity: 0.65,
-  },
-  tabButtonView: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    ...(Platform.OS === 'web' ? {
-      transition: 'background 0.18s ease, transform 0.15s ease',
-    } as any : {}),
-  },
-  tabButtonViewActive: {
-    backgroundColor: 'rgba(0,0,0,0.07)',
-  },
-  tabButtonText: {
-    fontSize: 14,
-  },
-  tabButtonTextActive: {
-    fontWeight: '700',
-  },
-  logoutButton: {
-    borderWidth: 1,
-    paddingVertical: 5,
-    paddingHorizontal: 11,
-    borderRadius: 8,
-    ...(Platform.OS === 'web' ? {
-      transition: 'opacity 0.15s ease',
-    } as any : {}),
-  },
-  logoutText: {
-    fontSize: 12,
-    fontWeight: '600',
+    alignItems: 'center',
+    gap: 8,
   },
 });

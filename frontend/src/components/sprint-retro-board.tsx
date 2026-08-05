@@ -143,41 +143,60 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
   const improveText = '#b71c1c';
   const improveMetaText = '#c62828';
 
+  const isDark = useRNColorScheme() === 'dark';
+  const accent = isDark ? '#818cf8' : '#6366f1';
+  const boardCardSx = {
+    backgroundColor: isDark ? 'rgba(15,15,24,0.6)' : 'rgba(255,255,255,0.8)',
+    backdropFilter: 'blur(12px)',
+    border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+    borderRadius: '20px',
+    boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.04)',
+    mb: 2,
+  };
+
   return (
-    <Box sx={{ px: { xs: 2, md: 4 }, pt: { xs: 14, md: 12 }, pb: { xs: 4, md: 6 }, minHeight: '100vh', backgroundColor: theme.background, direction: 'rtl' }}>
+    <Box sx={{
+      px: { xs: 2, md: 4 },
+      pt: { xs: 14, md: 12 },
+      pb: { xs: 4, md: 6 },
+      minHeight: '100vh',
+      direction: 'rtl',
+    }}>
       <Box sx={{ width: '100%', maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
         
         {/* Header */}
         <Fade in={true} timeout={500}>
-          <Box sx={{ borderBottom: '1px solid rgba(0,0,0,0.06)', pb: 3, mb: 2, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
+          <Box sx={{ pb: 3, mb: 2, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
             <Button
               variant="outlined"
               onClick={onBack}
               sx={{
                 alignSelf: 'flex-end',
-                borderColor: theme.backgroundSelected,
+                borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
                 color: theme.text,
-                fontWeight: 'bold',
+                fontWeight: 700,
                 fontFamily: 'Rubik, sans-serif',
-                borderRadius: 2,
+                borderRadius: '12px',
+                transition: 'all 0.2s ease',
                 '&:hover': {
-                  borderColor: theme.text,
-                  backgroundColor: 'rgba(0,0,0,0.01)',
+                  borderColor: accent,
+                  color: accent,
+                  backgroundColor: `${accent}08`,
                 }
               }}
             >
               {Strings.retroBoard.backButton}
             </Button>
             
-            <Box sx={{ textAlign: 'right' }}>
-              <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif', mb: 1 }}>
-                {sprint.name} {Strings.retroBoard.keepLabel.split(' ')[1]}
+            <Box sx={{ textAlign: 'right', animation: 'fadeInUp 0.5s ease both' }}>
+              <Typography variant="h4" sx={{ fontWeight: 800, color: theme.text, fontFamily: 'Rubik, sans-serif', mb: 0.5, letterSpacing: -0.5 }}>
+                {sprint.name} 📋
               </Typography>
               <Typography variant="body2" sx={{ color: theme.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
                 {`${team.name} • ${new Date(sprint.startDate).toLocaleDateString()} - ${new Date(sprint.endDate).toLocaleDateString()}`}
               </Typography>
               {sprint.description && (
-                <Typography variant="body1" sx={{ color: theme.text, fontStyle: 'italic', mt: 1.5, fontFamily: 'Rubik, sans-serif' }}>
+                <Typography variant="body1" sx={{ color: theme.text, fontStyle: 'italic', mt: 1.5, fontFamily: 'Rubik, sans-serif', opacity: 0.8 }}>
                   {sprint.description}
                 </Typography>
               )}
@@ -187,24 +206,14 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
 
         {/* Input Form */}
         <Grow in={true} timeout={500}>
-          <Card
-            sx={{
-              backgroundColor: theme.backgroundElement,
-              borderColor: theme.backgroundSelected,
-              borderWidth: 1,
-              borderStyle: 'solid',
-              borderRadius: 4,
-              boxShadow: '0px 4px 12px rgba(0,0,0,0.03)',
-              mb: 2,
-            }}
-          >
+          <Card sx={boardCardSx}>
             <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, textAlign: 'right' }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
-                {Strings.retroBoard.writeNoteHeader}
+              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
+                ✍️ {Strings.retroBoard.writeNoteHeader}
               </Typography>
 
               {error && (
-                <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
+                <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right', borderRadius: '12px', fontFamily: 'Rubik, sans-serif' }}>
                   {error}
                 </Alert>
               )}
@@ -218,10 +227,10 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                     height: 90,
                     borderRadius: '50%',
                     overflow: 'hidden',
-                    border: '3px solid #ffffff',
+                    border: `3px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#ffffff'}`,
                     position: 'relative',
                     cursor: 'pointer',
-                    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.12)',
+                    boxShadow: isDark ? '0px 4px 16px rgba(0,0,0,0.3)' : '0px 4px 12px rgba(0, 0, 0, 0.12)',
                     transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
                     transform: type === 'KEEP' ? 'rotate(0deg)' : 'rotate(180deg)',
                     display: 'flex',
@@ -269,12 +278,14 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 sx={{
-                  textarea: { color: theme.text, textAlign: 'right' },
-                  fieldset: { borderColor: theme.backgroundSelected },
+                  textarea: { color: theme.text, textAlign: 'right', fontFamily: 'Rubik, sans-serif' },
                   '& .MuiOutlinedInput-root': {
-                    backgroundColor: theme.background,
-                    '&:hover fieldset': { borderColor: theme.text },
-                    '&.Mui-focused fieldset': { borderColor: theme.text },
+                    borderRadius: '12px',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                    transition: 'all 0.2s ease',
+                    '&:hover fieldset': { borderColor: accent },
+                    '&.Mui-focused fieldset': { borderColor: accent, borderWidth: 2 },
+                    fieldset: { borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' },
                   }
                 }}
               />
@@ -285,6 +296,10 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                     <MuiSwitch
                       checked={isAnonymous}
                       onChange={(e) => setIsAnonymous(e.target.checked)}
+                      sx={{
+                        '& .MuiSwitch-switchBase.Mui-checked': { color: accent },
+                        '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: accent },
+                      }}
                     />
                   }
                   label={Strings.retroBoard.anonymousLabel}
@@ -297,19 +312,22 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                   onClick={handlePostComment}
                   disabled={isSubmitting}
                   sx={{
-                    backgroundColor: theme.text,
-                    color: theme.background,
-                    fontWeight: 'bold',
+                    background: `linear-gradient(135deg, ${accent} 0%, #8b5cf6 100%)`,
+                    color: '#fff',
+                    fontWeight: 700,
                     fontFamily: 'Rubik, sans-serif',
                     textTransform: 'none',
-                    borderRadius: 2,
+                    borderRadius: '12px',
                     px: 3,
+                    boxShadow: '0 4px 16px rgba(99,102,241,0.25)',
+                    transition: 'all 0.25s ease',
                     '&:hover': {
-                      backgroundColor: theme.textSecondary,
-                    }
+                      transform: 'translateY(-1px)',
+                      boxShadow: '0 8px 24px rgba(99,102,241,0.35)',
+                    },
                   }}
                 >
-                  {isSubmitting ? <CircularProgress size={20} color="inherit" /> : Strings.retroBoard.postNoteButton}
+                  {isSubmitting ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : Strings.retroBoard.postNoteButton}
                 </Button>
               </Box>
             </CardContent>

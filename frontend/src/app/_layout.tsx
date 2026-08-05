@@ -109,6 +109,24 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       60%  { transform: scaleY(1.08); opacity: 0.95; }
       100% { transform: scaleY(1); opacity: 0.9; }
     }
+    @keyframes sandPourStream {
+      0%   { height: 0px; opacity: 0; transform: scaleX(0.3); }
+      20%  { height: 45px; opacity: 0.95; transform: scaleX(1.2); }
+      75%  { height: 45px; opacity: 0.9; transform: scaleX(0.9); }
+      100% { height: 0px; opacity: 0; transform: scaleX(0.2); }
+    }
+    @keyframes sandPourShower {
+      0%   { transform: translateY(-30px) scale(0.4); opacity: 0; }
+      15%  { opacity: 1; transform: translateY(-15px) scale(1.2); }
+      85%  { opacity: 1; transform: translateY(30px) scale(0.9); }
+      100% { opacity: 0; transform: translateY(42px) scale(0.2); }
+    }
+    @keyframes sandPourFill {
+      0%   { transform: scaleY(0.15); opacity: 0.3; }
+      45%  { transform: scaleY(0.55); opacity: 0.75; }
+      85%  { transform: scaleY(1.06); opacity: 0.95; }
+      100% { transform: scaleY(1); opacity: 0.92; }
+    }
     @keyframes sandFill {
       0%   { transform: scaleY(0.2); transform-origin: bottom center; }
       100% { transform: scaleY(1); transform-origin: bottom center; }

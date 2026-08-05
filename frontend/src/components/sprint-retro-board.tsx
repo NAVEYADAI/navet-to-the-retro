@@ -297,7 +297,7 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                     </Box>
                   </Box>
 
-                  {/* Smooth Sand Dune Layer — Fixed at PHYSICAL BOTTOM of sphere (behind icons) */}
+                  {/* Smooth Natural Sand Dune Layer — Fixed at PHYSICAL BOTTOM of sphere (behind icons) */}
                   <Box
                     key={`sand-dune-${type}`}
                     sx={{
@@ -305,21 +305,42 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                       bottom: 0,
                       left: 0,
                       right: 0,
-                      height: '44%',
+                      height: '46%',
                       zIndex: 2,
                       pointerEvents: 'none',
                       overflow: 'hidden',
                       // Dynamic Sand Tint matching lower half: Red tint when KEEP (Red is bottom), Green tint when IMPROVE (Green is bottom)
                       background: type === 'KEEP'
-                        ? 'linear-gradient(180deg, rgba(254,202,202,0.9) 0%, rgba(239,68,68,0.95) 50%, rgba(185,28,28,0.95) 100%)'
-                        : 'linear-gradient(180deg, rgba(167,243,208,0.9) 0%, rgba(16,185,129,0.95) 50%, rgba(4,120,87,0.95) 100%)',
+                        ? 'linear-gradient(180deg, rgba(254,202,202,0.92) 0%, rgba(239,68,68,0.96) 50%, rgba(185,28,28,0.96) 100%)'
+                        : 'linear-gradient(180deg, rgba(167,243,208,0.92) 0%, rgba(16,185,129,0.96) 50%, rgba(4,120,87,0.96) 100%)',
                       borderRadius: '50% 50% 0 0',
                       boxShadow: 'inset 0 4px 10px rgba(255,255,255,0.7), 0 -2px 8px rgba(0,0,0,0.2)',
-                      animation: 'sandSettle 0.85s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                      transformOrigin: 'bottom center',
+                      animation: 'sandPourFill 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards',
                     }}
                   />
 
-                  {/* Center Glass Funnel Bead */}
+                  {/* Sand Pouring Waterfall Stream (Shoots from center down into bottom dune on spin) */}
+                  <Box
+                    key={`sand-stream-${type}`}
+                    sx={{
+                      position: 'absolute',
+                      top: '48%',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: 5,
+                      zIndex: 3,
+                      pointerEvents: 'none',
+                      borderRadius: '4px',
+                      background: type === 'KEEP'
+                        ? 'linear-gradient(180deg, #fecdd3 0%, #ef4444 100%)'
+                        : 'linear-gradient(180deg, #a7f3d0 0%, #10b981 100%)',
+                      boxShadow: `0 0 8px ${type === 'KEEP' ? '#f87171' : '#34d399'}`,
+                      animation: 'sandPourStream 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+                    }}
+                  />
+
+                  {/* Hourglass Center Funnel Bead */}
                   <Box
                     sx={{
                       position: 'absolute',
@@ -349,30 +370,31 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                     />
                   </Box>
 
-                  {/* Trickling Sand Grains flowing down to gravity */}
-                  {[
-                    { left: '46%', delay: '0s', duration: '0.9s' },
-                    { left: '50%', delay: '0.2s', duration: '1.1s' },
-                    { left: '54%', delay: '0.4s', duration: '0.8s' },
-                  ].map((p, idx) => (
-                    <Box
-                      key={`sand-grain-${type}-${idx}`}
-                      sx={{
-                        position: 'absolute',
-                        top: '30%',
-                        left: p.left,
-                        width: 5,
-                        height: 5,
-                        borderRadius: '50%',
-                        backgroundColor: type === 'KEEP' ? '#fca5a5' : '#6ee7b7',
-                        boxShadow: `0 0 4px ${type === 'KEEP' ? '#f87171' : '#34d399'}`,
-                        zIndex: 3,
-                        animation: `sandTrickle ${p.duration} linear infinite`,
-                        animationDelay: p.delay,
-                        pointerEvents: 'none',
-                      }}
-                    />
-                  ))}
+                  {/* Pouring Sand Grains Shower (Trickles down into the dune during rotation) */}
+                  <Box key={`sand-shower-${type}`} sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3 }}>
+                    {[
+                      { left: '44%', delay: '0s' },
+                      { left: '48%', delay: '0.1s' },
+                      { left: '52%', delay: '0.2s' },
+                      { left: '56%', delay: '0.3s' },
+                    ].map((p, idx) => (
+                      <Box
+                        key={idx}
+                        sx={{
+                          position: 'absolute',
+                          top: '25%',
+                          left: p.left,
+                          width: 5,
+                          height: 5,
+                          borderRadius: '50%',
+                          backgroundColor: type === 'KEEP' ? '#fecdd3' : '#a7f3d0',
+                          boxShadow: `0 0 6px ${type === 'KEEP' ? '#ef4444' : '#10b981'}`,
+                          animation: 'sandPourShower 0.75s ease-out forwards',
+                          animationDelay: p.delay,
+                        }}
+                      />
+                    ))}
+                  </Box>
                 </Box>
 
                 <Box sx={{ textAlign: 'right' }}>

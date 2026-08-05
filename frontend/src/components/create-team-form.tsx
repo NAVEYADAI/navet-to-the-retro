@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { ThemedText } from './themed-text';
 import { Spacing } from '@/constants/theme';
+import { Strings } from '@/constants/strings';
 
 interface CreateTeamFormProps {
   onSubmit: (name: string, mainOffice: string) => Promise<void>;
   isLoading: boolean;
+  isFirstTeam?: boolean;
+  onCancel?: () => void;
   theme: {
     text: string;
     background: string;
@@ -15,7 +18,7 @@ interface CreateTeamFormProps {
   };
 }
 
-export function CreateTeamForm({ onSubmit, isLoading, theme }: CreateTeamFormProps) {
+export function CreateTeamForm({ onSubmit, isLoading, isFirstTeam = false, onCancel, theme }: CreateTeamFormProps) {
   const [newTeamName, setNewTeamName] = useState('');
   const [newMainOffice, setNewMainOffice] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
@@ -23,7 +26,7 @@ export function CreateTeamForm({ onSubmit, isLoading, theme }: CreateTeamFormPro
   const handleSubmit = async () => {
     setLocalError(null);
     if (!newTeamName.trim()) {
-      setLocalError('Team name is required.');
+      setLocalError('שם הצוות שדה חובה.');
       return;
     }
     try {
@@ -31,18 +34,30 @@ export function CreateTeamForm({ onSubmit, isLoading, theme }: CreateTeamFormPro
       setNewTeamName('');
       setNewMainOffice('');
     } catch (err: any) {
-      setLocalError(err.message || 'Failed to create team.');
+      setLocalError(err.message || 'יצירת הצוות נכשלה.');
     }
   };
 
   return (
     <View style={[styles.infoSection, { backgroundColor: theme.backgroundElement }]}>
-      <ThemedText type="subtitle" style={styles.sectionHeader}>
-        Create your first development team
-      </ThemedText>
-      <ThemedText type="default" style={styles.sectionDescription}>
-        You don't belong to any development team yet. Create one below to start collecting retro notes.
-      </ThemedText>
+      <View style={styles.headerRow}>
+        <ThemedText type="subtitle" style={styles.sectionHeader}>
+          {isFirstTeam ? Strings.dashboard.createFirstTeamTitle : Strings.dashboard.createTeamTitle}
+        </ThemedText>
+        {!!onCancel && (
+          <TouchableOpacity style={[styles.cancelBtn, { backgroundColor: theme.backgroundSelected }]} onPress={onCancel}>
+            <ThemedText style={{ fontSize: 12, fontWeight: 'bold', color: theme.text }}>
+              {Strings.dashboard.closeButton}
+            </ThemedText>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {isFirstTeam && (
+        <ThemedText type="default" style={styles.sectionDescription}>
+          {Strings.dashboard.createFirstTeamDesc}
+        </ThemedText>
+      )}
 
       {!!localError && (
         <View style={styles.errorBanner}>
@@ -60,7 +75,7 @@ export function CreateTeamForm({ onSubmit, isLoading, theme }: CreateTeamFormPro
               backgroundColor: theme.background,
             },
           ]}
-          placeholder="Team Name (e.g. R&D Core)"
+          placeholder="שם הצוות (למשל R&D Core)"
           placeholderTextColor={theme.textSecondary}
           value={newTeamName}
           onChangeText={setNewTeamName}
@@ -75,7 +90,7 @@ export function CreateTeamForm({ onSubmit, isLoading, theme }: CreateTeamFormPro
               backgroundColor: theme.background,
             },
           ]}
-          placeholder="Main Office / Headquarters (Optional)"
+          placeholder="משרד ראשי / מטה (אופציונלי)"
           placeholderTextColor={theme.textSecondary}
           value={newMainOffice}
           onChangeText={setNewMainOffice}
@@ -90,7 +105,7 @@ export function CreateTeamForm({ onSubmit, isLoading, theme }: CreateTeamFormPro
             <ActivityIndicator color={theme.background} />
           ) : (
             <ThemedText style={[styles.buttonText, { color: theme.background }]}>
-              Create Team (Team Leader)
+              צור צוות (ראש צוות)
             </ThemedText>
           )}
         </TouchableOpacity>
@@ -105,10 +120,20 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     gap: Spacing.two,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.one,
+  },
   sectionHeader: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: Spacing.one,
+  },
+  cancelBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
   },
   sectionDescription: {
     opacity: 0.8,

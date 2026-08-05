@@ -6,13 +6,22 @@ import {
   ActivityIndicator,
   View,
   Platform,
+  Animated,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { Spacing, Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { useAuth } from '@/context/auth-context';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export function AuthForm() {
   const colorScheme = useColorScheme();
@@ -25,8 +34,12 @@ export function AuthForm() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // Toggle password visibility
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
+
+  // Animated value for fade and slide transition
+  const [fadeAnim] = useState(new Animated.Value(1));
 
   const getBackendUrl = () => {
     return Platform.OS === 'web' && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
@@ -37,7 +50,7 @@ export function AuthForm() {
   const handleAuthSubmit = async () => {
     setErrorMessage(null);
     if (!username || !password || (!isLogin && !email)) {
-      setErrorMessage('Please fill in all required fields.');
+      setErrorMessage(Strings.auth.requiredFieldsError);
       return;
     }
 
@@ -55,27 +68,74 @@ export function AuthForm() {
       // Auto-log in on both login and register since both return accessToken and user
       await login(data.accessToken, data.user);
     } catch (err: any) {
-      setErrorMessage(err.response?.data?.message || err.message || 'An error occurred. Please try again.');
+      setErrorMessage(err.response?.data?.message || err.message || 'שגיאה בתהליך ההתחברות/הרשמה.');
     } finally {
       setFormLoading(false);
     }
   };
 
+  const toggleForm = () => {
+    // Fade out first
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start(() => {
+      // Configure layout slide and grow
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setIsLogin(!isLogin);
+      setErrorMessage(null);
+      setShowPassword(false); // Reset visibility toggle
+
+      // Fade back in
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: Platform.OS !== 'web',
+      }).start();
+    });
+  };
+
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.contentCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
-        <ThemedText type="title" style={styles.title}>
-          {isLogin ? 'Log In' : 'Sign Up'}
-        </ThemedText>
-        <ThemedText type="default" style={styles.subtitle}>
-          {isLogin
-            ? 'Enter your credentials to access your account'
-            : 'Create an account to start using the Retro app'}
-        </ThemedText>
+      <Animated.View
+        style={[
+          styles.contentCard,
+          {
+            backgroundColor: theme.backgroundElement,
+            borderColor: theme.backgroundSelected,
+            opacity: fadeAnim,
+            transform: [
+              {
+                translateY: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [10, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        {/* Brand Logo Placeholder */}
+        <View style={styles.logoContainer}>
+          <View style={[styles.logoCircle, { backgroundColor: theme.text }]}>
+            <ThemedText style={[styles.logoText, { color: theme.background }]}>
+              R
+            </ThemedText>
+          </View>
+          <ThemedText type="title" style={styles.title}>
+            {isLogin ? Strings.auth.welcomeBack : Strings.auth.getStarted}
+          </ThemedText>
+          <ThemedText type="default" style={styles.subtitle}>
+            {isLogin
+              ? Strings.auth.loginSubtitle
+              : Strings.auth.registerSubtitle}
+          </ThemedText>
+        </View>
 
         {errorMessage && (
-          <View style={styles.errorBanner}>
-            <ThemedText style={styles.errorText}>{errorMessage}</ThemedText>
+          <View style={[styles.errorBanner, { backgroundColor: colorScheme === 'dark' ? '#b71c1c' : '#ffebee' }]}>
+            <ThemedText style={[styles.errorText, { color: colorScheme === 'dark' ? '#ffebee' : '#c62828' }]}>{errorMessage}</ThemedText>
           </View>
         )}
 
@@ -86,10 +146,10 @@ export function AuthForm() {
               {
                 color: theme.text,
                 borderColor: theme.backgroundSelected,
-                backgroundColor: theme.backgroundElement,
+                backgroundColor: theme.background,
               },
             ]}
-            placeholder="Username"
+            placeholder={Strings.auth.usernamePlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={username}
             onChangeText={setUsername}
@@ -103,10 +163,10 @@ export function AuthForm() {
                 {
                   color: theme.text,
                   borderColor: theme.backgroundSelected,
-                  backgroundColor: theme.backgroundElement,
+                  backgroundColor: theme.background,
                 },
               ]}
-              placeholder="Email Address"
+              placeholder={Strings.auth.emailPlaceholder}
               placeholderTextColor={theme.textSecondary}
               value={email}
               onChangeText={setEmail}
@@ -116,57 +176,64 @@ export function AuthForm() {
           )}
 
           {!isLogin && (
-            <View style={styles.rowInputs}>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.halfInput,
-                  {
-                    color: theme.text,
-                    borderColor: theme.backgroundSelected,
-                    backgroundColor: theme.backgroundElement,
-                  },
-                ]}
-                placeholder="First Name"
-                placeholderTextColor={theme.textSecondary}
-                value={firstName}
-                onChangeText={setFirstName}
-              />
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.halfInput,
-                  {
-                    color: theme.text,
-                    borderColor: theme.backgroundSelected,
-                    backgroundColor: theme.backgroundElement,
-                  },
-                ]}
-                placeholder="Last Name"
-                placeholderTextColor={theme.textSecondary}
-                value={lastName}
-                onChangeText={setLastName}
-              />
-            </View>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  borderColor: theme.backgroundSelected,
+                  backgroundColor: theme.background,
+                },
+              ]}
+              placeholder={Strings.auth.firstNamePlaceholder}
+              placeholderTextColor={theme.textSecondary}
+              value={firstName}
+              onChangeText={setFirstName}
+            />
           )}
 
+          {!isLogin && (
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  borderColor: theme.backgroundSelected,
+                  backgroundColor: theme.background,
+                },
+              ]}
+              placeholder={Strings.auth.lastNamePlaceholder}
+              placeholderTextColor={theme.textSecondary}
+              value={lastName}
+              onChangeText={setLastName}
+            />
+          )}
 
-          <TextInput
-            style={[
-              styles.input,
-              {
-                color: theme.text,
-                borderColor: theme.backgroundSelected,
-                backgroundColor: theme.backgroundElement,
-              },
-            ]}
-            placeholder="Password"
-            placeholderTextColor={theme.textSecondary}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-          />
+          {/* Password Input with Show/Hide Toggle */}
+          <View style={[styles.passwordInputContainer, { borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}>
+            <TextInput
+              style={[
+                styles.passwordInput,
+                {
+                  color: theme.text,
+                },
+              ]}
+              placeholder={Strings.auth.passwordPlaceholder}
+              placeholderTextColor={theme.textSecondary}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+            />
+            <TouchableOpacity
+              style={styles.showPasswordBtn}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <ThemedText style={{ fontSize: 16 }}>
+                {showPassword ? '👁️' : '🔒'}
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
             style={[
@@ -181,26 +248,20 @@ export function AuthForm() {
               <ActivityIndicator color={theme.background} />
             ) : (
               <ThemedText style={[styles.buttonText, { color: theme.background }]}>
-                {isLogin ? 'Log In' : 'Sign Up'}
+                {isLogin ? Strings.auth.loginButton : Strings.auth.signUpButton}
               </ThemedText>
             )}
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.toggleLink}
-          onPress={() => {
-            setIsLogin(!isLogin);
-            setErrorMessage(null);
-          }}
-        >
-          <ThemedText style={{ color: '#007aff', textAlign: 'center' }}>
+        <TouchableOpacity style={styles.toggleLink} onPress={toggleForm}>
+          <ThemedText style={{ color: '#007aff', textAlign: 'center', fontWeight: 'bold', fontSize: 13 }}>
             {isLogin
-              ? "Don't have an account? Sign up here"
-              : 'Already have an account? Log in here'}
+              ? Strings.auth.toggleToSignUp
+              : Strings.auth.toggleToLogin}
           </ThemedText>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </ThemedView>
   );
 }
@@ -214,42 +275,77 @@ const styles = StyleSheet.create({
   },
   contentCard: {
     width: '100%',
-    maxWidth: 400,
-    padding: Spacing.four,
-    borderRadius: Spacing.three,
+    maxWidth: 420,
+    padding: Spacing.five,
+    borderRadius: 12,
     gap: Spacing.three,
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    gap: Spacing.one,
+    marginBottom: Spacing.one,
+  },
+  logoCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.two,
+  },
+  logoText: {
+    fontSize: 22,
+    fontWeight: 'bold',
   },
   title: {
     textAlign: 'center',
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: 'bold',
   },
   subtitle: {
     textAlign: 'center',
     opacity: 0.7,
-    marginBottom: Spacing.two,
+    fontSize: 13,
+    lineHeight: 18,
   },
   formContainer: {
     gap: Spacing.two,
   },
   input: {
-    height: 50,
+    height: 46,
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: 8,
     paddingHorizontal: Spacing.three,
-    fontSize: 16,
+    fontSize: 15,
   },
-  rowInputs: {
+  passwordInputContainer: {
+    height: 46,
+    borderWidth: 1,
+    borderRadius: 8,
     flexDirection: 'row',
-    gap: Spacing.two,
+    alignItems: 'center',
+    paddingHorizontal: Spacing.three,
   },
-  halfInput: {
+  passwordInput: {
     flex: 1,
+    height: '100%',
+    fontSize: 15,
+    padding: 0,
+  },
+  showPasswordBtn: {
+    paddingLeft: Spacing.two,
+    justifyContent: 'center',
+    height: '100%',
   },
   button: {
-    height: 50,
-    borderRadius: 10,
+    height: 48,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: Spacing.two,
@@ -258,23 +354,22 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   toggleLink: {
-    marginTop: Spacing.two,
+    marginTop: Spacing.one,
     padding: Spacing.one,
   },
   errorBanner: {
-    backgroundColor: '#ffebee',
     padding: Spacing.two,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ffcdd2',
+    borderRadius: 6,
+    borderLeftWidth: 4,
+    borderLeftColor: '#c62828',
   },
   errorText: {
-    color: '#c62828',
-    fontSize: 14,
+    fontSize: 13,
     textAlign: 'center',
+    fontWeight: 'bold',
   },
 });

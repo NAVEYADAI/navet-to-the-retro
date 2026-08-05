@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, TextInput, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { ThemedText } from './themed-text';
 import { Spacing } from '@/constants/theme';
+import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { TextField } from '@mui/material';
 
@@ -61,7 +62,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
   const handleCreateSprint = async () => {
     setError(null);
     if (!name.trim() || !startDate.trim() || !endDate.trim()) {
-      setError('Name, Start Date, and End Date are required.');
+      setError('שם, תאריך התחלה ותאריך סיום הם שדות חובה.');
       return;
     }
 
@@ -85,9 +86,27 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
       setShowCreateForm(false);
       await fetchSprints();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Something went wrong.');
+      setError(err.response?.data?.message || err.message || 'שגיאה בפתיחת ספרינט רטרו.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const getSprintStatus = (startDateStr: string, endDateStr: string) => {
+    const now = new Date();
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    
+    now.setHours(0, 0, 0, 0);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+
+    if (now >= start && now <= end) {
+      return { label: 'פעיל', color: '#2e7d32', bg: 'rgba(46, 125, 50, 0.08)' };
+    } else if (now < start) {
+      return { label: 'עתידי', color: '#ff8f00', bg: 'rgba(255, 143, 0, 0.08)' };
+    } else {
+      return { label: 'סגור', color: '#757575', bg: 'rgba(117, 117, 117, 0.08)' };
     }
   };
 
@@ -95,7 +114,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 16 }}>
-          Sprint Retrospectives
+          {Strings.sprints.header}
         </ThemedText>
         {isAdmin && (
           <TouchableOpacity
@@ -103,7 +122,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
             onPress={() => setShowCreateForm(!showCreateForm)}
           >
             <ThemedText style={{ fontSize: 12, fontWeight: 'bold', color: theme.text }}>
-              {showCreateForm ? 'Cancel' : '+ New Sprint'}
+              {showCreateForm ? Strings.sprints.cancelButton : Strings.sprints.newSprintButton}
             </ThemedText>
           </TouchableOpacity>
         )}
@@ -113,7 +132,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
       {showCreateForm && isAdmin && (
         <View style={[styles.createForm, { borderColor: theme.backgroundSelected }]}>
           <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 14 }}>
-            Create New Retro Session
+            {Strings.sprints.createSprintHeader}
           </ThemedText>
 
           {!!error && (
@@ -131,7 +150,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
                 backgroundColor: theme.background,
               },
             ]}
-            placeholder="Sprint Name (e.g. Sprint 1)"
+            placeholder={Strings.sprints.sprintNamePlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={name}
             onChangeText={setName}
@@ -146,7 +165,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
                 backgroundColor: theme.background,
               },
             ]}
-            placeholder="Description (Optional)"
+            placeholder={Strings.sprints.descriptionPlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={description}
             onChangeText={setDescription}
@@ -156,7 +175,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
             <View style={styles.datesRowWeb}>
               <TextField
                 type="date"
-                label="Start Date"
+                label={Strings.sprints.startDateLabel}
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
@@ -180,7 +199,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
 
               <TextField
                 type="date"
-                label="End Date"
+                label={Strings.sprints.endDateLabel}
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
@@ -214,7 +233,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
                     backgroundColor: theme.background,
                   },
                 ]}
-                placeholder="Start Date (YYYY-MM-DD)"
+                placeholder="תאריך התחלה (YYYY-MM-DD)"
                 placeholderTextColor={theme.textSecondary}
                 value={startDate}
                 onChangeText={setStartDate}
@@ -230,7 +249,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
                     backgroundColor: theme.background,
                   },
                 ]}
-                placeholder="End Date (YYYY-MM-DD)"
+                placeholder="תאריך סיום (YYYY-MM-DD)"
                 placeholderTextColor={theme.textSecondary}
                 value={endDate}
                 onChangeText={setEndDate}
@@ -247,7 +266,7 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
               <ActivityIndicator color={theme.background} size="small" />
             ) : (
               <ThemedText style={{ fontWeight: 'bold', color: theme.background, fontSize: 13 }}>
-                Open Sprint Retro
+                {Strings.sprints.openRetroButton}
               </ThemedText>
             )}
           </TouchableOpacity>
@@ -259,36 +278,54 @@ export function TeamSprintsManager({ team, token, isAdmin, theme, onSelectSprint
         <ActivityIndicator size="small" color={theme.text} style={{ marginVertical: Spacing.two }} />
       ) : sprints.length === 0 ? (
         <ThemedText type="default" style={styles.noSprintsText}>
-          No sprints created yet. {isAdmin ? 'Use the "+ New Sprint" button to create one!' : 'Wait for an admin to open a retro session.'}
+          {isAdmin ? Strings.sprints.noSprintsTextAdmin : Strings.sprints.noSprintsTextMember}
         </ThemedText>
       ) : (
         <View style={styles.sprintsList}>
-          {sprints.map((sprint) => (
-            <TouchableOpacity
-              key={sprint.id}
-              style={[styles.sprintCard, { backgroundColor: theme.background, borderColor: theme.backgroundSelected }]}
-              onPress={() => onSelectSprint(sprint, team)}
-            >
-              <View style={styles.sprintInfo}>
-                <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 14 }}>
-                  {sprint.name}
-                </ThemedText>
-                {sprint.description && (
-                  <ThemedText type="default" style={{ fontSize: 12, opacity: 0.8 }}>
-                    {sprint.description}
+          {sprints.map((sprint) => {
+            const status = getSprintStatus(sprint.startDate, sprint.endDate);
+            return (
+              <TouchableOpacity
+                key={sprint.id}
+                style={[
+                  styles.sprintCard,
+                  {
+                    backgroundColor: theme.background,
+                    borderColor: theme.backgroundSelected,
+                    borderLeftWidth: 4,
+                    borderLeftColor: status.color,
+                  }
+                ]}
+                onPress={() => onSelectSprint(sprint, team)}
+              >
+                <View style={styles.sprintInfo}>
+                  <View style={styles.sprintTitleRow}>
+                    <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 14 }}>
+                      {sprint.name}
+                    </ThemedText>
+                    <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+                      <ThemedText style={{ fontSize: 10, fontWeight: 'bold', color: status.color }}>
+                        {status.label}
+                      </ThemedText>
+                    </View>
+                  </View>
+                  {!!sprint.description && (
+                    <ThemedText type="default" style={{ fontSize: 12, opacity: 0.8, marginTop: 2 }}>
+                      {sprint.description}
+                    </ThemedText>
+                  )}
+                  <ThemedText type="code" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
+                    {`${new Date(sprint.startDate).toLocaleDateString()} - ${new Date(sprint.endDate).toLocaleDateString()}`}
                   </ThemedText>
-                )}
-                <ThemedText type="code" style={{ fontSize: 11, opacity: 0.7 }}>
-                  {`${new Date(sprint.startDate).toLocaleDateString()} - ${new Date(sprint.endDate).toLocaleDateString()}`}
-                </ThemedText>
-              </View>
-              <View style={[styles.enterBadge, { backgroundColor: theme.backgroundSelected }]}>
-                <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: theme.text }}>
-                  Enter Retro →
-                </ThemedText>
-              </View>
-            </TouchableOpacity>
-          ))}
+                </View>
+                <View style={[styles.enterBadge, { backgroundColor: theme.backgroundSelected }]}>
+                  <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: theme.text }}>
+                    {Strings.sprints.enterRetroButton}
+                  </ThemedText>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
     </View>
@@ -354,25 +391,42 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   sprintsList: {
-    gap: Spacing.two,
+    gap: Spacing.three,
     marginTop: Spacing.one,
   },
   sprintCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: Spacing.two,
+    padding: Spacing.three,
     borderRadius: 8,
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.02,
+    shadowRadius: 2,
+    elevation: 1,
   },
   sprintInfo: {
     gap: 2,
     flex: 1,
   },
+  sprintTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  statusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
   enterBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
   },
   errorBanner: {
     backgroundColor: '#ffebee',

@@ -3,6 +3,7 @@ import { StyleSheet, View, TextInput, TouchableOpacity, ActivityIndicator, Switc
 import { ThemedText } from './themed-text';
 import { Spacing } from '@/constants/theme';
 import { TeamSprintsManager } from './team-sprints-manager';
+import { Strings } from '@/constants/strings';
 import axios from 'axios';
 
 interface TeamListProps {
@@ -45,7 +46,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
     const role = selectedRoles[teamId] || 'DEVELOPER';
 
     if (!username) {
-      setErrors(prev => ({ ...prev, [teamId]: 'Username is required.' }));
+      setErrors(prev => ({ ...prev, [teamId]: 'נא למלא שם משתמש.' }));
       return;
     }
 
@@ -66,7 +67,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
       setSelectedRoles(prev => ({ ...prev, [teamId]: 'DEVELOPER' }));
       onAddMemberSuccess();
     } catch (err: any) {
-      setErrors(prev => ({ ...prev, [teamId]: err.response?.data?.message || err.message || 'Something went wrong.' }));
+      setErrors(prev => ({ ...prev, [teamId]: err.response?.data?.message || err.message || 'שגיאה בהוספת חבר צוות.' }));
     } finally {
       setLoadings(prev => ({ ...prev, [teamId]: false }));
     }
@@ -96,23 +97,28 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
       setEditingMemberId(prev => ({ ...prev, [teamId]: null }));
       onAddMemberSuccess();
     } catch (err: any) {
-      setEditError(err.response?.data?.message || err.message || 'Failed to save changes.');
+      setEditError(err.response?.data?.message || err.message || 'שמירת השינויים נכשלה.');
     } finally {
       setEditLoading(false);
     }
   };
 
   const roles = [
-    { label: 'Developer', value: 'DEVELOPER' },
-    { label: 'Tester', value: 'TESTER' },
-    { label: 'PM', value: 'PRODUCT_MANAGER' },
-    { label: 'Leader', value: 'TEAM_LEADER' }
+    { label: 'מפתח', value: 'DEVELOPER' },
+    { label: 'בודק', value: 'TESTER' },
+    { label: 'מנהל מוצר', value: 'PRODUCT_MANAGER' },
+    { label: 'מוביל צוות', value: 'TEAM_LEADER' }
   ];
+
+  const getRoleLabel = (roleVal: string) => {
+    const found = roles.find(r => r.value === roleVal);
+    return found ? found.label : roleVal;
+  };
 
   return (
     <View style={styles.teamsList}>
       <ThemedText type="subtitle" style={styles.sectionHeader}>
-        My Teams
+        הצוותים שלי
       </ThemedText>
       {teams.map((team) => {
         const teamId = team.id;
@@ -131,12 +137,14 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
             style={[styles.infoSection, { backgroundColor: theme.backgroundElement }]}
           >
             <View style={styles.teamHeaderRow}>
-              <ThemedText type="subtitle" style={{ fontWeight: 'bold' }}>
-                {team.name}
-              </ThemedText>
+              <View style={{ flex: 1, marginRight: Spacing.two }}>
+                <ThemedText type="subtitle" style={{ fontWeight: 'bold' }}>
+                  {team.name}
+                </ThemedText>
+              </View>
               <View style={[styles.roleBadge, { backgroundColor: theme.backgroundSelected }]}>
                 <ThemedText style={[styles.roleText, { color: theme.text }]}>
-                  {`${team.roleInTeam ? team.roleInTeam.replace('_', ' ') : ''}${isTeamAdmin ? ' • Admin' : ''}`}
+                  {`${team.roleInTeam ? getRoleLabel(team.roleInTeam) : ''}${isTeamAdmin ? ' • מנהל' : ''}`}
                 </ThemedText>
               </View>
             </View>
@@ -144,7 +152,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
             {!!team.mainOffice && (
               <View style={styles.infoRow}>
                 <ThemedText type="default" style={{ fontWeight: 'bold' }}>
-                  {`Office Location: `}
+                  {Strings.teamList.officeLocationLabel}
                 </ThemedText>
                 <ThemedText type="default">{team.mainOffice}</ThemedText>
               </View>
@@ -152,7 +160,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
 
             <View style={styles.membersContainer}>
               <ThemedText type="default" style={{ fontWeight: 'bold', marginBottom: Spacing.one }}>
-                {`Members (${team.members?.length || 0}):`}
+                {Strings.teamList.membersHeader(team.members?.length || 0)}
               </ThemedText>
               {team.members?.map((member: any) => {
                 const isEditing = activeEditingId === member.id;
@@ -164,7 +172,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
                       /* Editing Pane */
                       <View style={styles.editMemberPane}>
                         <ThemedText style={{ fontSize: 13, fontWeight: 'bold' }}>
-                          {`Edit @${member.user?.username}`}
+                          {Strings.teamList.editMemberHeader(member.user?.username)}
                         </ThemedText>
                         
                         {!!editError && (
@@ -202,7 +210,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
                         </View>
 
                         <View style={styles.adminToggleRow}>
-                          <ThemedText style={{ fontSize: 13 }}>Team Admin Privileges</ThemedText>
+                          <ThemedText style={{ fontSize: 13 }}>{Strings.teamList.teamAdminPrivileges}</ThemedText>
                           <Switch
                             value={editIsAdmin}
                             onValueChange={setEditIsAdmin}
@@ -217,7 +225,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
                             onPress={() => setEditingMemberId(prev => ({ ...prev, [teamId]: null }))}
                           >
                             <ThemedText style={{ fontSize: 12, fontWeight: 'bold', color: theme.text }}>
-                              Cancel
+                              {Strings.teamList.cancelButton}
                             </ThemedText>
                           </TouchableOpacity>
 
@@ -230,7 +238,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
                               <ActivityIndicator color={theme.background} size="small" />
                             ) : (
                               <ThemedText style={{ fontSize: 12, fontWeight: 'bold', color: theme.background }}>
-                                Save
+                                {Strings.teamList.saveButton}
                               </ThemedText>
                             )}
                           </TouchableOpacity>
@@ -244,7 +252,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
                             {`• ${member.user?.firstName || ''} ${member.user?.lastName || ''} (@${member.user?.username || ''})`}
                           </ThemedText>
                           <ThemedText type="code" style={{ fontSize: 11, opacity: 0.8 }}>
-                            {`[${member.role ? member.role.replace('_', ' ') : ''}]${member.isAdmin ? ' (Admin)' : ''}`}
+                            {`[${member.role ? getRoleLabel(member.role) : ''}]${member.isAdmin ? ' (מנהל)' : ''}`}
                           </ThemedText>
                         </View>
 
@@ -255,7 +263,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
                             onPress={() => startEditMember(teamId, member)}
                           >
                             <ThemedText style={{ fontSize: 11, color: theme.text, fontWeight: 'bold' }}>
-                              Edit
+                              ערוך
                             </ThemedText>
                           </TouchableOpacity>
                         )}
@@ -270,7 +278,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
             {isTeamAdmin && (
               <View style={styles.addMemberContainer}>
                 <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 14, marginTop: Spacing.one }}>
-                  Add Member to Team
+                  הוספת חבר לצוות
                 </ThemedText>
 
                 {!!currentError && (
@@ -288,7 +296,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
                       backgroundColor: theme.background,
                     },
                   ]}
-                  placeholder="Username to add"
+                  placeholder={Strings.teamList.addMemberPlaceholder}
                   placeholderTextColor={theme.textSecondary}
                   value={currentUsername}
                   onChangeText={(val) => setUsernames(prev => ({ ...prev, [teamId]: val }))}
@@ -332,7 +340,7 @@ export function TeamList({ teams, token, userId, onAddMemberSuccess, onSelectSpr
                     <ActivityIndicator color={theme.background} size="small" />
                   ) : (
                     <ThemedText style={[styles.addButtonText, { color: theme.background }]}>
-                      Add User to Team
+                      {Strings.teamList.addMemberButton}
                     </ThemedText>
                   )}
                 </TouchableOpacity>

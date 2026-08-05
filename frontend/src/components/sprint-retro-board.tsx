@@ -1,9 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Switch, Platform, useColorScheme, useWindowDimensions, Animated } from 'react-native';
+import { StyleSheet, View, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, Switch, Platform, useColorScheme as useRNColorScheme, useWindowDimensions, Animated } from 'react-native';
 import { ThemedText } from './themed-text';
 import { Spacing } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
 import axios from 'axios';
+import {
+  Box,
+  Typography,
+  Button,
+  Card,
+  CardContent,
+  TextField,
+  Switch as MuiSwitch,
+  CircularProgress,
+  Alert,
+  Grid,
+  FormControlLabel,
+  Grow,
+  Fade,
+} from '@mui/material';
+
+// Platform safe shadow utility to avoid React Native Web deprecated shadow warnings
+const getShadow = (opacity: number, radius: number, offsetHeight: number) => {
+  if (Platform.OS === 'web') {
+    return {
+      boxShadow: `0px ${offsetHeight}px ${radius}px rgba(0, 0, 0, ${opacity})`,
+    };
+  }
+  return {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: offsetHeight },
+    shadowOpacity: opacity,
+    shadowRadius: radius,
+  };
+};
 
 interface SprintRetroBoardProps {
   sprint: any;
@@ -20,8 +50,384 @@ interface SprintRetroBoardProps {
   onBack: () => void;
 }
 
-export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: SprintRetroBoardProps) {
-  const colorScheme = useColorScheme();
+export function SprintRetroBoard(props: SprintRetroBoardProps) {
+  if (Platform.OS === 'web') {
+    return <SprintRetroBoardWeb {...props} />;
+  }
+  return <SprintRetroBoardNative {...props} />;
+}
+
+/* 1. WEB VERSION (Material UI + Smooth CSS transitions & Grow entry animations) */
+function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: SprintRetroBoardProps) {
+  const [comments, setComments] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // New comment state
+  const [content, setContent] = useState('');
+  const [type, setType] = useState<'KEEP' | 'IMPROVE'>('KEEP');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const getBackendUrl = () => {
+    return typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
+      ? 'https://navet-to-retro-backend.fly.dev'
+      : 'http://localhost:5005';
+  };
+
+  const fetchComments = async () => {
+    setIsLoading(true);
+    try {
+      const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      setComments(response.data);
+    } catch (err) {
+      console.error('Failed to fetch comments:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchComments();
+  }, [sprint.id]);
+
+  const handlePostComment = async () => {
+    setError(null);
+    if (!content.trim()) {
+      setError('תוכן ההערה אינו יכול להיות ריק.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await axios.post(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
+        content: content.trim(),
+        type,
+        isAnonymous
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      setContent('');
+      setIsAnonymous(false);
+      await fetchComments();
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'שגיאה בשליחת ההערה.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const toggleType = () => {
+    setType(prev => prev === 'KEEP' ? 'IMPROVE' : 'KEEP');
+  };
+
+  const myMembership = team.members?.find((m: any) => m.userId === user.id);
+  const isAdmin = myMembership?.isAdmin || false;
+
+  const keepComments = comments.filter(c => c.type === 'KEEP');
+  const improveComments = comments.filter(c => c.type === 'IMPROVE');
+
+  // Sticky-notes themes
+  const keepBg = '#e8f5e9';
+  const keepText = '#1b5e20';
+  const keepMetaText = '#2e7d32';
+
+  const improveBg = '#ffebee';
+  const improveText = '#b71c1c';
+  const improveMetaText = '#c62828';
+
+  return (
+    <Box sx={{ px: { xs: 2, md: 4 }, pt: { xs: 14, md: 12 }, pb: { xs: 4, md: 6 }, minHeight: '100vh', backgroundColor: theme.background, direction: 'rtl' }}>
+      <Box sx={{ width: '100%', maxWidth: 900, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+        
+        {/* Header */}
+        <Fade in={true} timeout={500}>
+          <Box sx={{ borderBottom: '1px solid rgba(0,0,0,0.06)', pb: 3, mb: 2, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
+            <Button
+              variant="outlined"
+              onClick={onBack}
+              sx={{
+                alignSelf: 'flex-end',
+                borderColor: theme.backgroundSelected,
+                color: theme.text,
+                fontWeight: 'bold',
+                fontFamily: 'Rubik, sans-serif',
+                borderRadius: 2,
+                '&:hover': {
+                  borderColor: theme.text,
+                  backgroundColor: 'rgba(0,0,0,0.01)',
+                }
+              }}
+            >
+              {Strings.retroBoard.backButton}
+            </Button>
+            
+            <Box sx={{ textAlign: 'right' }}>
+              <Typography variant="h4" sx={{ fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif', mb: 1 }}>
+                {sprint.name} {Strings.retroBoard.keepLabel.split(' ')[1]}
+              </Typography>
+              <Typography variant="body2" sx={{ color: theme.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
+                {`${team.name} • ${new Date(sprint.startDate).toLocaleDateString()} - ${new Date(sprint.endDate).toLocaleDateString()}`}
+              </Typography>
+              {sprint.description && (
+                <Typography variant="body1" sx={{ color: theme.text, fontStyle: 'italic', mt: 1.5, fontFamily: 'Rubik, sans-serif' }}>
+                  {sprint.description}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        </Fade>
+
+        {/* Input Form */}
+        <Grow in={true} timeout={500}>
+          <Card
+            sx={{
+              backgroundColor: theme.backgroundElement,
+              borderColor: theme.backgroundSelected,
+              borderWidth: 1,
+              borderStyle: 'solid',
+              borderRadius: 4,
+              boxShadow: '0px 4px 12px rgba(0,0,0,0.03)',
+              mb: 2,
+            }}
+          >
+            <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, textAlign: 'right' }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
+                {Strings.retroBoard.writeNoteHeader}
+              </Typography>
+
+              {error && (
+                <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
+                  {error}
+                </Alert>
+              )}
+
+              {/* Yin-Yang Style Animated Toggle Wheel */}
+              <Box sx={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 4, my: 1 }}>
+                <Box
+                  onClick={toggleType}
+                  sx={{
+                    width: 90,
+                    height: 90,
+                    borderRadius: '50%',
+                    overflow: 'hidden',
+                    border: '3px solid #ffffff',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.12)',
+                    transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transform: type === 'KEEP' ? 'rotate(0deg)' : 'rotate(180deg)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <Box sx={{ height: '50%', backgroundColor: keepBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Box sx={{ transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)', transition: 'transform 0.6s' }}>
+                      <Typography sx={{ fontSize: 22 }}>👍</Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ height: '50%', backgroundColor: improveBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Box sx={{ transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)', transition: 'transform 0.6s' }}>
+                      <Typography sx={{ fontSize: 22 }}>🔧</Typography>
+                    </Box>
+                  </Box>
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      backgroundColor: theme.backgroundElement,
+                      border: '2px solid #ffffff',
+                      top: 'calc(50% - 9px)',
+                      left: 'calc(50% - 9px)',
+                    }}
+                  />
+                </Box>
+
+                <Box sx={{ textAlign: 'right' }}>
+                  <Typography sx={{ fontSize: 11, color: theme.textSecondary, fontFamily: 'Rubik, sans-serif', mb: 0.5 }}>
+                    {Strings.retroBoard.spinLabel}
+                  </Typography>
+                  <Typography sx={{ fontSize: 15, fontWeight: 'bold', color: type === 'KEEP' ? '#2e7d32' : '#c62828', fontFamily: 'Rubik, sans-serif' }}>
+                    {type === 'KEEP' ? Strings.retroBoard.keepLabel : Strings.retroBoard.improveLabel}
+                  </Typography>
+                </Box>
+              </Box>
+
+              <TextField
+                multiline
+                rows={3}
+                placeholder={type === 'KEEP' ? "מה עבד טוב? ציין הישגים..." : "מה אפשר לשפר? הצע שיפורים..."}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                sx={{
+                  textarea: { color: theme.text, textAlign: 'right' },
+                  fieldset: { borderColor: theme.backgroundSelected },
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: theme.background,
+                    '&:hover fieldset': { borderColor: theme.text },
+                    '&.Mui-focused fieldset': { borderColor: theme.text },
+                  }
+                }}
+              />
+
+              <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+                <FormControlLabel
+                  control={
+                    <MuiSwitch
+                      checked={isAnonymous}
+                      onChange={(e) => setIsAnonymous(e.target.checked)}
+                    />
+                  }
+                  label={Strings.retroBoard.anonymousLabel}
+                  labelPlacement="start"
+                  sx={{ m: 0, gap: 1, '& .MuiFormControlLabel-label': { color: theme.text, fontSize: 13, fontFamily: 'Rubik, sans-serif' } }}
+                />
+
+                <Button
+                  variant="contained"
+                  onClick={handlePostComment}
+                  disabled={isSubmitting}
+                  sx={{
+                    backgroundColor: theme.text,
+                    color: theme.background,
+                    fontWeight: 'bold',
+                    fontFamily: 'Rubik, sans-serif',
+                    textTransform: 'none',
+                    borderRadius: 2,
+                    px: 3,
+                    '&:hover': {
+                      backgroundColor: theme.textSecondary,
+                    }
+                  }}
+                >
+                  {isSubmitting ? <CircularProgress size={20} color="inherit" /> : Strings.retroBoard.postNoteButton}
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grow>
+
+        {/* Board Columns */}
+        {isLoading ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8, gap: 2 }}>
+            <CircularProgress color="inherit" sx={{ color: theme.text }} />
+            <Typography sx={{ color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
+              {Strings.retroBoard.loadingBoard}
+            </Typography>
+          </Box>
+        ) : (
+          <Grid container spacing={4} direction={{ xs: 'column', md: 'row-reverse' }}>
+            
+            {/* Column 1: KEEP */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid #2e7d32', backgroundColor: 'rgba(46, 125, 50, 0.06)', textAlign: 'center' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#2e7d32', fontFamily: 'Rubik, sans-serif' }}>
+                    {Strings.retroBoard.keepColumnHeader}
+                  </Typography>
+                </Box>
+
+                {keepComments.length === 0 ? (
+                  <Typography variant="body2" sx={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic', my: 2, fontFamily: 'Rubik, sans-serif' }}>
+                    {Strings.retroBoard.emptyKeepText}
+                  </Typography>
+                ) : (
+                  keepComments.map((comment, index) => (
+                    <Grow in={true} key={comment.id} timeout={(index % 8) * 100 + 300}>
+                      <Card sx={{ backgroundColor: keepBg, borderRight: '5px solid #2e7d32', borderRadius: 2.5, boxShadow: '0px 3px 6px rgba(0,0,0,0.03)' }}>
+                        <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.5, textAlign: 'right' }}>
+                          <Typography sx={{ color: keepText, fontWeight: '500', lineHeight: 1.5, fontFamily: 'Rubik, sans-serif', fontSize: 14 }}>
+                            {comment.content}
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', pt: 1, borderTop: '1px solid rgba(0,0,0,0.03)' }}>
+                            {comment.isAnonymous ? (
+                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', fontStyle: 'italic', color: '#ff8f00', fontFamily: 'Rubik, sans-serif' }}>
+                                {comment.author.username !== 'Anonymous' && isAdmin
+                                  ? Strings.retroBoard.anonymousByAdmin(comment.author.username)
+                                  : Strings.retroBoard.anonymousAuthor}
+                              </Typography>
+                            ) : (
+                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', color: keepMetaText, fontFamily: 'Rubik, sans-serif' }}>
+                                @{comment.author.username}
+                              </Typography>
+                            )}
+                            <Typography sx={{ fontSize: 11, color: keepMetaText, opacity: 0.7, fontFamily: 'Rubik, sans-serif' }}>
+                              {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </Typography>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grow>
+                  ))
+                )}
+              </Box>
+            </Grid>
+
+            {/* Column 2: IMPROVE */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid #c62828', backgroundColor: 'rgba(198, 40, 40, 0.06)', textAlign: 'center' }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 'bold', color: '#c62828', fontFamily: 'Rubik, sans-serif' }}>
+                    {Strings.retroBoard.improveColumnHeader}
+                  </Typography>
+                </Box>
+
+                {improveComments.length === 0 ? (
+                  <Typography variant="body2" sx={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic', my: 2, fontFamily: 'Rubik, sans-serif' }}>
+                    {Strings.retroBoard.emptyImproveText}
+                  </Typography>
+                ) : (
+                  improveComments.map((comment, index) => (
+                    <Grow in={true} key={comment.id} timeout={(index % 8) * 100 + 350}>
+                      <Card sx={{ backgroundColor: improveBg, borderRight: '5px solid #c62828', borderRadius: 2.5, boxShadow: '0px 3px 6px rgba(0,0,0,0.03)' }}>
+                        <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.5, textAlign: 'right' }}>
+                          <Typography sx={{ color: improveText, fontWeight: '500', lineHeight: 1.5, fontFamily: 'Rubik, sans-serif', fontSize: 14 }}>
+                            {comment.content}
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', pt: 1, borderTop: '1px solid rgba(0,0,0,0.03)' }}>
+                            {comment.isAnonymous ? (
+                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', fontStyle: 'italic', color: '#ff8f00', fontFamily: 'Rubik, sans-serif' }}>
+                                {comment.author.username !== 'Anonymous' && isAdmin
+                                  ? Strings.retroBoard.anonymousByAdmin(comment.author.username)
+                                  : Strings.retroBoard.anonymousAuthor}
+                              </Typography>
+                            ) : (
+                              <Typography sx={{ fontSize: 11, fontWeight: 'bold', color: improveMetaText, fontFamily: 'Rubik, sans-serif' }}>
+                                @{comment.author.username}
+                              </Typography>
+                            )}
+                            <Typography sx={{ fontSize: 11, color: improveMetaText, opacity: 0.7, fontFamily: 'Rubik, sans-serif' }}>
+                              {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </Typography>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grow>
+                  ))
+                )}
+              </Box>
+            </Grid>
+
+          </Grid>
+        )}
+
+      </Box>
+    </Box>
+  );
+}
+
+/* 2. NATIVE VERSION (React Native - fully RTL & Jest compatible) */
+function SprintRetroBoardNative({ sprint, team, token, user, theme, onBack }: SprintRetroBoardProps) {
+  const colorScheme = useRNColorScheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
@@ -93,7 +499,6 @@ export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: S
     }
   };
 
-  // Animate Yin-Yang spin on toggle
   const toggleType = () => {
     const nextType = type === 'KEEP' ? 'IMPROVE' : 'KEEP';
     Animated.spring(spinAnim, {
@@ -128,7 +533,7 @@ export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: S
 
   const contentRotation = spinAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '-180deg'], // Opposite rotation to keep content upright
+    outputRange: ['0deg', '-180deg'],
   });
 
   return (
@@ -138,7 +543,7 @@ export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: S
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.container}>
-        {/* Header */}
+        {/* Header (RTL flow) */}
         <View style={[styles.header, { borderBottomColor: theme.backgroundSelected }]}>
           <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.backgroundSelected }]} onPress={onBack}>
             <ThemedText style={{ fontSize: 13, fontWeight: 'bold', color: theme.text }}>
@@ -161,9 +566,9 @@ export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: S
           </View>
         </View>
 
-        {/* Main Form for Posting */}
-        <View style={[styles.postSection, { backgroundColor: theme.backgroundElement }]}>
-          <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 14, marginBottom: Spacing.one }}>
+        {/* Main Form for Posting (RTL formatted) */}
+        <View style={[styles.postSection, { backgroundColor: theme.backgroundElement }, getShadow(0.04, 5, 3)]}>
+          <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 14, marginBottom: Spacing.one, textAlign: 'right' }}>
             {Strings.retroBoard.writeNoteHeader}
           </ThemedText>
 
@@ -177,33 +582,29 @@ export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: S
           <View style={styles.wheelWrapper}>
             <TouchableOpacity activeOpacity={0.9} onPress={toggleType}>
               <Animated.View style={[styles.yinYangWheel, { transform: [{ rotate: wheelRotation }] }]}>
-                {/* Keep Half (Top) */}
                 <View style={[styles.wheelHalf, styles.keepHalf, { backgroundColor: keepBg }]}>
                   <Animated.View style={{ transform: [{ rotate: contentRotation }] }}>
                     <ThemedText style={{ fontSize: 24 }}>👍</ThemedText>
                   </Animated.View>
                 </View>
-
-                {/* Improve Half (Bottom) */}
                 <View style={[styles.wheelHalf, styles.improveHalf, { backgroundColor: improveBg }]}>
                   <Animated.View style={{ transform: [{ rotate: contentRotation }] }}>
                     <ThemedText style={{ fontSize: 24 }}>🔧</ThemedText>
                   </Animated.View>
                 </View>
-
-                {/* Yin-Yang Center Circle divider */}
                 <View style={[styles.wheelCenter, { backgroundColor: theme.backgroundElement }]} />
               </Animated.View>
             </TouchableOpacity>
 
             <View style={styles.wheelLabelContainer}>
-              <ThemedText style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2 }}>
+              <ThemedText style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2, textAlign: 'right' }}>
                 {Strings.retroBoard.spinLabel}
               </ThemedText>
               <ThemedText style={{
                 fontSize: 14,
                 fontWeight: 'bold',
-                color: type === 'KEEP' ? '#2e7d32' : '#c62828'
+                color: type === 'KEEP' ? '#2e7d32' : '#c62828',
+                textAlign: 'right'
               }}>
                 {type === 'KEEP' ? Strings.retroBoard.keepLabel : Strings.retroBoard.improveLabel}
               </ThemedText>
@@ -228,7 +629,6 @@ export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: S
           />
 
           <View style={styles.formControls}>
-            {/* Anonymous Switch */}
             <View style={styles.anonControl}>
               <ThemedText type="default" style={{ fontSize: 12, opacity: 0.8 }}>
                 {Strings.retroBoard.anonymousLabel}
@@ -257,14 +657,14 @@ export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: S
           </View>
         </View>
 
-        {/* Board Columns */}
+        {/* Board Columns (RTL Flow) */}
         {isLoading ? (
           <View style={styles.loaderContainer}>
             <ActivityIndicator size="large" color={theme.text} />
             <ThemedText type="default">{Strings.retroBoard.loadingBoard}</ThemedText>
           </View>
         ) : (
-          <View style={[styles.columnsContainer, { flexDirection: isDesktop ? 'row' : 'column' }]}>
+          <View style={[styles.columnsContainer, { flexDirection: isDesktop ? 'row-reverse' : 'column' }]}>
             {/* Column 1: KEEP */}
             <View style={styles.column}>
               <View style={[styles.columnHeader, { backgroundColor: 'rgba(46, 125, 50, 0.08)', borderColor: '#2e7d32' }]}>
@@ -279,7 +679,7 @@ export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: S
                 keepComments.map(comment => (
                   <View
                     key={comment.id}
-                    style={[styles.commentCard, { backgroundColor: keepBg, borderLeftColor: '#2e7d32' }]}
+                    style={[styles.commentCard, { backgroundColor: keepBg, borderRightColor: '#2e7d32' }, getShadow(0.03, 3, 2)]}
                   >
                     <ThemedText type="default" style={[styles.commentContent, { color: keepText }]}>
                       {comment.content}
@@ -320,7 +720,7 @@ export function SprintRetroBoard({ sprint, team, token, user, theme, onBack }: S
                 improveComments.map(comment => (
                   <View
                     key={comment.id}
-                    style={[styles.commentCard, { backgroundColor: improveBg, borderLeftColor: '#c62828' }]}
+                    style={[styles.commentCard, { backgroundColor: improveBg, borderRightColor: '#c62828' }, getShadow(0.03, 3, 2)]}
                   >
                     <ThemedText type="default" style={[styles.commentContent, { color: improveText }]}>
                       {comment.content}
@@ -360,7 +760,7 @@ const styles = StyleSheet.create({
   },
   container: {
     width: '100%',
-    maxWidth: 1100, // Gorgeous wide board
+    maxWidth: 1100,
     gap: Spacing.three,
     alignSelf: 'center',
     paddingHorizontal: Spacing.four,
@@ -369,9 +769,10 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.three,
     borderBottomWidth: 1,
     gap: Spacing.two,
+    alignItems: 'flex-end',
   },
   backButton: {
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
@@ -379,20 +780,24 @@ const styles = StyleSheet.create({
   titleContainer: {
     gap: 2,
     marginTop: Spacing.one,
+    alignItems: 'flex-end',
   },
   title: {
     fontSize: 26,
     fontWeight: 'bold',
+    textAlign: 'right',
   },
   subtitle: {
     fontSize: 13,
     opacity: 0.6,
+    textAlign: 'right',
   },
   description: {
     fontSize: 14,
     opacity: 0.8,
     marginTop: 4,
     fontStyle: 'italic',
+    textAlign: 'right',
   },
   postSection: {
     padding: Spacing.three,
@@ -400,7 +805,7 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   wheelWrapper: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.four,
@@ -413,11 +818,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 3,
     borderColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-    elevation: 4,
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
@@ -448,7 +848,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   wheelLabelContainer: {
-    alignItems: 'flex-start',
+    alignItems: 'flex-end',
   },
   textarea: {
     height: 60,
@@ -457,16 +857,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.two,
     fontSize: 14,
+    textAlign: 'right',
     textAlignVertical: 'top',
   },
   formControls: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: Spacing.one,
   },
   anonControl: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: Spacing.one,
   },
@@ -506,21 +907,17 @@ const styles = StyleSheet.create({
   commentCard: {
     padding: Spacing.three,
     borderRadius: 8,
-    borderLeftWidth: 5,
+    borderRightWidth: 5,
     gap: Spacing.two,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
   commentContent: {
     fontSize: 14,
     lineHeight: 20,
     fontWeight: '500',
+    textAlign: 'right',
   },
   commentMeta: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 4,

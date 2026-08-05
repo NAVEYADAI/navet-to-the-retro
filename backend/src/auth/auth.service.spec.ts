@@ -96,7 +96,7 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('should login successfully and return access token', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       // Use mock resolved value on the mocked function
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -112,7 +112,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException if user not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
 
       const dto = {
         username: 'nonexistent',
@@ -123,7 +123,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException for invalid password', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       // Mock invalid password match
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 

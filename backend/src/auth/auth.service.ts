@@ -11,10 +11,11 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
   async register(dto: RegisterDto) {
+    const finalUsername = dto.username || dto.email;
     const existingUser = await this.prisma.user.findFirst({
       where: {
         OR: [
-          { username: dto.username },
+          { username: finalUsername },
           { email: dto.email }
         ]
       }
@@ -28,11 +29,12 @@ export class AuthService {
 
     const user = await this.prisma.user.create({
       data: {
-        username: dto.username,
+        username: finalUsername,
         email: dto.email,
         password: hashedPassword,
         firstName: dto.firstName,
         lastName: dto.lastName,
+        role: dto.role || 'DEVELOPER',
       }
     });
 
@@ -50,8 +52,13 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { username: dto.username }
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: dto.username },
+          { email: dto.username }
+        ]
+      }
     });
 
     if (!user) {
@@ -97,5 +104,19 @@ export class AuthService {
     } catch (err) {
       throw new UnauthorizedException('Invalid token');
     }
+  }
+
+  async updateProfile(userId: number, dto: { firstName?: string; lastName?: string; email?: string }) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email: dto.email,
+      }
+    });
+
+    const { password, ...result } = user;
+    return result;
   }
 }

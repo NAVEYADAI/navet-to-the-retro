@@ -31,12 +31,11 @@ describe('AuthForm Component', () => {
   it('renders Login fields by default', async () => {
     const { getByPlaceholderText, queryByPlaceholderText } = await render(<AuthForm />);
 
-    // Login screen should have username and password
-    expect(getByPlaceholderText(Strings.auth.usernamePlaceholder)).toBeTruthy();
+    // Login screen should have email (username field mapped to email) and password
+    expect(getByPlaceholderText("כתובת אימייל")).toBeTruthy();
     expect(getByPlaceholderText(Strings.auth.passwordPlaceholder)).toBeTruthy();
 
-    // But should not have email or name fields
-    expect(queryByPlaceholderText(Strings.auth.emailPlaceholder)).toBeNull();
+    // But should not have name fields
     expect(queryByPlaceholderText(Strings.auth.firstNamePlaceholder)).toBeNull();
     expect(queryByPlaceholderText(Strings.auth.lastNamePlaceholder)).toBeNull();
   });
@@ -49,11 +48,14 @@ describe('AuthForm Component', () => {
     fireEvent.press(toggleLink);
 
     // Use findBy queries to wait for state transition and re-rendering to complete
-    expect(await findByPlaceholderText(Strings.auth.usernamePlaceholder)).toBeTruthy();
     expect(await findByPlaceholderText(Strings.auth.emailPlaceholder)).toBeTruthy();
     expect(await findByPlaceholderText(Strings.auth.firstNamePlaceholder)).toBeTruthy();
     expect(await findByPlaceholderText(Strings.auth.lastNamePlaceholder)).toBeTruthy();
     expect(await findByPlaceholderText(Strings.auth.passwordPlaceholder)).toBeTruthy();
+
+    // Verify role selection elements exist
+    expect(await findByText("תפקיד מקצועי:")).toBeTruthy();
+    expect(await findByText("מפתח")).toBeTruthy();
 
     // The link should toggle back
     expect(await findByText(Strings.auth.toggleToLogin)).toBeTruthy();

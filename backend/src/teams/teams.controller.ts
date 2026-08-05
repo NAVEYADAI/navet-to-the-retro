@@ -54,4 +54,14 @@ export class TeamsController {
     const user = await this.authService.validateToken(authHeader);
     return this.teamsService.updateMember(teamId, memberId, dto, user.id);
   }
+
+  @Patch(':id')
+  async update(
+    @Headers('authorization') authHeader: string,
+    @Param('id', ParseIntPipe) teamId: number,
+    @Body() dto: { name?: string; mainOffice?: string }
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamsService.updateTeam(teamId, dto, user.id);
+  }
 }

@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { CreateTeamForm } from '@/components/create-team-form';
@@ -20,20 +21,195 @@ import { Strings } from '@/constants/strings';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/context/auth-context';
 import axios from 'axios';
+import {
+  Box,
+  Container,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CircularProgress,
+  Alert,
+  Button,
+  Fade,
+  Grow,
+} from '@mui/material';
 
 export default function HomeScreen() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
-  const { user, token, logout } = useAuth();
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  if (Platform.OS === 'web') {
+    return <HomeScreenWeb />;
+  }
+  return <HomeScreenNative />;
+}
 
-  // Navigation / View states
+/* 1. WEB VERSION (Material UI + Smooth entry transitions) */
+function HomeScreenWeb() {
+  const colorScheme = useColorScheme();
+  const themeColors = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
+  const { user, token } = useAuth();
+  
   const [activeView, setActiveView] = useState<'dashboard' | 'retro'>('dashboard');
   const [selectedSprint, setSelectedSprint] = useState<any>(null);
   const [selectedTeam, setSelectedTeam] = useState<any>(null);
 
-  // Dashboard Data states
+  const [teams, setTeams] = useState<any[]>([]);
+  const [isLoadingTeams, setIsLoadingTeams] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const getBackendUrl = () => {
+    return typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
+      ? 'https://navet-to-retro-backend.fly.dev'
+      : 'http://localhost:5005';
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchMyTeams(token);
+    }
+  }, [token]);
+
+  const fetchMyTeams = async (authToken: string) => {
+    setIsLoadingTeams(true);
+    try {
+      const response = await axios.get(`${getBackendUrl()}/teams/user/me`, {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+      const data = response.data;
+      setTeams(data);
+      
+      if (selectedTeam) {
+        const updatedTeam = data.find((t: any) => t.id === selectedTeam.id);
+        if (updatedTeam) {
+          setSelectedTeam(updatedTeam);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch teams:', err);
+    } finally {
+      setIsLoadingTeams(false);
+    }
+  };
+
+  if (!user) return null;
+
+  if (activeView === 'retro' && selectedSprint && selectedTeam) {
+    return (
+      <Box sx={{ flex: 1, backgroundColor: themeColors.background, minHeight: '100vh' }}>
+        <SprintRetroBoard
+          sprint={selectedSprint}
+          team={selectedTeam}
+          token={token || ''}
+          user={user}
+          theme={themeColors}
+          onBack={() => {
+            setActiveView('dashboard');
+            if (token) {
+              fetchMyTeams(token);
+            }
+          }}
+        />
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ minHeight: '100vh', backgroundColor: themeColors.background, pt: { xs: 14, md: 12 }, pb: 6, direction: 'rtl' }}>
+      <Container maxWidth="md" sx={{ mx: 'auto' }}>
+        <Fade in={true} timeout={600}>
+          <Box sx={{ mb: 4, textAlign: 'right' }}>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: themeColors.text, mb: 1, fontFamily: 'Rubik, sans-serif' }}>
+              {Strings.dashboard.welcomeTitle(user.firstName || user.username)}
+            </Typography>
+            <Typography variant="body1" sx={{ color: themeColors.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
+              ברוך הבא לפורטל הרטרוספקטיבה של הצוותים שלך.
+            </Typography>
+          </Box>
+        </Fade>
+
+        {!!errorMessage && (
+          <Fade in={true}>
+            <Alert severity="error" sx={{ mb: 3, textAlign: 'right', flexDirection: 'row-reverse' }}>
+              {errorMessage}
+            </Alert>
+          </Fade>
+        )}
+
+        {isLoadingTeams ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8, gap: 2 }}>
+            <CircularProgress color="inherit" sx={{ color: themeColors.text }} />
+            <Typography sx={{ color: themeColors.text, fontFamily: 'Rubik, sans-serif' }}>
+              {Strings.dashboard.loadingTeams}
+            </Typography>
+          </Box>
+        ) : (
+          <Box sx={{ width: '100%' }}>
+            {teams.length === 0 ? (
+              <Grow in={true} timeout={500}>
+                <Card sx={{ backgroundColor: themeColors.backgroundElement, borderColor: themeColors.backgroundSelected, borderWidth: 1, borderStyle: 'solid', borderRadius: 4, boxShadow: '0px 4px 12px rgba(0,0,0,0.05)' }}>
+                  <CardContent sx={{ p: 4, textAlign: 'right' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: themeColors.text, fontFamily: 'Rubik, sans-serif' }}>
+                      ברוך הבא!
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: themeColors.textSecondary, lineHeight: 1.6, mb: 3, fontFamily: 'Rubik, sans-serif' }}>
+                      אינך חבר באף צוות פיתוח עדיין. מנהלי צוותים יכולים להוסיף אותך לצוות שלהם לפי שם המשתמש שלך (@{user.username}), או שתוכל לעבור ללשונית "הגדרות" למעלה כדי ליצור צוות חדש משלך!
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      onClick={() => router.push('/settings')}
+                      sx={{
+                        backgroundColor: themeColors.text,
+                        color: themeColors.background,
+                        fontWeight: 'bold',
+                        fontFamily: 'Rubik, sans-serif',
+                        textTransform: 'none',
+                        borderRadius: 2,
+                        '&:hover': { backgroundColor: themeColors.textSecondary }
+                      }}
+                    >
+                      מעבר להגדרות ליצירת צוות ←
+                    </Button>
+                  </CardContent>
+                </Card>
+              </Grow>
+            ) : (
+              <Grow in={true} timeout={500}>
+                <Box>
+                  <TeamList
+                    teams={teams}
+                    token={token || ''}
+                    userId={user.id}
+                    onAddMemberSuccess={() => token && fetchMyTeams(token)}
+                    onSelectSprint={(sprint, team) => {
+                      setSelectedSprint(sprint);
+                      setSelectedTeam(team);
+                      setActiveView('retro');
+                    }}
+                    theme={themeColors}
+                  />
+                </Box>
+              </Grow>
+            )}
+          </Box>
+        )}
+      </Container>
+    </Box>
+  );
+}
+
+/* 2. NATIVE VERSION (React Native - fully RTL & Jest compatible) */
+function HomeScreenNative() {
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
+  const { user, token } = useAuth();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+
+  const [activeView, setActiveView] = useState<'dashboard' | 'retro'>('dashboard');
+  const [selectedSprint, setSelectedSprint] = useState<any>(null);
+  const [selectedTeam, setSelectedTeam] = useState<any>(null);
+
   const [teams, setTeams] = useState<any[]>([]);
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
   const [teamCreateLoading, setTeamCreateLoading] = useState(false);
@@ -63,7 +239,6 @@ export default function HomeScreen() {
       const data = response.data;
       setTeams(data);
       
-      // Refresh selected team to keep data up-to-date when returning from updates
       if (selectedTeam) {
         const updatedTeam = data.find((t: any) => t.id === selectedTeam.id);
         if (updatedTeam) {
@@ -90,7 +265,7 @@ export default function HomeScreen() {
         }
       });
 
-      setShowCreateTeam(false); // Collapse form after success
+      setShowCreateTeam(false);
       if (token) {
         await fetchMyTeams(token);
       }
@@ -104,11 +279,10 @@ export default function HomeScreen() {
 
   if (!user) return null;
 
-  /* View Router: Sprint Retro Board */
   if (activeView === 'retro' && selectedSprint && selectedTeam) {
     return (
-      <ThemedView style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
+      <ThemedView style={nativeStyles.container}>
+        <SafeAreaView style={nativeStyles.safeArea}>
           <SprintRetroBoard
             sprint={selectedSprint}
             team={selectedTeam}
@@ -127,40 +301,36 @@ export default function HomeScreen() {
     );
   }
 
-  /* View Router: Dashboard */
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+    <ThemedView style={nativeStyles.container}>
+      <SafeAreaView style={nativeStyles.safeArea}>
         <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingTop: isDesktop ? 80 : 100 }]}
+          contentContainerStyle={[nativeStyles.scrollContent, { paddingTop: isDesktop ? 80 : 100 }]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.dashboardContainer}>
-            {/* Header section */}
-            <View style={styles.header}>
-              <ThemedText type="title" style={styles.title}>
+          <View style={nativeStyles.dashboardContainer}>
+            <View style={nativeStyles.header}>
+              <ThemedText type="title" style={nativeStyles.title}>
                 {Strings.dashboard.welcomeTitle(user.firstName || user.username)}
               </ThemedText>
-              <ThemedText type="default" style={styles.subtitle}>
+              <ThemedText type="default" style={nativeStyles.subtitle}>
                 {Strings.dashboard.welcomeSubtitle}
               </ThemedText>
             </View>
 
-            {/* Error Message banner */}
             {!!errorMessage && (
-              <View style={styles.errorBanner}>
-                <ThemedText style={styles.errorText}>{errorMessage}</ThemedText>
+              <View style={nativeStyles.errorBanner}>
+                <ThemedText style={nativeStyles.errorText}>{errorMessage}</ThemedText>
               </View>
             )}
 
             {isLoadingTeams ? (
-              <View style={styles.loadingContainer}>
+              <View style={nativeStyles.loadingContainer}>
                 <ActivityIndicator size="large" color={theme.text} />
                 <ThemedText type="default">{Strings.dashboard.loadingTeams}</ThemedText>
               </View>
             ) : teams.length === 0 ? (
-              /* User has NO teams: show creation form in a centered card */
-              <View style={[styles.centeredCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
+              <View style={[nativeStyles.centeredCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
                 <CreateTeamForm
                   onSubmit={handleCreateTeamSubmit}
                   isLoading={teamCreateLoading}
@@ -169,54 +339,40 @@ export default function HomeScreen() {
                 />
               </View>
             ) : (
-              /* User HAS teams: show responsive dashboard grid */
-              <View style={[styles.dashboardGrid, { flexDirection: isDesktop ? 'row' : 'column' }]}>
-                {/* Left Column: Create Team & Account Details */}
-                <View style={[styles.leftColumn, { flex: isDesktop ? 1 : undefined }]}>
-                  {showCreateTeam ? (
-                    <View style={[styles.columnCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
-                      <CreateTeamForm
-                        onSubmit={handleCreateTeamSubmit}
-                        isLoading={teamCreateLoading}
-                        isFirstTeam={false}
-                        onCancel={() => setShowCreateTeam(false)}
-                        theme={theme}
-                      />
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.toggleCreateBtn, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}
-                      onPress={() => setShowCreateTeam(true)}
-                    >
-                      <ThemedText style={{ fontWeight: 'bold', color: theme.text }}>
-                        {Strings.dashboard.createNewTeamButton}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  )}
-                  
-                  <View style={[styles.columnCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
-                    <AccountDetails
-                      user={user}
+              <View style={{ width: '100%', gap: Spacing.four }}>
+                {showCreateTeam ? (
+                  <View style={[nativeStyles.columnCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
+                    <CreateTeamForm
+                      onSubmit={handleCreateTeamSubmit}
+                      isLoading={teamCreateLoading}
+                      isFirstTeam={false}
+                      onCancel={() => setShowCreateTeam(false)}
                       theme={theme}
                     />
                   </View>
-                </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[nativeStyles.toggleCreateBtn, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}
+                    onPress={() => setShowCreateTeam(true)}
+                  >
+                    <ThemedText style={{ fontWeight: 'bold', color: theme.text }}>
+                      {Strings.dashboard.createNewTeamButton}
+                    </ThemedText>
+                  </TouchableOpacity>
+                )}
 
-                {/* Right Column: Teams List & Sprints */}
-                <View style={[styles.rightColumn, { flex: isDesktop ? 2 : undefined }]}>
-                  <TeamList
-                    teams={teams}
-                    token={token || ''}
-                    userId={user.id}
-                    onAddMemberSuccess={() => token && fetchMyTeams(token)}
-                    onSelectSprint={(sprint, team) => {
-                      setSelectedSprint(sprint);
-                      setSelectedTeam(team);
-                      setActiveView('retro');
-                    }}
-                    theme={theme}
-                  />
-                </View>
+                <TeamList
+                  teams={teams}
+                  token={token || ''}
+                  userId={user.id}
+                  onAddMemberSuccess={() => token && fetchMyTeams(token)}
+                  onSelectSprint={(sprint, team) => {
+                    setSelectedSprint(sprint);
+                    setSelectedTeam(team);
+                    setActiveView('retro');
+                  }}
+                  theme={theme}
+                />
               </View>
             )}
           </View>
@@ -226,7 +382,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const nativeStyles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
@@ -244,7 +400,7 @@ const styles = StyleSheet.create({
   },
   dashboardContainer: {
     width: '100%',
-    maxWidth: 1100, // Gorgeous wide layout
+    maxWidth: 1100,
     alignSelf: 'center',
     gap: Spacing.four,
   },

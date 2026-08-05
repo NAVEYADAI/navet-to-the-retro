@@ -72,6 +72,9 @@ describe('TeamSprintsManager Component', () => {
     expect(getByText(Strings.sprints.header)).toBeTruthy();
     expect(await findByText('Sprint Active')).toBeTruthy();
     expect(await findByText('Sprint Future')).toBeTruthy();
+    
+    // Toggle the expired sprints accordion to show past sprints
+    fireEvent.press(await findByText(/ספרינטים קודמים/));
     expect(await findByText('Sprint Past')).toBeTruthy();
   });
 
@@ -87,9 +90,12 @@ describe('TeamSprintsManager Component', () => {
       />
     );
 
-    expect(await findByText('פעיל')).toBeTruthy();
+    expect(await findByText('בלייב 🟢')).toBeTruthy();
     expect(await findByText('עתידי')).toBeTruthy();
-    expect(await findByText('סגור')).toBeTruthy();
+
+    // Toggle the expired sprints accordion to show past sprints
+    fireEvent.press(await findByText(/ספרינטים קודמים/));
+    expect(await findByText('Sprint Past')).toBeTruthy();
   });
 
   it('shows "+ New Sprint" button and toggles create form for admins', async () => {
@@ -107,13 +113,13 @@ describe('TeamSprintsManager Component', () => {
     // Wait for the initial sprints fetch to settle first
     expect(await findByText('Sprint Active')).toBeTruthy();
 
-    const toggleBtn = getByText(Strings.sprints.newSprintButton);
+    const toggleBtn = getByText('+ פתח ספרינט');
     expect(queryByText(Strings.sprints.createSprintHeader)).toBeNull();
 
     fireEvent.press(toggleBtn);
     expect(await findByText(Strings.sprints.createSprintHeader)).toBeTruthy();
 
-    fireEvent.press(getByText(Strings.sprints.cancelButton));
+    fireEvent.press(getByText('✕ סגור'));
     await waitFor(() => {
       expect(queryByText(Strings.sprints.createSprintHeader)).toBeNull();
     });
@@ -131,7 +137,7 @@ describe('TeamSprintsManager Component', () => {
       />
     );
 
-    const enterButtons = await findAllByText(Strings.sprints.enterRetroButton);
+    const enterButtons = await findAllByText('כניסה ללוח ←');
     fireEvent.press(enterButtons[0]);
 
     expect(mockSelect).toHaveBeenCalledWith(mockSprints[0], mockTeam);

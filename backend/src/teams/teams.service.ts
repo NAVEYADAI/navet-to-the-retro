@@ -51,12 +51,17 @@ export class TeamsService {
       throw new ForbiddenException('Only team leaders can add members to the team');
     }
 
-    // Find user to add by username
-    const userToJoin = await this.prisma.user.findUnique({
-      where: { username: dto.username }
+    // Find user to add by username or email
+    const userToJoin = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: dto.username },
+          { email: dto.username }
+        ]
+      }
     });
     if (!userToJoin) {
-      throw new NotFoundException(`User with username '${dto.username}' not found`);
+      throw new NotFoundException(`User with username or email '${dto.username}' not found`);
     }
 
     // Check if already a member
@@ -72,11 +77,13 @@ export class TeamsService {
       throw new ConflictException('User is already a member of this team');
     }
 
+    const finalRole = dto.role || (userToJoin.role as any) || 'DEVELOPER';
+
     return this.prisma.teamMember.create({
       data: {
         teamId: teamId,
         userId: userToJoin.id,
-        role: dto.role
+        role: finalRole
       },
       include: {
         user: {
@@ -208,6 +215,28 @@ export class TeamsService {
             lastName: true
           }
         }
+      }
+    });
+  }
+
+  async updateTeam(teamId: number, dto: { name?: string; mainOffice?: string }, requesterId: number) {
+    const membership = await this.prisma.teamMember.findUnique({
+      where: {
+        userId_teamId: {
+          userId: requesterId,
+          teamId: teamId
+        }
+      }
+    });
+    if (!membership || !membership.isAdmin) {
+      throw new ForbiddenException('Only team admins can edit team details');
+    }
+
+    return this.prisma.team.update({
+      where: { id: teamId },
+      data: {
+        name: dto.name,
+        mainOffice: dto.mainOffice
       }
     });
   }

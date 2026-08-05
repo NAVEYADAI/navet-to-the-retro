@@ -23,6 +23,21 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+// Platform safe shadow utility to avoid React Native Web deprecated shadow warnings
+const getShadow = (opacity: number, radius: number, offsetHeight: number) => {
+  if (Platform.OS === 'web') {
+    return {
+      boxShadow: `0px ${offsetHeight}px ${radius}px rgba(0, 0, 0, ${opacity})`,
+    };
+  }
+  return {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: offsetHeight },
+    shadowOpacity: opacity,
+    shadowRadius: radius,
+  };
+};
+
 export function AuthForm() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
@@ -34,6 +49,7 @@ export function AuthForm() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [role, setRole] = useState('DEVELOPER'); // Pre-selected default role
   const [showPassword, setShowPassword] = useState(false); // Toggle password visibility
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
@@ -49,7 +65,8 @@ export function AuthForm() {
 
   const handleAuthSubmit = async () => {
     setErrorMessage(null);
-    if (!username || !password || (!isLogin && !email)) {
+    const hasInvalidFields = isLogin ? !username : (!email || !password);
+    if (hasInvalidFields || !password) {
       setErrorMessage(Strings.auth.requiredFieldsError);
       return;
     }
@@ -59,7 +76,7 @@ export function AuthForm() {
     const endpoint = isLogin ? 'login' : 'register';
     const payload = isLogin
       ? { username, password }
-      : { username, email, password, firstName, lastName };
+      : { username: email, email, password, firstName, lastName, role };
 
     try {
       const response = await axios.post(`${backendUrl}/auth/${endpoint}`, payload);
@@ -114,9 +131,10 @@ export function AuthForm() {
               },
             ],
           },
+          getShadow(0.04, 5, 3),
         ]}
       >
-        {/* Brand Logo Placeholder */}
+        {/* Brand Logo Header (RTL aligned) */}
         <View style={styles.logoContainer}>
           <View style={[styles.logoCircle, { backgroundColor: theme.text }]}>
             <ThemedText style={[styles.logoText, { color: theme.background }]}>
@@ -140,21 +158,24 @@ export function AuthForm() {
         )}
 
         <View style={styles.formContainer}>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                color: theme.text,
-                borderColor: theme.backgroundSelected,
-                backgroundColor: theme.background,
-              },
-            ]}
-            placeholder={Strings.auth.usernamePlaceholder}
-            placeholderTextColor={theme.textSecondary}
-            value={username}
-            onChangeText={setUsername}
-            autoCapitalize="none"
-          />
+          {isLogin && (
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  borderColor: theme.backgroundSelected,
+                  backgroundColor: theme.background,
+                },
+              ]}
+              placeholder="כתובת אימייל"
+              placeholderTextColor={theme.textSecondary}
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          )}
 
           {!isLogin && (
             <TextInput
@@ -209,7 +230,43 @@ export function AuthForm() {
             />
           )}
 
-          {/* Password Input with Show/Hide Toggle */}
+          {!isLogin && (
+            <View style={{ gap: Spacing.one, marginVertical: Spacing.one, paddingHorizontal: 4 }}>
+              <ThemedText style={{ fontSize: 13, fontWeight: 'bold', textAlign: 'right', color: theme.textSecondary }}>
+                תפקיד מקצועי:
+              </ThemedText>
+              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.two, marginTop: 4 }}>
+                {[
+                  { label: 'ראש צוות', value: 'TEAM_LEADER' },
+                  { label: 'מנהל מוצר', value: 'PRODUCT_MANAGER' },
+                  { label: 'מפתח', value: 'DEVELOPER' },
+                  { label: 'QA', value: 'TESTER' }
+                ].map((r) => {
+                  const isSelected = role === r.value;
+                  return (
+                    <TouchableOpacity
+                      key={r.value}
+                      style={{
+                        backgroundColor: isSelected ? theme.text : theme.backgroundElement,
+                        borderColor: isSelected ? theme.text : theme.backgroundSelected,
+                        borderWidth: 1,
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 6,
+                      }}
+                      onPress={() => setRole(r.value)}
+                    >
+                      <ThemedText style={{ color: isSelected ? theme.background : theme.text, fontSize: 12, fontWeight: 'bold' }}>
+                        {r.label}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* Password Input with Show/Hide Toggle (RTL alignment) */}
           <View style={[styles.passwordInputContainer, { borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}>
             <TextInput
               style={[
@@ -280,11 +337,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: Spacing.three,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
   },
   logoContainer: {
     alignItems: 'center',
@@ -323,12 +375,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: Spacing.three,
     fontSize: 15,
+    textAlign: 'right', // RTL support
   },
   passwordInputContainer: {
     height: 46,
     borderWidth: 1,
     borderRadius: 8,
-    flexDirection: 'row',
+    flexDirection: 'row-reverse', // RTL alignment (inputs right, eye toggle left)
     alignItems: 'center',
     paddingHorizontal: Spacing.three,
   },
@@ -337,9 +390,10 @@ const styles = StyleSheet.create({
     height: '100%',
     fontSize: 15,
     padding: 0,
+    textAlign: 'right', // RTL support
   },
   showPasswordBtn: {
-    paddingLeft: Spacing.two,
+    paddingRight: Spacing.two,
     justifyContent: 'center',
     height: '100%',
   },
@@ -364,12 +418,12 @@ const styles = StyleSheet.create({
   errorBanner: {
     padding: Spacing.two,
     borderRadius: 6,
-    borderLeftWidth: 4,
-    borderLeftColor: '#c62828',
+    borderRightWidth: 4, // RTL Border right indicator
+    borderRightColor: '#c62828',
   },
   errorText: {
     fontSize: 13,
-    textAlign: 'center',
+    textAlign: 'right', // RTL text
     fontWeight: 'bold',
   },
 });

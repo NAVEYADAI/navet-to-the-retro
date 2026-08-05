@@ -95,8 +95,19 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       }
     }
     @keyframes sandStream {
-      0%, 100% { opacity: 0.3; transform: scaleY(0.6); }
-      50%      { opacity: 0.95; transform: scaleY(1.2); }
+      0%, 100% { opacity: 0.4; transform: scale(0.8); }
+      50%      { opacity: 0.95; transform: scale(1.15); }
+    }
+    @keyframes sandTrickle {
+      0%   { opacity: 0; transform: translateY(-18px) scaleX(0.6); }
+      30%  { opacity: 0.9; transform: translateY(-6px) scaleX(1); }
+      80%  { opacity: 0.85; transform: translateY(18px) scaleX(0.8); }
+      100% { opacity: 0; transform: translateY(26px) scaleX(0.4); }
+    }
+    @keyframes sandSettle {
+      0%   { transform: scaleY(0.4); opacity: 0.5; }
+      60%  { transform: scaleY(1.08); opacity: 0.95; }
+      100% { transform: scaleY(1); opacity: 0.9; }
     }
     @keyframes sandFill {
       0%   { transform: scaleY(0.2); transform-origin: bottom center; }

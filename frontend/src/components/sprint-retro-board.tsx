@@ -261,6 +261,7 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                     <Box sx={{
                       transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
                       transition: 'transform 0.8s cubic-bezier(0.34, 1.8, 0.64, 1)',
+                      zIndex: 5,
                     }}>
                       <Typography sx={{ fontSize: 28, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.4))' }}>👍</Typography>
                     </Box>
@@ -279,24 +280,44 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                     <Box sx={{
                       transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
                       transition: 'transform 0.8s cubic-bezier(0.34, 1.8, 0.64, 1)',
+                      zIndex: 5,
                     }}>
                       <Typography sx={{ fontSize: 28, filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.4))' }}>🔧</Typography>
                     </Box>
                   </Box>
 
-                  {/* Center Orifice with Glowing Glass Funnel Bead */}
+                  {/* Smooth Natural Golden Sand Dune Layer (Sits behind icons at the bottom) */}
+                  <Box
+                    key={`sand-dune-${type}`}
+                    sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: '46%',
+                      zIndex: 2,
+                      pointerEvents: 'none',
+                      overflow: 'hidden',
+                      background: 'linear-gradient(180deg, #fef08a 0%, #eab308 50%, #ca8a04 100%)',
+                      borderRadius: '50% 50% 0 0',
+                      boxShadow: 'inset 0 4px 8px rgba(255,255,255,0.7), 0 -2px 8px rgba(0,0,0,0.2)',
+                      animation: 'sandSettle 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                    }}
+                  />
+
+                  {/* Center Orifice with Glass Bead */}
                   <Box
                     sx={{
                       position: 'absolute',
                       top: '50%',
                       left: '50%',
                       transform: 'translate(-50%, -50%)',
-                      width: 26,
-                      height: 26,
+                      width: 24,
+                      height: 24,
                       borderRadius: '50%',
                       backgroundColor: '#ffffff',
-                      boxShadow: '0 0 14px rgba(255,255,255,1), inset 0 2px 4px rgba(0,0,0,0.3)',
-                      zIndex: 6,
+                      boxShadow: '0 0 12px rgba(255,255,255,0.9), inset 0 2px 4px rgba(0,0,0,0.25)',
+                      zIndex: 4,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -304,61 +325,35 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                   >
                     <Box
                       sx={{
-                        width: 10,
-                        height: 10,
+                        width: 9,
+                        height: 9,
                         borderRadius: '50%',
-                        backgroundColor: '#ffb703',
-                        boxShadow: '0 0 10px #ffb703, 0 0 20px #fb8500',
+                        backgroundColor: '#eab308',
+                        boxShadow: '0 0 8px #eab308',
                         animation: 'sandStream 1s ease-in-out infinite',
                       }}
                     />
                   </Box>
 
-                  {/* Cascading Toy Sand Beads (Triggers tumble on rotate!) */}
-                  <Box key={`beads-${type}`} sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }}>
-                    {[
-                      { left: '38%', delay: '0s', color: '#ffea00' },
-                      { left: '46%', delay: '0.1s', color: '#00e676' },
-                      { left: '52%', delay: '0.2s', color: '#ff1744' },
-                      { left: '58%', delay: '0.3s', color: '#ffb703' },
-                      { left: '64%', delay: '0.4s', color: '#ffffff' },
-                    ].map((bead, idx) => (
-                      <Box
-                        key={idx}
-                        sx={{
-                          position: 'absolute',
-                          top: '25%',
-                          left: bead.left,
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          backgroundColor: bead.color,
-                          boxShadow: `0 0 6px ${bead.color}`,
-                          animation: 'beadCascade 0.9s cubic-bezier(0.25, 1, 0.5, 1) forwards',
-                          animationDelay: bead.delay,
-                        }}
-                      />
-                    ))}
-                  </Box>
-
-                  {/* Continuous trickle background particles */}
+                  {/* Natural Trickling Sand Grains flowing down into the dune */}
                   {[
-                    { left: '44%', delay: '0.15s', duration: '0.9s' },
-                    { left: '56%', delay: '0.45s', duration: '1.1s' },
+                    { left: '46%', delay: '0s', duration: '0.9s' },
+                    { left: '50%', delay: '0.2s', duration: '1.1s' },
+                    { left: '54%', delay: '0.4s', duration: '0.8s' },
                   ].map((p, idx) => (
                     <Box
-                      key={`p-${idx}`}
+                      key={`sand-grain-${type}-${idx}`}
                       sx={{
                         position: 'absolute',
-                        top: '28%',
+                        top: '30%',
                         left: p.left,
                         width: 5,
                         height: 5,
                         borderRadius: '50%',
-                        backgroundColor: '#ffea00',
-                        boxShadow: '0 0 6px #ffea00',
-                        zIndex: 4,
-                        animation: `sandFall ${p.duration} linear infinite`,
+                        backgroundColor: '#fef08a',
+                        boxShadow: '0 0 4px #eab308',
+                        zIndex: 3,
+                        animation: `sandTrickle ${p.duration} linear infinite`,
                         animationDelay: p.delay,
                         pointerEvents: 'none',
                       }}

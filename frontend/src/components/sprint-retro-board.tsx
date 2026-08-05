@@ -218,54 +218,140 @@ function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: Sprin
                 </Alert>
               )}
 
-              {/* Yin-Yang Style Animated Toggle Wheel */}
+              {/* Yin-Yang / Hourglass Sand Toy Toggle Wheel */}
               <Box sx={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 4, my: 1 }}>
                 <Box
                   onClick={toggleType}
                   sx={{
-                    width: 90,
-                    height: 90,
+                    width: 96,
+                    height: 96,
                     borderRadius: '50%',
                     overflow: 'hidden',
-                    border: `3px solid ${isDark ? 'rgba(255,255,255,0.1)' : '#ffffff'}`,
+                    border: `4px solid ${isDark ? '#818cf8' : '#ffffff'}`,
                     position: 'relative',
                     cursor: 'pointer',
-                    boxShadow: isDark ? '0px 4px 16px rgba(0,0,0,0.3)' : '0px 4px 12px rgba(0, 0, 0, 0.12)',
-                    transition: 'transform 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: isDark
+                      ? '0 8px 24px rgba(0,0,0,0.5), 0 0 20px rgba(99,102,241,0.4)'
+                      : '0 8px 24px rgba(0,0,0,0.15), 0 0 16px rgba(99,102,241,0.25)',
+                    transition: 'transform 0.75s cubic-bezier(0.68, -0.6, 0.32, 1.6), box-shadow 0.3s ease',
                     transform: type === 'KEEP' ? 'rotate(0deg)' : 'rotate(180deg)',
                     display: 'flex',
                     flexDirection: 'column',
+                    '&:hover': {
+                      transform: type === 'KEEP' ? 'scale(1.12) rotate(0deg)' : 'scale(1.12) rotate(180deg)',
+                      boxShadow: isDark
+                        ? '0 12px 32px rgba(0,0,0,0.6), 0 0 25px rgba(99,102,241,0.6)'
+                        : '0 12px 32px rgba(0,0,0,0.2), 0 0 20px rgba(99,102,241,0.4)',
+                    },
+                    '&:active': {
+                      transform: type === 'KEEP' ? 'scale(0.9) rotate(-15deg)' : 'scale(0.9) rotate(195deg)',
+                    },
                   }}
                 >
-                  <Box sx={{ height: '50%', backgroundColor: keepBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Box sx={{ transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)', transition: 'transform 0.6s' }}>
-                      <Typography sx={{ fontSize: 22 }}>👍</Typography>
+                  {/* Top Half: KEEP (Emerald Vivid Green) */}
+                  <Box sx={{
+                    height: '50%',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}>
+                    <Box sx={{
+                      transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
+                      transition: 'transform 0.75s cubic-bezier(0.68, -0.6, 0.32, 1.6)',
+                    }}>
+                      <Typography sx={{ fontSize: 24, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.25))' }}>👍</Typography>
                     </Box>
                   </Box>
-                  <Box sx={{ height: '50%', backgroundColor: improveBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Box sx={{ transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)', transition: 'transform 0.6s' }}>
-                      <Typography sx={{ fontSize: 22 }}>🔧</Typography>
+
+                  {/* Bottom Half: IMPROVE (Rose Vivid Crimson) */}
+                  <Box sx={{
+                    height: '50%',
+                    background: 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}>
+                    <Box sx={{
+                      transform: type === 'KEEP' ? 'none' : 'rotate(-180deg)',
+                      transition: 'transform 0.75s cubic-bezier(0.68, -0.6, 0.32, 1.6)',
+                    }}>
+                      <Typography sx={{ fontSize: 24, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.25))' }}>🔧</Typography>
                     </Box>
                   </Box>
+
+                  {/* Center Orifice with Glass/Hourglass Stream Bead */}
                   <Box
                     sx={{
                       position: 'absolute',
-                      width: 18,
-                      height: 18,
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: 22,
+                      height: 22,
                       borderRadius: '50%',
-                      backgroundColor: theme.backgroundElement,
-                      border: '2px solid #ffffff',
-                      top: 'calc(50% - 9px)',
-                      left: 'calc(50% - 9px)',
+                      backgroundColor: '#ffffff',
+                      boxShadow: '0 0 10px rgba(255,255,255,0.9), inset 0 2px 4px rgba(0,0,0,0.25)',
+                      zIndex: 5,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
-                  />
+                  >
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        backgroundColor: '#f59e0b',
+                        boxShadow: '0 0 8px #f59e0b',
+                        animation: 'sandStream 1.2s ease-in-out infinite',
+                      }}
+                    />
+                  </Box>
+
+                  {/* Trickling Sand Particles (children's toy sand effect) */}
+                  {[
+                    { left: '42%', delay: '0s', duration: '1s' },
+                    { left: '50%', delay: '0.35s', duration: '0.9s' },
+                    { left: '58%', delay: '0.7s', duration: '1.2s' },
+                  ].map((p, idx) => (
+                    <Box
+                      key={idx}
+                      sx={{
+                        position: 'absolute',
+                        top: '30%',
+                        left: p.left,
+                        width: 4,
+                        height: 4,
+                        borderRadius: '50%',
+                        backgroundColor: '#fde047',
+                        boxShadow: '0 0 4px #eab308',
+                        zIndex: 4,
+                        animation: `sandFall ${p.duration} linear infinite`,
+                        animationDelay: p.delay,
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  ))}
                 </Box>
 
                 <Box sx={{ textAlign: 'right' }}>
-                  <Typography sx={{ fontSize: 11, color: theme.textSecondary, fontFamily: 'Rubik, sans-serif', mb: 0.5 }}>
-                    {Strings.retroBoard.spinLabel}
+                  <Typography sx={{ fontSize: 12, color: theme.textSecondary, fontFamily: 'Rubik, sans-serif', mb: 0.5, fontWeight: 500 }}>
+                    {Strings.retroBoard.spinLabel} ⏳
                   </Typography>
-                  <Typography sx={{ fontSize: 15, fontWeight: 'bold', color: type === 'KEEP' ? '#2e7d32' : '#c62828', fontFamily: 'Rubik, sans-serif' }}>
+                  <Typography sx={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    color: type === 'KEEP' ? '#10b981' : '#f43f5e',
+                    fontFamily: 'Rubik, sans-serif',
+                    letterSpacing: -0.3,
+                    transition: 'color 0.3s ease',
+                  }}>
                     {type === 'KEEP' ? Strings.retroBoard.keepLabel : Strings.retroBoard.improveLabel}
                   </Typography>
                 </Box>

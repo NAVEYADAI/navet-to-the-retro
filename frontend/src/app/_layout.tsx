@@ -55,6 +55,32 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       50%  { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
+    @keyframes sandFall {
+      0% {
+        transform: translateY(-24px) scale(1);
+        opacity: 0.9;
+      }
+      70% {
+        transform: translateY(22px) scale(0.8);
+        opacity: 0.8;
+      }
+      100% {
+        transform: translateY(32px) scale(0.3);
+        opacity: 0;
+      }
+    }
+    @keyframes sandStream {
+      0%, 100% { opacity: 0.3; transform: scaleY(0.6); }
+      50%      { opacity: 0.95; transform: scaleY(1.2); }
+    }
+    @keyframes sandFill {
+      0%   { transform: scaleY(0.2); transform-origin: bottom center; }
+      100% { transform: scaleY(1); transform-origin: bottom center; }
+    }
+    @keyframes particleFloat {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50%      { transform: translateY(-4px) rotate(15deg); }
+    }
 
     /* Global smooth scrollbar */
     ::-webkit-scrollbar { width: 6px; }

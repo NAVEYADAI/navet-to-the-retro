@@ -21,6 +21,8 @@
     "expo-symbols": "~57.0.1",
     "expo-system-ui": "~57.0.2",
     "expo-web-browser": "~57.0.2",
+    "framer-motion": "^13.0.0",
+    "lucide-react": "^1.28.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
@@ -54,8 +56,16 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "moduleDirectories": [
+      "node_modules",
+      "<rootDir>/node_modules",
+      "<rootDir>/../node_modules"
+    ],
     "moduleNameMapper": {
-      "\\.(css|sass|scss)$": "<rootDir>/jest/css-mock.js"
+      "\\.(css|sass|scss)$": "<rootDir>/jest/css-mock.js",
+      "^framer-motion$": "<rootDir>/jest/framer-motion-mock.js",
+      "^react$": "<rootDir>/node_modules/react",
+      "^react/(.*)$": "<rootDir>/node_modules/react/$1"
     }
   },
   "private": true

@@ -3,7 +3,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme, View, ActivityIndicator, Platform } from 'react-native';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { AuthForm } from '@/components/auth-form';
-import AppTabs from '@/components/app-tabs';
+import AppTabs from '@/components/navigation/app-tabs';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -104,28 +104,23 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
       80%  { opacity: 0.85; transform: translateY(18px) scaleX(0.8); }
       100% { opacity: 0; transform: translateY(26px) scaleX(0.4); }
     }
-    @keyframes sandSettle {
-      0%   { transform: scaleY(0.4); opacity: 0.5; }
-      60%  { transform: scaleY(1.08); opacity: 0.95; }
-      100% { transform: scaleY(1); opacity: 0.9; }
-    }
-    @keyframes sandPourStream {
-      0%   { height: 0px; opacity: 0; transform: scaleX(0.3); }
-      20%  { height: 45px; opacity: 0.95; transform: scaleX(1.2); }
-      75%  { height: 45px; opacity: 0.9; transform: scaleX(0.9); }
-      100% { height: 0px; opacity: 0; transform: scaleX(0.2); }
-    }
-    @keyframes sandPourShower {
-      0%   { transform: translateY(-30px) scale(0.4); opacity: 0; }
-      15%  { opacity: 1; transform: translateY(-15px) scale(1.2); }
-      85%  { opacity: 1; transform: translateY(30px) scale(0.9); }
-      100% { opacity: 0; transform: translateY(42px) scale(0.2); }
-    }
-    @keyframes sandPourFill {
-      0%   { transform: scaleY(0.15); opacity: 0.3; }
-      45%  { transform: scaleY(0.55); opacity: 0.75; }
-      85%  { transform: scaleY(1.06); opacity: 0.95; }
-      100% { transform: scaleY(1); opacity: 0.92; }
+    @keyframes sandSlosh {
+      0% {
+        transform: scaleY(0.3) rotate(-14deg);
+        opacity: 0.5;
+      }
+      45% {
+        transform: scaleY(1.1) rotate(6deg);
+        opacity: 0.95;
+      }
+      75% {
+        transform: scaleY(0.96) rotate(-2deg);
+        opacity: 0.95;
+      }
+      100% {
+        transform: scaleY(1) rotate(0deg);
+        opacity: 0.92;
+      }
     }
     @keyframes sandFill {
       0%   { transform: scaleY(0.2); transform-origin: bottom center; }
@@ -134,6 +129,15 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     @keyframes particleFloat {
       0%, 100% { transform: translateY(0px) rotate(0deg); }
       50%      { transform: translateY(-4px) rotate(15deg); }
+    }
+
+    @media (max-width: 640px) {
+      .nav-brand-text {
+        display: none !important;
+      }
+      .nav-user-text {
+        display: none !important;
+      }
     }
 
     /* Global smooth scrollbar */

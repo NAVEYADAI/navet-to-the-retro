@@ -15,11 +15,13 @@ import {
   Fade,
   Grow,
 } from '@mui/material';
-import { CreateTeamForm } from '@/components/create-team-form';
+import { CreateTeamForm } from '@/features/teams';
+import { ProfileFormCard, AdminTeamsCard, getSettingsCardSx } from '@/features/settings';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/context/auth-context';
 import axios from 'axios';
+import { getBackendUrl } from '@/api/config';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
@@ -46,11 +48,7 @@ export default function SettingsScreen() {
   const [teamEditLoading, setTeamEditLoading] = useState(false);
   const [teamEditMessage, setTeamEditMessage] = useState<{ text: string; isError: boolean } | null>(null);
 
-  const getBackendUrl = () => {
-    return Platform.OS === 'web' && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
-      ? 'https://navet-to-retro-backend.fly.dev'
-      : 'http://localhost:5005';
-  };
+
 
   const fetchAdminTeams = async () => {
     if (!token || !user) return;
@@ -215,15 +213,26 @@ export default function SettingsScreen() {
       background: isDark
         ? 'radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.04) 0%, transparent 50%), #0a0a0f'
         : 'radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.04) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.03) 0%, transparent 50%), #fafbff',
-      pt: { xs: 14, md: 12 },
+      pt: { xs: 13, md: 12 },
       pb: 6,
       direction: 'rtl',
     }}>
-      <Container maxWidth="md" sx={{ mx: 'auto' }}>
-        {/* Header section (RTL) */}
+      <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, mx: 'auto' }}>
+        {/* Header section (Responsive RTL) */}
         <Fade in={true} timeout={500}>
-          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', mb: 5 }}>
-            <Box>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column-reverse', sm: 'row-reverse' },
+              justifyContent: 'space-between',
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              gap: { xs: 2.5, sm: 2 },
+              mb: 5,
+              pb: 3,
+              borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+            }}
+          >
+            <Box sx={{ textAlign: 'right', flex: 1 }}>
               <Typography
                 variant="h4"
                 component="h1"
@@ -232,31 +241,47 @@ export default function SettingsScreen() {
                   color: themeColors.text,
                   fontFamily: 'Rubik, sans-serif',
                   letterSpacing: -0.5,
-                  animation: 'fadeInUp 0.5s ease both',
+                  fontSize: { xs: '1.5rem', sm: '2.1rem' },
                 }}
               >
                 ⚙️ הגדרות מערכת
               </Typography>
-              <Typography sx={{ color: themeColors.textSecondary, fontFamily: 'Rubik, sans-serif', fontSize: 14, mt: 0.5 }}>
-                ניהול פרטים אישיים, צוותים ואפשרויות נוספות.
+              <Typography
+                sx={{
+                  color: themeColors.textSecondary,
+                  fontFamily: 'Rubik, sans-serif',
+                  fontSize: { xs: 13, sm: 14 },
+                  mt: 0.5,
+                }}
+              >
+                ניהול פרטים אישיים, צוותים ואפשרויות מערכת נוספות.
               </Typography>
             </Box>
+
             <Button
               variant="outlined"
               onClick={() => router.push('/')}
               sx={{
-                borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                alignSelf: { xs: 'flex-start', sm: 'center' },
+                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
                 color: themeColors.text,
                 fontWeight: 700,
                 fontFamily: 'Rubik, sans-serif',
                 textTransform: 'none',
-                borderRadius: '12px',
-                px: 2.5,
-                transition: 'all 0.2s ease',
+                borderRadius: '14px',
+                px: 3,
+                py: 1,
+                whiteSpace: 'nowrap',
+                backdropFilter: 'blur(8px)',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                transition: 'all 0.25s ease',
                 '&:hover': {
                   borderColor: accent,
-                  backgroundColor: `${accent}08`,
+                  backgroundColor: `${accent}12`,
                   color: accent,
+                  transform: 'translateY(-1px)',
+                  boxShadow: `0 4px 14px ${accent}25`,
                 },
               }}
             >
@@ -266,87 +291,24 @@ export default function SettingsScreen() {
         </Fade>
 
         {/* Content grid */}
-        <Grid container spacing={4} direction={{ xs: 'column', md: 'row-reverse' }}>
+        <Grid container spacing={4} direction={{ xs: 'column', md: 'row-reverse' } as any}>
           
           {/* Left Column: Personal details */}
           <Grid size={{ xs: 12, md: 6 }}>
-            <Grow in={true} timeout={400}>
-              <Card sx={cardSx}>
-                <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 3, textAlign: 'right' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 800, color: themeColors.text, fontFamily: 'Rubik, sans-serif' }}>
-                    👤 עדכון פרטים אישיים
-                  </Typography>
-
-                  {profileMessage && (
-                    <Fade in={true}>
-                      <Alert
-                        severity={profileMessage.isError ? 'error' : 'success'}
-                        sx={{ flexDirection: 'row-reverse', textAlign: 'right', borderRadius: '12px', fontFamily: 'Rubik, sans-serif' }}
-                      >
-                        {profileMessage.text}
-                      </Alert>
-                    </Fade>
-                  )}
-
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                    <TextField
-                      label="שם פרטי"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      size="small"
-                      slotProps={{ inputLabel: { shrink: true } }}
-                      sx={inputSx}
-                    />
-                    <TextField
-                      label="שם משפחה"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      size="small"
-                      slotProps={{ inputLabel: { shrink: true } }}
-                      sx={inputSx}
-                    />
-                    <TextField
-                      label="כתובת אימייל"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      size="small"
-                      slotProps={{ inputLabel: { shrink: true } }}
-                      sx={inputSx}
-                    />
-                  </Box>
-
-                  <Button
-                    variant="contained"
-                    onClick={handleUpdateProfile}
-                    disabled={profileLoading}
-                    sx={{
-                      background: `linear-gradient(135deg, ${accent} 0%, #8b5cf6 100%)`,
-                      color: '#fff',
-                      fontWeight: 700,
-                      fontFamily: 'Rubik, sans-serif',
-                      textTransform: 'none',
-                      borderRadius: '12px',
-                      py: 1.2,
-                      boxShadow: '0 4px 16px rgba(99,102,241,0.25)',
-                      transition: 'all 0.25s ease',
-                      '&:hover': {
-                        transform: 'translateY(-1px)',
-                        boxShadow: '0 8px 24px rgba(99,102,241,0.35)',
-                      },
-                      '&.Mui-disabled': {
-                        background: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-                      },
-                    }}
-                  >
-                    {profileLoading ? (
-                      <CircularProgress size={22} sx={{ color: '#fff' }} />
-                    ) : (
-                      'שמור שינויים'
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            </Grow>
+            <ProfileFormCard
+              firstName={firstName}
+              setFirstName={setFirstName}
+              lastName={lastName}
+              setLastName={setLastName}
+              email={email}
+              setEmail={setEmail}
+              profileLoading={profileLoading}
+              profileMessage={profileMessage}
+              onUpdateProfile={handleUpdateProfile}
+              isDark={isDark}
+              accent={accent}
+              themeColors={themeColors}
+            />
           </Grid>
 
           {/* Right Column: Create Team */}
@@ -382,154 +344,22 @@ export default function SettingsScreen() {
 
           {/* Bottom Column: Manage & Edit existing teams */}
           <Grid size={{ xs: 12 }}>
-            <Grow in={true} timeout={600}>
-              <Card
-                sx={{ ...cardSx, mt: 2 }}
-              >
-                <CardContent sx={{ p: 4, textAlign: 'right' }}>
-                  <Typography variant="h6" sx={{ fontWeight: 800, mb: 3, color: themeColors.text, fontFamily: 'Rubik, sans-serif' }}>
-                    🛠️ ניהול ועריכת צוותים בניהולך
-                  </Typography>
-
-                  {teamEditMessage && (
-                    <Alert
-                      severity={teamEditMessage.isError ? 'error' : 'success'}
-                      sx={{ flexDirection: 'row-reverse', textAlign: 'right', mb: 3 }}
-                    >
-                      {teamEditMessage.text}
-                    </Alert>
-                  )}
-
-                  {loadingTeams ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-                      <CircularProgress color="inherit" sx={{ color: themeColors.text }} />
-                    </Box>
-                  ) : adminTeams.length === 0 ? (
-                    <Typography sx={{ color: themeColors.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
-                      אינך מנהל של אף צוות במערכת כרגע.
-                    </Typography>
-                  ) : (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      {adminTeams.map((team) => {
-                        const isEditing = editTeamId === team.id;
-                        return (
-                          <Box
-                            key={team.id}
-                            sx={{
-                              p: 2.5,
-                              borderRadius: 2,
-                              border: '1px solid rgba(0,0,0,0.06)',
-                              backgroundColor: themeColors.background,
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: 2
-                            }}
-                          >
-                            {isEditing ? (
-                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                                <TextField
-                                  label="שם הצוות"
-                                  value={editTeamName}
-                                  onChange={(e) => setEditTeamName(e.target.value)}
-                                  size="small"
-                                  sx={{
-                                    input: { color: themeColors.text, textAlign: 'right' },
-                                    label: { color: themeColors.textSecondary, right: 28, left: 'auto' },
-                                    fieldset: { borderColor: themeColors.backgroundSelected },
-                                    '& .MuiOutlinedInput-root': {
-                                      backgroundColor: themeColors.backgroundElement,
-                                      '&:hover fieldset': { borderColor: themeColors.text },
-                                      '&.Mui-focused fieldset': { borderColor: themeColors.text },
-                                    }
-                                  }}
-                                />
-
-                                <TextField
-                                  label="משרד ראשי / מיקום"
-                                  value={editTeamOffice}
-                                  onChange={(e) => setEditTeamOffice(e.target.value)}
-                                  size="small"
-                                  sx={{
-                                    input: { color: themeColors.text, textAlign: 'right' },
-                                    label: { color: themeColors.textSecondary, right: 28, left: 'auto' },
-                                    fieldset: { borderColor: themeColors.backgroundSelected },
-                                    '& .MuiOutlinedInput-root': {
-                                      backgroundColor: themeColors.backgroundElement,
-                                      '&:hover fieldset': { borderColor: themeColors.text },
-                                      '&.Mui-focused fieldset': { borderColor: themeColors.text },
-                                    }
-                                  }}
-                                />
-
-                                <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-start' }}>
-                                  <Button
-                                    variant="contained"
-                                    onClick={() => handleSaveTeamEdit(team.id)}
-                                    disabled={teamEditLoading}
-                                    sx={{
-                                      backgroundColor: themeColors.text,
-                                      color: themeColors.background,
-                                      fontWeight: 'bold',
-                                      fontFamily: 'Rubik, sans-serif'
-                                    }}
-                                  >
-                                    שמור שינויים
-                                  </Button>
-                                  <Button
-                                    variant="outlined"
-                                    onClick={() => setEditTeamId(null)}
-                                    sx={{
-                                      borderColor: themeColors.backgroundSelected,
-                                      color: themeColors.text,
-                                      fontWeight: 'bold',
-                                      fontFamily: 'Rubik, sans-serif'
-                                    }}
-                                  >
-                                    ביטול
-                                  </Button>
-                                </Box>
-                              </Box>
-                            ) : (
-                              <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-                                  <Typography sx={{ fontWeight: 'bold', color: themeColors.text, fontFamily: 'Rubik, sans-serif' }}>
-                                    {team.name}
-                                  </Typography>
-                                  {!!team.mainOffice && (
-                                    <Typography variant="body2" sx={{ color: themeColors.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
-                                      🏢 משרד: {team.mainOffice}
-                                    </Typography>
-                                  )}
-                                </Box>
-
-                                <Button
-                                  variant="outlined"
-                                  size="small"
-                                  onClick={() => {
-                                    setEditTeamId(team.id);
-                                    setEditTeamName(team.name);
-                                    setEditTeamOffice(team.mainOffice || '');
-                                    setTeamEditMessage(null);
-                                  }}
-                                  sx={{
-                                    borderColor: themeColors.backgroundSelected,
-                                    color: '#007aff',
-                                    fontWeight: 'bold',
-                                    fontFamily: 'Rubik, sans-serif'
-                                  }}
-                                >
-                                  ערוך פרטים
-                                </Button>
-                              </Box>
-                            )}
-                          </Box>
-                        );
-                      })}
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-            </Grow>
+            <AdminTeamsCard
+              adminTeams={adminTeams}
+              loadingTeams={loadingTeams}
+              editTeamId={editTeamId}
+              setEditTeamId={setEditTeamId}
+              editTeamName={editTeamName}
+              setEditTeamName={setEditTeamName}
+              editTeamOffice={editTeamOffice}
+              setEditTeamOffice={setEditTeamOffice}
+              teamEditLoading={teamEditLoading}
+              teamEditMessage={teamEditMessage}
+              setTeamEditMessage={setTeamEditMessage}
+              onSaveTeamEdit={handleSaveTeamEdit}
+              isDark={isDark}
+              themeColors={themeColors}
+            />
           </Grid>
 
         </Grid>

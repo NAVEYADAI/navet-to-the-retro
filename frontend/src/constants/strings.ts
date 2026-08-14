@@ -56,8 +56,8 @@ export const Strings = {
   retroBoard: {
     backButton: '← חזרה לדשבורד',
     writeNoteHeader: 'כתוב הערת רטרו',
-    keepLabel: 'Keep (שימור)',
-    improveLabel: 'Improve (שיפור)',
+    keepLabel: 'שימור',
+    improveLabel: 'שיפור',
     keepColumnHeader: 'שימור 🟢',
     improveColumnHeader: 'שיפור 🔴',
     emptyKeepText: 'אין הערות שימור עדיין.',

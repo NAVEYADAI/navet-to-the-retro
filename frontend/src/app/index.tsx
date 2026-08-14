@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import {
   StyleSheet,
   View,
@@ -12,15 +13,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { CreateTeamForm } from '@/components/create-team-form';
-import { TeamList } from '@/components/team-list';
+import { CreateTeamForm, TeamList } from '@/features/teams';
 import { AccountDetails } from '@/components/account-details';
-import { SprintRetroBoard } from '@/components/sprint-retro-board';
+import { SprintRetroBoard } from '@/features/retro';
 import { BottomTabInset, MaxContentWidth, Spacing, Colors } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/context/auth-context';
-import axios from 'axios';
+import { apiClient } from '@/api/client';
+import { getBackendUrl } from '@/api/config';
 import {
   Box,
   Container,

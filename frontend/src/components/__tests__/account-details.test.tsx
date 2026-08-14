@@ -6,7 +6,13 @@ import { Strings } from '../../constants/strings';
 describe('AccountDetails Component', () => {
   it('renders user details correctly', async () => {
     const user = { username: 'testuser', email: 'test@example.com' };
-    const theme = { backgroundElement: '#fff' };
+    const theme = {
+      text: '#000',
+      background: '#fff',
+      backgroundElement: '#fff',
+      backgroundSelected: '#ccc',
+      textSecondary: '#666',
+    };
 
     const { getByText } = await render(<AccountDetails user={user} theme={theme} />);
 

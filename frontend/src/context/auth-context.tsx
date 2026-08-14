@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
-
 import axios from 'axios';
+import { getBackendUrl } from '@/api/config';
+import { getAuthHeaders } from '@/api/client';
 
 const storage = {
   getItem: async (key: string) => {
@@ -47,13 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const savedToken = await storage.getItem('userToken');
         if (savedToken) {
-          const backendUrl = Platform.OS === 'web' && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
-            ? 'https://navet-to-retro-backend.fly.dev'
-            : 'http://localhost:5005';
-            
-          const response = await axios.get(`${backendUrl}/auth/me`, {
-            headers: { 'Authorization': `Bearer ${savedToken}` }
-          });
+          const response = await axios.get(`${getBackendUrl()}/auth/me`, getAuthHeaders(savedToken));
           setToken(savedToken);
           setUser(response.data);
         }

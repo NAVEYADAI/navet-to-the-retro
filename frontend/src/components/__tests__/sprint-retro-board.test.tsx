@@ -88,7 +88,7 @@ describe('SprintRetroBoard Component', () => {
     );
 
     expect(getByText(Strings.retroBoard.backButton)).toBeTruthy();
-    expect(getByText('Sprint 5 (שימור)')).toBeTruthy();
+    expect(getByText('Sprint 5')).toBeTruthy();
     expect(getByText('Sprint 5 retro description')).toBeTruthy();
     expect(await findByText('Great velocity this sprint!')).toBeTruthy();
   });

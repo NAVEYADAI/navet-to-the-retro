@@ -3,6 +3,17 @@ import { render, fireEvent } from '@testing-library/react-native';
 import { AuthForm } from '../auth-form';
 import { Strings } from '../../constants/strings';
 
+// Mock Animated.timing to execute callback synchronously in Jest
+jest.mock('react-native', () => {
+  const RN = jest.requireActual('react-native');
+  RN.Animated.timing = (value: any, config: any) => ({
+    start: (callback?: () => void) => {
+      if (callback) callback();
+    },
+  });
+  return RN;
+});
+
 // Mock the useAuth hook
 const mockLogin = jest.fn();
 jest.mock('@/context/auth-context', () => ({

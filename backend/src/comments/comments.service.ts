@@ -33,6 +33,7 @@ export class CommentsService {
       data: {
         content: dto.content,
         type: dto.type,
+        category: dto.category,
         isAnonymous: dto.isAnonymous ?? false,
         authorId: authorId,
         teamId: sprint.teamId,
@@ -89,11 +90,9 @@ export class CommentsService {
       }
     });
 
-    const isAdmin = requesterMembership.isAdmin;
-
-    // 4. Return comments, masking author if comment is anonymous and requester is not an admin
+    // 4. Return comments, masking author if comment is anonymous (no one, including admins, can unmask it)
     return comments.map(c => {
-      if (c.isAnonymous && !isAdmin) {
+      if (c.isAnonymous) {
         return {
           ...c,
           author: {

@@ -10,6 +10,8 @@ import {
   useColorScheme as useRNColorScheme,
   useWindowDimensions,
   Animated,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -44,6 +46,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
   // New comment state
   const [content, setContent] = useState('');
   const [type, setType] = useState<'KEEP' | 'IMPROVE'>('KEEP');
+  const [category, setCategory] = useState('');
+  const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +87,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
       await axios.post(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
         content: content.trim(),
         type,
+        category: category || undefined,
         isAnonymous
       }, {
         headers: {
@@ -91,6 +96,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
       });
 
       setContent('');
+      setCategory('');
       setIsAnonymous(false);
       await fetchComments();
     } catch (err: any) {
@@ -111,20 +117,12 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
     setType(nextType);
   };
 
-  const myMembership = team.members?.find((m: any) => m.userId === user.id);
-  const isAdmin = myMembership?.isAdmin || false;
-
   const keepComments = comments.filter(c => c.type === 'KEEP');
   const improveComments = comments.filter(c => c.type === 'IMPROVE');
 
-  // Sticky-notes themes
+  // Wheel half colors
   const keepBg = colorScheme === 'dark' ? '#1b5e20' : '#e8f5e9';
-  const keepText = colorScheme === 'dark' ? '#e8f5e9' : '#1b5e20';
-  const keepMetaText = colorScheme === 'dark' ? '#a5d6a7' : '#2e7d32';
-
   const improveBg = colorScheme === 'dark' ? '#b71c1c' : '#ffebee';
-  const improveText = colorScheme === 'dark' ? '#ffebee' : '#b71c1c';
-  const improveMetaText = colorScheme === 'dark' ? '#ef9a9a' : '#c62828';
 
   // Rotation interpolations
   const wheelRotation = spinAnim.interpolate({
@@ -171,14 +169,14 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
         <View style={[
           retroNativeStyles.postSection,
           {
-            backgroundColor: theme.backgroundElement,
-            borderColor: type === 'KEEP' ? '#00e676' : '#ff1744',
+            backgroundColor: isAnonymous ? '#161618' : theme.backgroundElement,
+            borderColor: isAnonymous ? '#8b5cf6' : type === 'KEEP' ? '#00e676' : '#ff1744',
             borderWidth: 2.5,
           },
           getShadow(0.04, 5, 3)
         ]}>
-          <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 14, marginBottom: Spacing.one, textAlign: 'right' }}>
-            {Strings.retroBoard.writeNoteHeader}
+          <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 14, marginBottom: Spacing.one, textAlign: 'right', color: isAnonymous ? '#e8eaed' : undefined }}>
+            {isAnonymous ? `🥸 ${Strings.retroBoard.writeNoteHeader}` : Strings.retroBoard.writeNoteHeader}
           </ThemedText>
 
           {!!error && (
@@ -224,56 +222,98 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
             style={[
               styles.textarea,
               {
-                color: theme.text,
-                borderColor: theme.backgroundSelected,
-                backgroundColor: theme.background,
+                color: isAnonymous ? '#e8eaed' : theme.text,
+                borderColor: isAnonymous ? 'rgba(139,92,246,0.4)' : theme.backgroundSelected,
+                backgroundColor: isAnonymous ? 'rgba(255,255,255,0.04)' : theme.background,
               },
             ]}
-            placeholder={type === 'KEEP' ? "מה עבד טוב? ציין הישגים..." : "מה אפשר לשפר? הצע שיפורים..."}
-            placeholderTextColor={theme.textSecondary}
+            placeholder={type === 'KEEP' ? Strings.retroBoard.notePlaceholderKeep : Strings.retroBoard.notePlaceholderImprove}
+            placeholderTextColor={isAnonymous ? 'rgba(232,234,237,0.5)' : theme.textSecondary}
             value={content}
             onChangeText={setContent}
             multiline
             numberOfLines={3}
           />
 
+          <TouchableOpacity
+            onPress={() => setIsCategoryPickerOpen(true)}
+            activeOpacity={0.8}
+            style={{
+              alignSelf: 'flex-end',
+              paddingVertical: 6,
+              paddingHorizontal: 14,
+              borderRadius: 999,
+              borderTopRightRadius: 4,
+              backgroundColor: isAnonymous
+                ? 'rgba(139,92,246,0.18)'
+                : category
+                ? (colorScheme === 'dark' ? 'rgba(129,140,248,0.16)' : 'rgba(99,102,241,0.1)')
+                : theme.backgroundSelected,
+            }}
+          >
+            <ThemedText style={{
+              fontSize: 13,
+              fontWeight: category ? '700' : '400',
+              color: category ? (isAnonymous ? '#e8eaed' : colorScheme === 'dark' ? '#818cf8' : '#6366f1') : theme.textSecondary,
+            }}>
+              {category ? Strings.retroBoard.categories[category] : Strings.retroBoard.categoryLabel}
+            </ThemedText>
+          </TouchableOpacity>
+
+          <Modal
+            visible={isCategoryPickerOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setIsCategoryPickerOpen(false)}
+          >
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+              activeOpacity={1}
+              onPress={() => setIsCategoryPickerOpen(false)}
+            >
+              <TouchableOpacity
+                activeOpacity={1}
+                style={{ backgroundColor: theme.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', paddingVertical: 8 }}
+              >
+                <FlatList
+                  data={[['', Strings.retroBoard.categoryNone] as [string, string], ...Object.entries(Strings.retroBoard.categories)]}
+                  keyExtractor={([key]) => key || 'none'}
+                  renderItem={({ item: [key, label] }) => (
+                    <TouchableOpacity
+                      onPress={() => { setCategory(key); setIsCategoryPickerOpen(false); }}
+                      style={{
+                        paddingVertical: 14,
+                        paddingHorizontal: 20,
+                        backgroundColor: category === key ? theme.backgroundSelected : 'transparent',
+                      }}
+                    >
+                      <ThemedText style={{ fontSize: 15, textAlign: 'right', fontWeight: category === key ? 'bold' : 'normal' }}>
+                        {label}
+                      </ThemedText>
+                    </TouchableOpacity>
+                  )}
+                />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
+
           <View style={styles.formControls}>
             <TouchableOpacity
               onPress={() => setIsAnonymous(prev => !prev)}
               activeOpacity={0.8}
+              accessibilityLabel={Strings.retroBoard.anonymousToggleHint}
               style={{
-                flexDirection: 'row-reverse',
+                width: 40,
+                height: 40,
+                borderRadius: 20,
                 alignItems: 'center',
-                gap: 8,
+                justifyContent: 'center',
+                backgroundColor: isAnonymous ? '#3c4043' : theme.backgroundSelected,
+                borderWidth: isAnonymous ? 1.5 : 0,
+                borderColor: '#8b5cf6',
               }}
             >
-              <ThemedText style={{ fontSize: 13, fontWeight: 'bold', color: isAnonymous ? '#a855f7' : theme.textSecondary }}>
-                {Strings.retroBoard.anonymousLabel}
-              </ThemedText>
-              <View
-                style={{
-                  width: 58,
-                  height: 30,
-                  borderRadius: 15,
-                  padding: 3,
-                  justifyContent: 'center',
-                  backgroundColor: isAnonymous ? '#7c3aed' : theme.backgroundSelected,
-                }}
-              >
-                <View
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 12,
-                    backgroundColor: '#ffffff',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    alignSelf: isAnonymous ? 'flex-end' : 'flex-start',
-                  }}
-                >
-                  <ThemedText style={{ fontSize: 12 }}>{isAnonymous ? '🕵️‍♂️' : '👤'}</ThemedText>
-                </View>
-              </View>
+              <ThemedText style={{ fontSize: 18 }}>{isAnonymous ? '🥸' : '👤'}</ThemedText>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -314,26 +354,31 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
                 keepComments.map(comment => (
                   <View
                     key={comment.id}
-                    style={[styles.commentCard, { backgroundColor: keepBg, borderRightColor: '#2e7d32' }, getShadow(0.03, 3, 2)]}
+                    style={[styles.commentCard, { backgroundColor: theme.backgroundElement, borderRightColor: '#10b981' }, getShadow(0.03, 3, 2)]}
                   >
-                    <ThemedText type="default" style={[styles.commentContent, { color: keepText }]}>
+                    {!!comment.category && (
+                      <View style={[styles.categoryChip, { backgroundColor: 'rgba(16,185,129,0.14)' }]}>
+                        <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: '#10b981' }}>
+                          {Strings.retroBoard.categories[comment.category]}
+                        </ThemedText>
+                      </View>
+                    )}
+                    <ThemedText type="default" style={[styles.commentContent, { color: theme.text }]}>
                       {comment.content}
                     </ThemedText>
-                    
+
                     <View style={styles.commentMeta}>
                       {comment.isAnonymous ? (
-                        <ThemedText style={[styles.metaText, { fontStyle: 'italic', color: '#ff8f00' }]}>
-                          {comment.author.username !== 'Anonymous' && isAdmin
-                            ? Strings.retroBoard.anonymousByAdmin(comment.author.username)
-                            : Strings.retroBoard.anonymousAuthor}
+                        <ThemedText style={[styles.metaText, { fontWeight: 'normal', color: theme.textSecondary }]}>
+                          🥸 {Strings.retroBoard.anonymousAuthor}
                         </ThemedText>
                       ) : (
-                        <ThemedText style={[styles.metaText, { color: keepMetaText }]}>
-                          {`@${comment.author.username}`}
+                        <ThemedText style={[styles.metaText, { color: theme.textSecondary }]}>
+                          {`${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || comment.author.username}
                         </ThemedText>
                       )}
-                      <ThemedText style={[styles.metaText, { opacity: 0.5, color: keepMetaText }]}>
-                        {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <ThemedText style={[styles.metaText, { opacity: 0.6, fontWeight: 'normal', color: theme.textSecondary }]}>
+                        {new Date(comment.createdAt).toLocaleDateString('he-IL')} · {new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                       </ThemedText>
                     </View>
                   </View>
@@ -355,26 +400,31 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
                 improveComments.map(comment => (
                   <View
                     key={comment.id}
-                    style={[styles.commentCard, { backgroundColor: improveBg, borderRightColor: '#c62828' }, getShadow(0.03, 3, 2)]}
+                    style={[styles.commentCard, { backgroundColor: theme.backgroundElement, borderRightColor: '#ef4444' }, getShadow(0.03, 3, 2)]}
                   >
-                    <ThemedText type="default" style={[styles.commentContent, { color: improveText }]}>
+                    {!!comment.category && (
+                      <View style={[styles.categoryChip, { backgroundColor: 'rgba(239,68,68,0.14)' }]}>
+                        <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: '#ef4444' }}>
+                          {Strings.retroBoard.categories[comment.category]}
+                        </ThemedText>
+                      </View>
+                    )}
+                    <ThemedText type="default" style={[styles.commentContent, { color: theme.text }]}>
                       {comment.content}
                     </ThemedText>
-                    
+
                     <View style={styles.commentMeta}>
                       {comment.isAnonymous ? (
-                        <ThemedText style={[styles.metaText, { fontStyle: 'italic', color: '#ff8f00' }]}>
-                          {comment.author.username !== 'Anonymous' && isAdmin
-                            ? Strings.retroBoard.anonymousByAdmin(comment.author.username)
-                            : Strings.retroBoard.anonymousAuthor}
+                        <ThemedText style={[styles.metaText, { fontWeight: 'normal', color: theme.textSecondary }]}>
+                          🥸 {Strings.retroBoard.anonymousAuthor}
                         </ThemedText>
                       ) : (
-                        <ThemedText style={[styles.metaText, { color: improveMetaText }]}>
-                          {`@${comment.author.username}`}
+                        <ThemedText style={[styles.metaText, { color: theme.textSecondary }]}>
+                          {`${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || comment.author.username}
                         </ThemedText>
                       )}
-                      <ThemedText style={[styles.metaText, { opacity: 0.5, color: improveMetaText }]}>
-                        {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <ThemedText style={[styles.metaText, { opacity: 0.6, fontWeight: 'normal', color: theme.textSecondary }]}>
+                        {new Date(comment.createdAt).toLocaleDateString('he-IL')} · {new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
                       </ThemedText>
                     </View>
                   </View>
@@ -487,8 +537,15 @@ const styles = StyleSheet.create({
   commentCard: {
     padding: Spacing.three,
     borderRadius: 8,
-    borderRightWidth: 5,
+    borderRightWidth: 3,
     gap: Spacing.two,
+  },
+  categoryChip: {
+    alignSelf: 'flex-end',
+    borderRadius: 999,
+    borderTopRightRadius: 3,
+    paddingVertical: 2,
+    paddingHorizontal: 9,
   },
   commentContent: {
     fontSize: 14,

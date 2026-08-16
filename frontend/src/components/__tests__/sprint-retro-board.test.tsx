@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { act } from 'react-test-renderer';
 import { SprintRetroBoard } from '../sprint-retro-board';
 import { Strings } from '../../constants/strings';
 import axios from 'axios';
@@ -109,7 +110,7 @@ describe('SprintRetroBoard Component', () => {
     expect(await findByText('Great velocity this sprint!')).toBeTruthy();
     expect(await findByText('Too many meetings.')).toBeTruthy();
 
-    expect(getByText('@dev1')).toBeTruthy();
+    expect(getByText('dev1')).toBeTruthy();
   });
 
   it('toggles note type when clicking the Yin-Yang wheel', async () => {
@@ -155,7 +156,7 @@ describe('SprintRetroBoard Component', () => {
     // Wait for comments to load so that initial mount state updates settle
     expect(await findByText('Great velocity this sprint!')).toBeTruthy();
 
-    const input = getByPlaceholderText('מה עבד טוב? ציין הישגים...');
+    const input = getByPlaceholderText(Strings.retroBoard.notePlaceholderKeep);
     const submitBtn = getByText(Strings.retroBoard.postNoteButton);
 
     fireEvent.changeText(input, 'Working together was smooth.');
@@ -163,20 +164,24 @@ describe('SprintRetroBoard Component', () => {
       expect(input.props.value).toBe('Working together was smooth.');
     });
 
-    fireEvent.press(submitBtn);
-
-    await waitFor(() => {
-      expect(mockedAxios.post).toHaveBeenCalledWith(
-        expect.stringContaining('/sprints/5/comments'),
-        {
-          content: 'Working together was smooth.',
-          type: 'KEEP',
-          isAnonymous: false,
-        },
-        expect.objectContaining({
-          headers: { Authorization: 'Bearer mock-token' },
-        })
-      );
+    // Wrapping in act() flushes the whole async chain (POST, state reset, comment
+    // refetch) inside the act scope, instead of leaving it to resolve on a stray microtask.
+    await act(async () => {
+      fireEvent.press(submitBtn);
     });
+
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/sprints/5/comments'),
+      {
+        content: 'Working together was smooth.',
+        type: 'KEEP',
+        isAnonymous: false,
+      },
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer mock-token' },
+      })
+    );
+    expect(input.props.value).toBe('');
+    expect(mockedAxios.get).toHaveBeenCalledTimes(2);
   });
 });

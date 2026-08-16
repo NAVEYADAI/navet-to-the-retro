@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { act } from 'react-test-renderer';
 import { CreateTeamForm } from '../create-team-form';
 import { Strings } from '../../constants/strings';
 
@@ -78,10 +79,13 @@ describe('CreateTeamForm Component', () => {
       expect(officeInput.props.value).toBe('Haifa Office');
     });
 
-    fireEvent.press(submitBtn);
-
-    await waitFor(() => {
-      expect(mockSubmit).toHaveBeenCalledWith('Core Team', 'Haifa Office');
+    // Wrapping in act() flushes the async onSubmit handler (and the state reset that
+    // follows it) inside the act scope, instead of leaving it to resolve on a stray microtask.
+    await act(async () => {
+      fireEvent.press(submitBtn);
     });
+
+    expect(mockSubmit).toHaveBeenCalledWith('Core Team', 'Haifa Office');
+    expect(nameInput.props.value).toBe('');
   });
 });

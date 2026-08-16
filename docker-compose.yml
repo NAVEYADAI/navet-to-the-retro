@@ -6,7 +6,7 @@ services:
     ports:
       - "5005:5005"
     environment:
-      - PORT=5005
+      - BACKEND_PORT=5005
     env_file:
       - ./backend/.env
     volumes:

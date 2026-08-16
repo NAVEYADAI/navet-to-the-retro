@@ -147,15 +147,6 @@ function HomeScreenWeb() {
             >
               {Strings.dashboard.welcomeTitle(user.firstName || user.username)} 👋
             </Typography>
-            <Typography sx={{
-              color: themeColors.textSecondary,
-              fontFamily: 'Rubik, sans-serif',
-              fontSize: 15,
-              animation: 'fadeInUp 0.6s ease both',
-              animationDelay: '0.1s',
-            }}>
-              ברוך הבא לפורטל הרטרוספקטיבה של הצוותים שלך.
-            </Typography>
           </Box>
         </Fade>
 

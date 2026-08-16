@@ -22,10 +22,10 @@ model User {
 }
 
 enum TeamRole {
-  TEAM_LEADER      // ראש צוות
-  PRODUCT_MANAGER   // מנהל מוצר
-  TESTER           // בודק
-  DEVELOPER        // מפתח
+  TEAM_LEADER // ראש צוות
+  PRODUCT_MANAGER // מנהל מוצר
+  TESTER // בודק
+  DEVELOPER // מפתח
 }
 
 model Team {
@@ -59,25 +59,42 @@ enum CommentType {
   IMPROVE
 }
 
+enum CommentCategory {
+  SPRINT_SETUP
+  PRE_PLANNING
+  PLANNING
+  ONGOING_WORK
+  TESTING
+  AVAILABILITY
+  ESTIMATIONS
+  SPECIFICATIONS
+  TASK_DISTRIBUTION
+  PERSONAL
+  FUN
+  GENERAL
+  TECHNICAL
+}
+
 model Sprint {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   name        String
   description String?
   startDate   DateTime
   endDate     DateTime
   teamId      Int
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime @default(now())
 
   team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   comments Comment[]
 }
 
 model Comment {
-  id          Int         @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   content     String
   type        CommentType
-  isAnonymous Boolean     @default(false)
-  createdAt   DateTime    @default(now())
+  category    CommentCategory?
+  isAnonymous Boolean          @default(false)
+  createdAt   DateTime         @default(now())
   authorId    Int
   teamId      Int
   sprintId    Int

@@ -7,64 +7,79 @@ interface CommentCardWebProps {
     id: number;
     content: string;
     type: 'KEEP' | 'IMPROVE';
+    category?: string | null;
     isAnonymous: boolean;
-    author: { username: string };
+    author: { username: string; firstName?: string | null; lastName?: string | null };
     createdAt: string;
   };
   index: number;
-  isDark: boolean;
-  isAdmin: boolean;
+  theme: {
+    text: string;
+    backgroundElement: string;
+    backgroundSelected: string;
+    textSecondary: string;
+  };
 }
 
-export function CommentCardWeb({ comment, index, isDark, isAdmin }: CommentCardWebProps) {
+export function CommentCardWeb({ comment, index, theme }: CommentCardWebProps) {
   const isKeep = comment.type === 'KEEP';
-
-  const cardBg = isKeep
-    ? isDark ? 'rgba(16,185,129,0.08)' : '#ecfdf5'
-    : isDark ? 'rgba(255,23,68,0.08)' : '#fff1f2';
-
-  const borderColor = isKeep ? '#10b981' : '#ff1744';
-  const textColor = isKeep
-    ? isDark ? '#a7f3d0' : '#065f46'
-    : isDark ? '#fecdd3' : '#9f1239';
-
-  const authorColor = isKeep
-    ? isDark ? '#34d399' : '#047857'
-    : isDark ? '#fda4af' : '#be123c';
-
-  const timeColor = isKeep
-    ? isDark ? '#6ee7b7' : '#047857'
-    : isDark ? '#fecdd3' : '#be123c';
+  const accentColor = isKeep ? '#10b981' : '#ef4444';
+  const categoryLabel = comment.category ? (Strings.retroBoard.categories as Record<string, string>)[comment.category] : null;
 
   return (
-    <Grow in={true} timeout={(index % 8) * 100 + 300}>
+    <Grow in={true} timeout={200}>
       <Card sx={{
-        backgroundColor: cardBg,
-        borderRight: `5px solid ${borderColor}`,
-        borderLeft: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
-        borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
-        borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}`,
-        borderRadius: '16px',
-        boxShadow: '0px 4px 12px rgba(0,0,0,0.04)',
+        backgroundColor: theme.backgroundElement,
+        borderRight: `3px solid ${accentColor}`,
+        borderRadius: '10px',
+        boxShadow: '0px 1px 3px rgba(0,0,0,0.06)',
       }}>
-        <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 }, display: 'flex', flexDirection: 'column', gap: 1.5, textAlign: 'right' }}>
-          <Typography sx={{ color: textColor, fontWeight: '500', lineHeight: 1.5, fontFamily: 'Rubik, sans-serif', fontSize: 14 }}>
+        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 }, display: 'flex', flexDirection: 'column', gap: 1, textAlign: 'right' }}>
+          {categoryLabel && (
+            <Box
+              sx={{
+                alignSelf: 'flex-start',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.6,
+                px: 1.1,
+                py: 0.3,
+                borderRadius: '8px 3px 8px 3px',
+                backgroundColor: `${accentColor}18`,
+                color: accentColor,
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: 'Rubik, sans-serif',
+              }}
+            >
+              <Box
+                component="svg"
+                viewBox="0 0 24 24"
+                sx={{ width: 10, height: 10, flexShrink: 0, fill: 'none', stroke: 'currentColor', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' }}
+              >
+                <path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83Z" />
+                <circle cx="7.5" cy="7.5" r="1.3" fill="currentColor" stroke="none" />
+              </Box>
+              {categoryLabel}
+            </Box>
+          )}
+
+          <Typography sx={{ color: theme.text, lineHeight: 1.5, fontFamily: 'Rubik, sans-serif', fontSize: 14 }}>
             {comment.content}
           </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', pt: 1, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}` }}>
+
+          <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', pt: 0.5 }}>
             {comment.isAnonymous ? (
-              <Typography sx={{ fontSize: 11, fontWeight: 'bold', fontStyle: 'italic', color: '#f59e0b', fontFamily: 'Rubik, sans-serif' }}>
-                {comment.author.username !== 'Anonymous' && isAdmin
-                  ? Strings.retroBoard.anonymousByAdmin(comment.author.username)
-                  : Strings.retroBoard.anonymousAuthor}
+              <Typography sx={{ fontSize: 11, color: theme.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
+                🥸 {Strings.retroBoard.anonymousAuthor}
               </Typography>
             ) : (
-              <Typography sx={{ fontSize: 11, fontWeight: 'bold', color: authorColor, fontFamily: 'Rubik, sans-serif' }}>
-                @{comment.author.username}
+              <Typography sx={{ fontSize: 11, fontWeight: 600, color: theme.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
+                {`${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || comment.author.username}
               </Typography>
             )}
-            <Typography sx={{ fontSize: 11, color: timeColor, opacity: 0.7, fontFamily: 'Rubik, sans-serif' }}>
-              {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <Typography sx={{ fontSize: 11, color: theme.textSecondary, opacity: 0.6, fontFamily: 'Rubik, sans-serif' }}>
+              {new Date(comment.createdAt).toLocaleDateString('he-IL')} · {new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
             </Typography>
           </Box>
         </CardContent>

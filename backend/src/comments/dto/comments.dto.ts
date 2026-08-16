@@ -1,7 +1,8 @@
-import { CommentType } from '@prisma/client';
+import { CommentType, CommentCategory } from '@prisma/client';
 
 export class CreateCommentDto {
   content!: string;
   type!: CommentType;
+  category?: CommentCategory;
   isAnonymous?: boolean;
 }

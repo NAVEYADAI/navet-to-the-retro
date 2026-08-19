@@ -49,6 +49,72 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
   const [editLoading, setEditLoading] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
 
+  const [approvalLoadings, setApprovalLoadings] = useState<Record<number, boolean>>({});
+  const [approvalErrors, setApprovalErrors] = useState<Record<number, string | null>>({});
+
+  const handleApproveTeam = async (teamId: number) => {
+    setApprovalErrors(prev => ({ ...prev, [teamId]: null }));
+    setApprovalLoadings(prev => ({ ...prev, [teamId]: true }));
+    try {
+      await axios.post(`${getBackendUrl()}/teams/${teamId}/approve`, {}, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      onAddMemberSuccess();
+    } catch (err: any) {
+      setApprovalErrors(prev => ({ ...prev, [teamId]: err.response?.data?.message || err.message || Strings.dashboard.teamActionFailedError }));
+    } finally {
+      setApprovalLoadings(prev => ({ ...prev, [teamId]: false }));
+    }
+  };
+
+  const handleDeclineTeam = async (teamId: number) => {
+    setApprovalErrors(prev => ({ ...prev, [teamId]: null }));
+    setApprovalLoadings(prev => ({ ...prev, [teamId]: true }));
+    try {
+      await axios.post(`${getBackendUrl()}/teams/${teamId}/decline`, {}, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      onAddMemberSuccess();
+    } catch (err: any) {
+      setApprovalErrors(prev => ({ ...prev, [teamId]: err.response?.data?.message || err.message || Strings.dashboard.teamActionFailedError }));
+    } finally {
+      setApprovalLoadings(prev => ({ ...prev, [teamId]: false }));
+    }
+  };
+
+  const [memberInviteLoadings, setMemberInviteLoadings] = useState<Record<number, boolean>>({});
+  const [memberInviteErrors, setMemberInviteErrors] = useState<Record<number, string | null>>({});
+
+  const handleAcceptMemberInvite = async (teamId: number, memberId: number) => {
+    setMemberInviteErrors(prev => ({ ...prev, [teamId]: null }));
+    setMemberInviteLoadings(prev => ({ ...prev, [teamId]: true }));
+    try {
+      await axios.post(`${getBackendUrl()}/teams/${teamId}/members/${memberId}/accept`, {}, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      onAddMemberSuccess();
+    } catch (err: any) {
+      setMemberInviteErrors(prev => ({ ...prev, [teamId]: err.response?.data?.message || err.message || Strings.dashboard.teamActionFailedError }));
+    } finally {
+      setMemberInviteLoadings(prev => ({ ...prev, [teamId]: false }));
+    }
+  };
+
+  const handleDeclineMemberInvite = async (teamId: number, memberId: number) => {
+    setMemberInviteErrors(prev => ({ ...prev, [teamId]: null }));
+    setMemberInviteLoadings(prev => ({ ...prev, [teamId]: true }));
+    try {
+      await axios.post(`${getBackendUrl()}/teams/${teamId}/members/${memberId}/decline`, {}, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      onAddMemberSuccess();
+    } catch (err: any) {
+      setMemberInviteErrors(prev => ({ ...prev, [teamId]: err.response?.data?.message || err.message || Strings.dashboard.teamActionFailedError }));
+    } finally {
+      setMemberInviteLoadings(prev => ({ ...prev, [teamId]: false }));
+    }
+  };
+
   const handleAddMember = async (teamId: number) => {
     const username = (usernames[teamId] || '').trim();
 
@@ -109,11 +175,34 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
     }
   };
 
+  const [removingMemberId, setRemovingMemberId] = useState<number | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  const handleRemoveMember = async (teamId: number, memberId: number) => {
+    setRemoveError(null);
+    setRemovingMemberId(memberId);
+
+    try {
+      await axios.delete(`${getBackendUrl()}/teams/${teamId}/members/${memberId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      onAddMemberSuccess();
+    } catch (err: any) {
+      setRemoveError(err.response?.data?.message || err.message || 'הסרת חבר הצוות נכשלה.');
+    } finally {
+      setRemovingMemberId(null);
+    }
+  };
+
   const roles = [
     { label: 'ראש צוות', value: 'TEAM_LEADER' },
     { label: 'מנהל מוצר', value: 'PRODUCT_MANAGER' },
     { label: 'מפתח', value: 'DEVELOPER' },
-    { label: 'QA', value: 'TESTER' }
+    { label: 'QA', value: 'TESTER' },
+    { label: 'DevOps', value: 'DEVOPS' }
   ];
 
   const getRoleStyle = (roleVal: string) => {
@@ -154,6 +243,101 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
         const activeEditingId = editingMemberId[teamId] || null;
         const isAddMemberFormVisible = showAddMember[teamId] || false;
 
+        const isPending = team.status === 'PENDING_APPROVAL';
+        const isMyApproval = isPending && team.pendingApproverId === userId;
+        const isMyPendingTeam = isPending && team.creatorId === userId;
+        const approvalError = approvalErrors[teamId] || null;
+        const approvalLoading = approvalLoadings[teamId] || false;
+
+        const isMyPendingMembership = team.myMembershipStatus === 'PENDING';
+        const memberInviteError = memberInviteErrors[teamId] || null;
+        const memberInviteLoading = memberInviteLoadings[teamId] || false;
+
+        if (isMyPendingMembership) {
+          return (
+            <Grow in={true} key={teamId} timeout={300 + teams.indexOf(team) * 120}>
+              <Card sx={{ backgroundColor: theme.backgroundElement, border: '2px solid #6366f1', borderRadius: 4 }}>
+                <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'right' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
+                    {team.name}
+                  </Typography>
+                  <Typography sx={{ color: theme.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
+                    {Strings.dashboard.memberInviteText}
+                  </Typography>
+                  {memberInviteError && (
+                    <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
+                      {memberInviteError}
+                    </Alert>
+                  )}
+                  <Box sx={{ display: 'flex', flexDirection: 'row-reverse', gap: 1.5 }}>
+                    <Button
+                      variant="contained"
+                      disabled={memberInviteLoading}
+                      onClick={() => handleAcceptMemberInvite(teamId, team.myMembershipId)}
+                      sx={{ backgroundColor: '#6366f1', fontWeight: 'bold', fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
+                    >
+                      {memberInviteLoading ? <CircularProgress size={18} color="inherit" /> : Strings.dashboard.approveTeamButton}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      disabled={memberInviteLoading}
+                      onClick={() => handleDeclineMemberInvite(teamId, team.myMembershipId)}
+                      sx={{ borderColor: theme.backgroundSelected, color: theme.text, fontWeight: 'bold', fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
+                    >
+                      {Strings.dashboard.declineTeamButton}
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grow>
+          );
+        }
+
+        if (isMyApproval) {
+          const creatorMember = team.members?.find((m: any) => m.userId === team.creatorId);
+          const creatorName = creatorMember?.user?.firstName || creatorMember?.user?.lastName
+            ? `${creatorMember?.user?.firstName || ''} ${creatorMember?.user?.lastName || ''}`.trim()
+            : `@${creatorMember?.user?.username || ''}`;
+
+          return (
+            <Grow in={true} key={teamId} timeout={300 + teams.indexOf(team) * 120}>
+              <Card sx={{ backgroundColor: theme.backgroundElement, border: '2px solid #6366f1', borderRadius: 4 }}>
+                <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'right' }}>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
+                    {team.name}
+                  </Typography>
+                  <Typography sx={{ color: theme.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
+                    {Strings.dashboard.approvalInviteText(creatorName)}
+                  </Typography>
+                  {approvalError && (
+                    <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
+                      {approvalError}
+                    </Alert>
+                  )}
+                  <Box sx={{ display: 'flex', flexDirection: 'row-reverse', gap: 1.5 }}>
+                    <Button
+                      variant="contained"
+                      disabled={approvalLoading}
+                      onClick={() => handleApproveTeam(teamId)}
+                      sx={{ backgroundColor: '#6366f1', fontWeight: 'bold', fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
+                    >
+                      {approvalLoading ? <CircularProgress size={18} color="inherit" /> : Strings.dashboard.approveTeamButton}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      disabled={approvalLoading}
+                      onClick={() => handleDeclineTeam(teamId)}
+                      sx={{ borderColor: theme.backgroundSelected, color: theme.text, fontWeight: 'bold', fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
+                    >
+                      {Strings.dashboard.declineTeamButton}
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grow>
+          );
+        }
+
         return (
           <Grow in={true} key={teamId} timeout={300 + teams.indexOf(team) * 120}>
           <Card
@@ -183,7 +367,35 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
                 )}
               </Box>
 
+              {isMyPendingTeam && (
+                <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: 1.5 }}>
+                  <Chip
+                    label={Strings.dashboard.pendingApprovalFromLabel(team.pendingApprover?.email || '')}
+                    size="small"
+                    sx={{ backgroundColor: '#ede9fe', color: '#6366f1', fontWeight: 'bold', fontFamily: 'Rubik, sans-serif' }}
+                  />
+                  <Button
+                    size="small"
+                    disabled={approvalLoading}
+                    onClick={() => handleDeclineTeam(teamId)}
+                    sx={{ color: '#c62828', fontWeight: 'bold', fontSize: 12, fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
+                  >
+                    {Strings.dashboard.cancelPendingTeamButton}
+                  </Button>
+                </Box>
+              )}
+              {isMyPendingTeam && approvalError && (
+                <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
+                  {approvalError}
+                </Alert>
+              )}
+
               <Box>
+                {removeError && (
+                  <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right', mb: 1 }}>
+                    {removeError}
+                  </Alert>
+                )}
                 <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography sx={{ fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
                     {Strings.teamList.membersHeader(team.members?.length || 0)}
@@ -327,6 +539,23 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
                                   ערוך
                                 </Button>
                               )}
+                              {isTeamAdmin && !isMe && (
+                                <Button
+                                  size="small"
+                                  onClick={() => handleRemoveMember(teamId, member.id)}
+                                  disabled={removingMemberId === member.id}
+                                  sx={{
+                                    color: '#c62828',
+                                    fontWeight: 'bold',
+                                    fontSize: 11,
+                                    fontFamily: 'Rubik, sans-serif',
+                                    minWidth: 0,
+                                    p: 0,
+                                  }}
+                                >
+                                  {removingMemberId === member.id ? <CircularProgress size={12} color="inherit" /> : 'הסר'}
+                                </Button>
+                              )}
                             </Box>
 
                             <Box sx={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 1 }}>
@@ -334,6 +563,13 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
                                 <Typography sx={{ fontSize: 13 }} title="מנהל צוות">
                                   👑
                                 </Typography>
+                              )}
+                              {member.status === 'PENDING' && (
+                                <Chip
+                                  label={Strings.teamList.pendingMemberBadge}
+                                  size="small"
+                                  sx={{ backgroundColor: '#ede9fe', color: '#6366f1', fontWeight: 'bold', fontSize: 11, fontFamily: 'Rubik, sans-serif' }}
+                                />
                               )}
                               <Typography variant="body2" sx={{ color: theme.text, fontWeight: '600', fontFamily: 'Rubik, sans-serif' }}>
                                 {fullName}
@@ -350,7 +586,7 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
               <Collapse in={isAddMemberFormVisible} timeout="auto" unmountOnExit>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, mt: 1, border: '1px solid rgba(0,0,0,0.06)', borderRadius: 2 }}>
                   <Typography sx={{ fontWeight: 'bold', color: theme.text, fontSize: 13, textAlign: 'right', fontFamily: 'Rubik, sans-serif' }}>
-                    הוספת חבר חדש לצוות
+                    הזמנת חבר חדש לצוות
                   </Typography>
 
                   {currentError && (
@@ -401,7 +637,7 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
                       }
                     }}
                   >
-                    {isLoading ? <CircularProgress size={20} color="inherit" /> : 'הוסף לצוות'}
+                    {isLoading ? <CircularProgress size={20} color="inherit" /> : Strings.teamList.addMemberButton}
                   </Button>
                 </Box>
               </Collapse>

@@ -21,18 +21,6 @@ export const authNativeStyles = StyleSheet.create({
     gap: Spacing.one,
     marginBottom: Spacing.one,
   },
-  logoCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.two,
-  },
-  logoText: {
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
   title: {
     textAlign: 'center',
     fontSize: 24,

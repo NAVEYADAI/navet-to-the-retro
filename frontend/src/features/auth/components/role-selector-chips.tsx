@@ -13,6 +13,7 @@ const ROLES = [
   { label: '🎯 מנהל מוצר', value: 'PRODUCT_MANAGER' },
   { label: '💻 מפתח', value: 'DEVELOPER' },
   { label: '🧪 QA / בודק', value: 'TESTER' },
+  { label: '⚙️ DevOps', value: 'DEVOPS' },
 ];
 
 export function RoleSelectorChips({ role, onSelectRole, accent, isDark }: RoleSelectorChipsProps) {

@@ -8,17 +8,18 @@ generator client {
 }
 
 model User {
-  id           Int          @id @default(autoincrement())
-  username     String       @unique
-  email        String       @unique
-  password     String
-  firstName    String?
-  lastName     String?
-  role         String       @default("DEVELOPER")
-  createdAt    DateTime     @default(now())
-  createdTeams Team[]       @relation("TeamCreator")
-  members      TeamMember[]
-  comments     Comment[]
+  id               Int          @id @default(autoincrement())
+  username         String       @unique
+  email            String       @unique
+  password         String
+  firstName        String?
+  lastName         String?
+  role             String       @default("DEVELOPER")
+  createdAt        DateTime     @default(now())
+  createdTeams     Team[]       @relation("TeamCreator")
+  pendingApprovals Team[]       @relation("TeamPendingApprover")
+  members          TeamMember[]
+  comments         Comment[]
 }
 
 enum TeamRole {
@@ -26,27 +27,42 @@ enum TeamRole {
   PRODUCT_MANAGER // מנהל מוצר
   TESTER // בודק
   DEVELOPER // מפתח
+  DEVOPS // DevOps
+}
+
+enum TeamStatus {
+  PENDING_APPROVAL
+  ACTIVE
+}
+
+enum TeamMemberStatus {
+  PENDING
+  ACTIVE
 }
 
 model Team {
-  id         Int          @id @default(autoincrement())
-  name       String
-  mainOffice String?
-  createdAt  DateTime     @default(now())
-  creatorId  Int
-  creator    User         @relation("TeamCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  members    TeamMember[]
-  comments   Comment[]
-  sprints    Sprint[]
+  id                Int          @id @default(autoincrement())
+  name              String
+  mainOffice        String?
+  status            TeamStatus   @default(PENDING_APPROVAL)
+  createdAt         DateTime     @default(now())
+  creatorId         Int
+  pendingApproverId Int?
+  creator           User         @relation("TeamCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  pendingApprover   User?        @relation("TeamPendingApprover", fields: [pendingApproverId], references: [id], onDelete: SetNull)
+  members           TeamMember[]
+  comments          Comment[]
+  sprints           Sprint[]
 }
 
 model TeamMember {
-  id        Int      @id @default(autoincrement())
+  id        Int               @id @default(autoincrement())
   userId    Int
   teamId    Int
-  role      TeamRole @default(DEVELOPER)
-  isAdmin   Boolean  @default(false)
-  createdAt DateTime @default(now())
+  role      TeamRole          @default(DEVELOPER)
+  isAdmin   Boolean           @default(false)
+  status    TeamMemberStatus  @default(ACTIVE)
+  createdAt DateTime          @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)

@@ -7,7 +7,7 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from 'expo-router/ui';
-import { Pressable, useColorScheme, View, TouchableOpacity, Platform } from 'react-native';
+import { Pressable, useColorScheme, View, TouchableOpacity, Platform, Image } from 'react-native';
 import { ThemedText } from '../themed-text';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
@@ -104,25 +104,10 @@ export function CustomTabList(props: TabListProps) {
       <View style={navStyles.innerContainer}>
         {/* Brand (Right side in RTL) */}
         <View style={navStyles.brandContainer}>
-          <div
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 10,
-              background: isDark
-                ? 'linear-gradient(135deg, #818cf8 0%, #6366f1 100%)'
-                : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(99,102,241,0.3)',
-            }}
-          >
-            <span style={{ color: '#fff', fontWeight: 800, fontSize: 16, fontFamily: 'Rubik, sans-serif' }}>R</span>
-          </div>
+          <Image source={require('../../../assets/images/app-logo.png')} style={{ width: 38, height: 38 }} resizeMode="contain" />
           <div className="nav-brand-text">
             <View style={navStyles.brandTextBlock}>
-              <ThemedText style={[navStyles.brandTitle, { color: colors.text }]}>לוח רטרו</ThemedText>
+              <ThemedText style={[navStyles.brandTitle, { color: colors.text }]}>נווט לרט</ThemedText>
               <ThemedText style={[navStyles.brandSubtitle, { color: isDark ? '#818cf8' : '#6366f1' }]}>RETRO BOARD</ThemedText>
             </View>
           </div>

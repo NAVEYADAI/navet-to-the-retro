@@ -1,18 +1,75 @@
 import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { EmailService } from '../email/email.service';
 import { CreateTeamDto, AddMemberDto, UpdateMemberDto } from './dto/teams.dto';
+
+const TEAM_MEMBER_USER_SELECT = {
+  id: true,
+  username: true,
+  firstName: true,
+  lastName: true
+};
+
+// Only these two people are allowed to approve a new team's creation
+const ALLOWED_APPROVER_EMAILS = ['naveyadai@gmail.com', 'lironka13@gmail.com'];
 
 @Injectable()
 export class TeamsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService
+  ) {}
+
+  async getAllowedApprovers() {
+    const users = await this.prisma.user.findMany({
+      where: {
+        OR: ALLOWED_APPROVER_EMAILS.map(email => ({ email: { equals: email, mode: 'insensitive' as const } }))
+      },
+      select: { email: true, firstName: true, lastName: true, username: true }
+    });
+
+    return ALLOWED_APPROVER_EMAILS.map(allowedEmail => {
+      const match = users.find(u => u.email.toLowerCase() === allowedEmail.toLowerCase());
+      const displayName = match
+        ? (match.firstName || match.lastName ? `${match.firstName || ''} ${match.lastName || ''}`.trim() : match.username)
+        : null;
+      // Prefer the exact casing stored in the DB (if the person already registered) so a later
+      // lookup by this value always matches — this is the value the client should send back.
+      return { email: match?.email || allowedEmail, displayName };
+    });
+  }
 
   async create(dto: CreateTeamDto, creatorId: number) {
+    if (!ALLOWED_APPROVER_EMAILS.includes(dto.approverEmail.toLowerCase())) {
+      throw new ForbiddenException('רק כתובות אימייל מורשות יכולות לאשר יצירת צוות.');
+    }
+
+    // The team only becomes usable once a second person (by email) approves it.
+    // Case-insensitive match: the allowlist check above is normalized to lowercase, so the
+    // lookup must be too, or a differently-cased (but otherwise valid) email would 404 here.
+    const approver = await this.prisma.user.findFirst({
+      where: { email: { equals: dto.approverEmail, mode: 'insensitive' } }
+    });
+    if (!approver) {
+      throw new NotFoundException('לא נמצא משתמש עם כתובת האימייל הזו. בקש/י מהחבר להירשם קודם ולנסות שוב.');
+    }
+    if (approver.id === creatorId) {
+      throw new ConflictException('לא ניתן להזמין את עצמך כמאשר/ת');
+    }
+
+    const creator = await this.prisma.user.findUnique({
+      where: { id: creatorId },
+      select: { firstName: true, lastName: true, username: true }
+    });
+
     // Create team and automatically add the creator as TEAM_LEADER
     const team = await this.prisma.team.create({
       data: {
         name: dto.name,
         mainOffice: dto.mainOffice,
         creatorId: creatorId,
+        status: 'PENDING_APPROVAL',
+        pendingApproverId: approver.id,
         members: {
           create: {
             userId: creatorId,
@@ -26,7 +83,60 @@ export class TeamsService {
       }
     });
 
+    const creatorName = creator?.firstName || creator?.lastName
+      ? `${creator?.firstName || ''} ${creator?.lastName || ''}`.trim()
+      : (creator?.username || 'משתמש');
+
+    await this.emailService.sendTeamApprovalRequest({
+      to: approver.email,
+      teamName: dto.name,
+      creatorName,
+      mainOffice: dto.mainOffice
+    });
+
     return team;
+  }
+
+  async approveTeam(teamId: number, requesterId: number) {
+    const team = await this.prisma.team.findUnique({
+      where: { id: teamId }
+    });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+    if (team.status !== 'PENDING_APPROVAL') {
+      throw new ConflictException('הצוות כבר אושר או בוטל');
+    }
+    if (team.pendingApproverId !== requesterId) {
+      throw new ForbiddenException('רק המשתמש שהוזמן לאשר יכול לאשר את הצוות הזה');
+    }
+
+    return this.prisma.team.update({
+      where: { id: teamId },
+      data: {
+        status: 'ACTIVE',
+        pendingApproverId: null
+      },
+      include: { members: true }
+    });
+  }
+
+  async declineTeam(teamId: number, requesterId: number) {
+    const team = await this.prisma.team.findUnique({
+      where: { id: teamId }
+    });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+    if (requesterId !== team.creatorId && requesterId !== team.pendingApproverId) {
+      throw new ForbiddenException('רק היוצר/ת או המאשר/ת המוזמן/ת יכולים לבטל את הצוות');
+    }
+    if (team.status !== 'PENDING_APPROVAL') {
+      throw new ConflictException('הצוות כבר אושר');
+    }
+
+    await this.prisma.team.delete({ where: { id: teamId } });
+    return { success: true };
   }
 
   async addMember(teamId: number, dto: AddMemberDto, requesterId: number) {
@@ -38,7 +148,8 @@ export class TeamsService {
       throw new NotFoundException('Team not found');
     }
 
-    // Verify requester is a member and has TEAM_LEADER role
+    // Verify requester is an admin member (consistent with updateMember/updateTeam below —
+    // `role` is just a free-text job title, `isAdmin` is the actual permission flag)
     const requesterMembership = await this.prisma.teamMember.findUnique({
       where: {
         userId_teamId: {
@@ -47,8 +158,8 @@ export class TeamsService {
         }
       }
     });
-    if (!requesterMembership || requesterMembership.role !== 'TEAM_LEADER') {
-      throw new ForbiddenException('Only team leaders can add members to the team');
+    if (!requesterMembership || !requesterMembership.isAdmin) {
+      throw new ForbiddenException('Only team admins can add members to the team');
     }
 
     // Find user to add by username or email
@@ -64,7 +175,7 @@ export class TeamsService {
       throw new NotFoundException(`User with username or email '${dto.username}' not found`);
     }
 
-    // Check if already a member
+    // Check if already a member or already has a pending invite
     const existingMember = await this.prisma.teamMember.findUnique({
       where: {
         userId_teamId: {
@@ -74,16 +185,23 @@ export class TeamsService {
       }
     });
     if (existingMember) {
-      throw new ConflictException('User is already a member of this team');
+      throw new ConflictException(
+        existingMember.status === 'PENDING'
+          ? 'כבר נשלחה למשתמש/ת הזמנה ממתינה לצוות הזה'
+          : 'User is already a member of this team'
+      );
     }
 
     const finalRole = dto.role || (userToJoin.role as any) || 'DEVELOPER';
 
+    // Doesn't join immediately — creates a pending in-app invite the invited user must
+    // accept or decline themselves. No email is sent for this (unlike team-creation approval).
     return this.prisma.teamMember.create({
       data: {
         teamId: teamId,
         userId: userToJoin.id,
-        role: finalRole
+        role: finalRole,
+        status: 'PENDING'
       },
       include: {
         user: {
@@ -99,33 +217,92 @@ export class TeamsService {
     });
   }
 
-  async getTeamsForUser(userId: number) {
-    const memberships = await this.prisma.teamMember.findMany({
-      where: { userId: userId },
+  async acceptMemberInvite(teamId: number, memberId: number, requesterId: number) {
+    const membership = await this.prisma.teamMember.findFirst({
+      where: { id: memberId, teamId: teamId }
+    });
+    if (!membership) {
+      throw new NotFoundException('Invite not found');
+    }
+    if (membership.userId !== requesterId) {
+      throw new ForbiddenException('רק המשתמש/ת שהוזמן/ה יכולים לאשר הזמנה זו');
+    }
+    if (membership.status !== 'PENDING') {
+      throw new ConflictException('ההזמנה כבר טופלה');
+    }
+
+    return this.prisma.teamMember.update({
+      where: { id: memberId },
+      data: { status: 'ACTIVE' },
       include: {
-        team: {
-          include: {
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    username: true,
-                    firstName: true,
-                    lastName: true
-                  }
-                }
-              }
-            }
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            firstName: true,
+            lastName: true
           }
         }
       }
     });
+  }
 
-    return memberships.map(m => ({
-      ...m.team,
-      roleInTeam: m.role
-    }));
+  async declineMemberInvite(teamId: number, memberId: number, requesterId: number) {
+    const membership = await this.prisma.teamMember.findFirst({
+      where: { id: memberId, teamId: teamId }
+    });
+    if (!membership) {
+      throw new NotFoundException('Invite not found');
+    }
+    if (membership.status !== 'PENDING') {
+      throw new ConflictException('ההזמנה כבר טופלה');
+    }
+
+    // The invited user can decline their own invite; a team admin can cancel it too.
+    const requesterMembership = await this.prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: requesterId, teamId: teamId } }
+    });
+    const isInvitee = membership.userId === requesterId;
+    const isAdmin = !!requesterMembership?.isAdmin;
+    if (!isInvitee && !isAdmin) {
+      throw new ForbiddenException('אין הרשאה לבטל הזמנה זו');
+    }
+
+    await this.prisma.teamMember.delete({ where: { id: memberId } });
+    return { success: true };
+  }
+
+  async getTeamsForUser(userId: number) {
+    const teamInclude = {
+      members: {
+        include: {
+          user: { select: TEAM_MEMBER_USER_SELECT }
+        }
+      },
+      pendingApprover: { select: { id: true, email: true, username: true } }
+    };
+
+    const [memberships, pendingApprovals] = await Promise.all([
+      this.prisma.teamMember.findMany({
+        where: { userId: userId },
+        include: { team: { include: teamInclude } }
+      }),
+      this.prisma.team.findMany({
+        where: { pendingApproverId: userId, status: 'PENDING_APPROVAL' },
+        include: teamInclude
+      })
+    ]);
+
+    return [
+      ...memberships.map(m => ({
+        ...m.team,
+        roleInTeam: m.status === 'PENDING' ? null : m.role,
+        myMembershipId: m.id,
+        myMembershipStatus: m.status
+      })),
+      ...pendingApprovals.map(t => ({ ...t, roleInTeam: null }))
+    ];
   }
 
   async getTeamMembers(teamId: number) {
@@ -217,6 +394,56 @@ export class TeamsService {
         }
       }
     });
+  }
+
+  async removeMember(teamId: number, memberId: number, requesterId: number) {
+    // 1. Verify team exists
+    const team = await this.prisma.team.findUnique({
+      where: { id: teamId }
+    });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
+    // 2. Verify requester is an admin member of this team
+    const requesterMembership = await this.prisma.teamMember.findUnique({
+      where: {
+        userId_teamId: {
+          userId: requesterId,
+          teamId: teamId
+        }
+      }
+    });
+    if (!requesterMembership || !requesterMembership.isAdmin) {
+      throw new ForbiddenException('Only team admins can remove members');
+    }
+
+    // 3. Verify target member belongs to this team
+    const targetMember = await this.prisma.teamMember.findFirst({
+      where: {
+        id: memberId,
+        teamId: teamId
+      }
+    });
+    if (!targetMember) {
+      throw new NotFoundException('Team member not found in this team');
+    }
+
+    // 4. Never leave the team without an admin
+    if (targetMember.isAdmin) {
+      const adminCount = await this.prisma.teamMember.count({
+        where: {
+          teamId: teamId,
+          isAdmin: true
+        }
+      });
+      if (adminCount <= 1) {
+        throw new ConflictException('Cannot remove the only admin in the team');
+      }
+    }
+
+    await this.prisma.teamMember.delete({ where: { id: memberId } });
+    return { success: true };
   }
 
   async updateTeam(teamId: number, dto: { name?: string; mainOffice?: string }, requesterId: number) {

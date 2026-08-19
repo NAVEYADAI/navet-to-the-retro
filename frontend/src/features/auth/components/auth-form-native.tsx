@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Animated,
+  Image,
 } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -89,9 +90,7 @@ export function AuthFormNative({ theme, colorScheme }: AuthFormNativeProps) {
         ]}
       >
         <View style={authNativeStyles.logoContainer}>
-          <View style={[authNativeStyles.logoCircle, { backgroundColor: theme.text }]}>
-            <ThemedText style={[authNativeStyles.logoText, { color: theme.background }]}>R</ThemedText>
-          </View>
+          <Image source={require('../../../../assets/images/app-logo.png')} style={{ width: 88, height: 88, marginBottom: 8 }} resizeMode="contain" />
           <ThemedText type="title" style={authNativeStyles.title}>
             {isLogin ? Strings.auth.welcomeBack : Strings.auth.getStarted}
           </ThemedText>
@@ -156,6 +155,7 @@ export function AuthFormNative({ theme, colorScheme }: AuthFormNativeProps) {
                     { label: 'מנהל מוצר', value: 'PRODUCT_MANAGER' },
                     { label: 'מפתח', value: 'DEVELOPER' },
                     { label: 'QA', value: 'TESTER' },
+                    { label: 'DevOps', value: 'DEVOPS' },
                   ].map((r) => {
                     const isSelected = role === r.value;
                     return (

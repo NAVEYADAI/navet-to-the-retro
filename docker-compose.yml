@@ -1,4 +1,15 @@
 services:
+  postgres-test:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+      - POSTGRES_DB=navet_test
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+
   backend:
     build:
       context: ./backend
@@ -28,3 +39,6 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+
+volumes:
+  postgres-test-data:

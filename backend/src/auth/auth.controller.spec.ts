@@ -19,6 +19,7 @@ describe('AuthController', () => {
     register: jest.fn(),
     login: jest.fn(),
     validateToken: jest.fn(),
+    updateProfile: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -85,6 +86,23 @@ describe('AuthController', () => {
       const result = await controller.me(authHeader);
       expect(result).toBe(mockUser);
       expect(mockAuthService.validateToken).toHaveBeenCalledWith(authHeader);
+    });
+  });
+
+  describe('updateProfile', () => {
+    it('should validate the token then update the profile for that user', async () => {
+      mockAuthService.validateToken.mockResolvedValue(mockUser);
+      const updatedUser = { ...mockUser, firstName: 'Updated' };
+      mockAuthService.updateProfile.mockResolvedValue(updatedUser);
+
+      const authHeader = 'Bearer dummytoken';
+      const dto = { firstName: 'Updated' };
+
+      const result = await controller.updateProfile(authHeader, dto);
+
+      expect(mockAuthService.validateToken).toHaveBeenCalledWith(authHeader);
+      expect(mockAuthService.updateProfile).toHaveBeenCalledWith(mockUser.id, dto);
+      expect(result).toBe(updatedUser);
     });
   });
 });

@@ -297,13 +297,14 @@ function HomeScreenNative() {
     }
   };
 
-  const handleCreateTeamSubmit = async (name: string, mainOffice: string) => {
+  const handleCreateTeamSubmit = async (name: string, mainOffice: string, approverEmail: string) => {
     setErrorMessage(null);
     setTeamCreateLoading(true);
     try {
       await axios.post(`${getBackendUrl()}/teams`, {
         name: name,
         mainOffice: mainOffice,
+        approverEmail: approverEmail,
       }, {
         headers: {
           'Authorization': `Bearer ${token}`,

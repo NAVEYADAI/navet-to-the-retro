@@ -1,11 +1,19 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import axios from 'axios';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
+import { useAuth } from '@/context/auth-context';
+import { getBackendUrl } from '@/api/config';
+
+interface Approver {
+  email: string;
+  displayName: string | null;
+}
 
 interface CreateTeamFormProps {
-  onSubmit: (name: string, mainOffice: string) => Promise<void>;
+  onSubmit: (name: string, mainOffice: string, approverEmail: string) => Promise<void>;
   isLoading: boolean;
   isFirstTeam?: boolean;
   onCancel?: () => void;
@@ -19,9 +27,38 @@ interface CreateTeamFormProps {
 }
 
 export function CreateTeamForm({ onSubmit, isLoading, isFirstTeam = false, onCancel, theme }: CreateTeamFormProps) {
+  const { user, token } = useAuth();
   const [newTeamName, setNewTeamName] = useState('');
   const [newMainOffice, setNewMainOffice] = useState('');
+  const [approverEmail, setApproverEmail] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const [approvers, setApprovers] = useState<Approver[]>([]);
+  const [approversLoading, setApproversLoading] = useState(true);
+  const [approversError, setApproversError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+
+    const fetchApprovers = async () => {
+      setApproversLoading(true);
+      setApproversError(null);
+      try {
+        const response = await axios.get(`${getBackendUrl()}/teams/allowed-approvers`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!cancelled) setApprovers(response.data);
+      } catch (err) {
+        if (!cancelled) setApproversError(Strings.dashboard.approverListLoadError);
+      } finally {
+        if (!cancelled) setApproversLoading(false);
+      }
+    };
+
+    fetchApprovers();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const handleSubmit = async () => {
     setLocalError(null);
@@ -29,10 +66,15 @@ export function CreateTeamForm({ onSubmit, isLoading, isFirstTeam = false, onCan
       setLocalError('שם הצוות שדה חובה.');
       return;
     }
+    if (!approverEmail.trim()) {
+      setLocalError(Strings.dashboard.approverEmailRequiredError);
+      return;
+    }
     try {
-      await onSubmit(newTeamName, newMainOffice);
+      await onSubmit(newTeamName, newMainOffice, approverEmail.trim());
       setNewTeamName('');
       setNewMainOffice('');
+      setApproverEmail('');
     } catch (err: any) {
       setLocalError(err.message || 'יצירת הצוות נכשלה.');
     }
@@ -96,6 +138,53 @@ export function CreateTeamForm({ onSubmit, isLoading, isFirstTeam = false, onCan
           onChangeText={setNewMainOffice}
         />
 
+        {!!user?.email && (
+          <ThemedText style={{ fontSize: 12, opacity: 0.7 }}>
+            {Strings.dashboard.creatorEmailLabel(user.email)}
+          </ThemedText>
+        )}
+
+        <ThemedText style={{ fontSize: 13, fontWeight: 'bold' }}>
+          {Strings.dashboard.approverPickerLabel}
+        </ThemedText>
+
+        {approversLoading ? (
+          <ThemedText style={{ fontSize: 12, opacity: 0.7 }}>
+            {Strings.dashboard.approverListLoading}
+          </ThemedText>
+        ) : approversError ? (
+          <ThemedText style={{ fontSize: 12, color: '#c62828' }}>
+            {approversError}
+          </ThemedText>
+        ) : (
+          <View style={styles.approverChipsRow}>
+            {approvers.map((approver) => {
+              const selected = approverEmail === approver.email;
+              return (
+                <TouchableOpacity
+                  key={approver.email}
+                  onPress={() => setApproverEmail(approver.email)}
+                  style={[
+                    styles.approverChip,
+                    {
+                      backgroundColor: selected ? theme.text : theme.backgroundSelected,
+                      borderColor: selected ? theme.text : theme.backgroundSelected,
+                    },
+                  ]}
+                >
+                  <ThemedText style={{ fontSize: 13, fontWeight: selected ? 'bold' : 'normal', color: selected ? theme.background : theme.text }}>
+                    {approver.displayName || approver.email}
+                  </ThemedText>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        <ThemedText style={{ fontSize: 12, opacity: 0.7 }}>
+          {Strings.dashboard.approverEmailHint}
+        </ThemedText>
+
         <TouchableOpacity
           style={[styles.button, { backgroundColor: theme.text }]}
           onPress={handleSubmit}
@@ -150,6 +239,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: Spacing.three,
     fontSize: 15,
+  },
+  approverChipsRow: {
+    flexDirection: 'row-reverse',
+    flexWrap: 'wrap',
+    gap: Spacing.one,
+  },
+  approverChip: {
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
   },
   button: {
     height: 50,

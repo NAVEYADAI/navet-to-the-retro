@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Image } from 'react-native';
 import {
   Box,
   TextField,
@@ -48,7 +49,7 @@ export function AuthFormWeb({ isDark }: AuthFormWebProps) {
     const payload = isLogin
       ? { username, password }
       : {
-          username,
+          username: email.split('@')[0],
           email,
           password,
           firstName,
@@ -85,21 +86,12 @@ export function AuthFormWeb({ isDark }: AuthFormWebProps) {
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3.5, textAlign: 'center' }}>
           <Box
             sx={{
-              width: 52,
-              height: 52,
-              borderRadius: '16px',
-              background: `linear-gradient(135deg, ${accent} 0%, #8b5cf6 100%)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
               mb: 2,
-              boxShadow: `0 8px 24px ${isDark ? 'rgba(129,140,248,0.3)' : 'rgba(99,102,241,0.3)'}`,
+              filter: `drop-shadow(0 8px 20px ${isDark ? 'rgba(129,140,248,0.3)' : 'rgba(99,102,241,0.25)'})`,
               animation: 'float 4s ease-in-out infinite',
             }}
           >
-            <Typography sx={{ color: '#fff', fontWeight: 900, fontSize: 24, fontFamily: 'Rubik, sans-serif' }}>
-              R
-            </Typography>
+            <Image source={require('../../../../assets/images/app-logo.png')} style={{ width: 88, height: 88 }} resizeMode="contain" />
           </Box>
           <Typography variant="h5" sx={{ fontWeight: 800, color: isDark ? '#fff' : '#1e1e2d', fontFamily: 'Rubik, sans-serif', mb: 0.5 }}>
             {isLogin ? Strings.auth.welcomeBack : Strings.auth.getStarted}

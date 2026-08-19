@@ -3,6 +3,7 @@ import { TeamRole } from '@prisma/client';
 export class CreateTeamDto {
   name!: string;
   mainOffice?: string;
+  approverEmail!: string;
 }
 
 export class AddMemberDto {

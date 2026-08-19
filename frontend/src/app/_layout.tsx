@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme, View, ActivityIndicator, Platform } from 'react-native';
+import { useColorScheme, View, ActivityIndicator, Platform, Image } from 'react-native';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { AuthForm } from '@/components/auth-form';
 import AppTabs from '@/components/navigation/app-tabs';
@@ -163,7 +164,8 @@ function LayoutContent() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#0a0a0f' : '#fafbff' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20, backgroundColor: colorScheme === 'dark' ? '#0a0a0f' : '#fafbff' }}>
+        <Image source={require('../../assets/images/app-logo.png')} style={{ width: 96, height: 96 }} resizeMode="contain" />
         <ActivityIndicator size="large" color={colorScheme === 'dark' ? '#818cf8' : '#6366f1'} />
       </View>
     );
@@ -184,6 +186,9 @@ export default function TabLayout() {
   return (
     <AuthProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Head>
+          <title>נווט לרט</title>
+        </Head>
         <LayoutContent />
       </ThemeProvider>
     </AuthProvider>

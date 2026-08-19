@@ -110,7 +110,7 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleCreateTeamSubmit = async (name: string, mainOffice: string) => {
+  const handleCreateTeamSubmit = async (name: string, mainOffice: string, approverEmail: string) => {
     setTeamMessage(null);
     setTeamCreateLoading(true);
     try {
@@ -119,6 +119,7 @@ export default function SettingsScreen() {
         {
           name: name,
           mainOffice: mainOffice,
+          approverEmail: approverEmail,
         },
         {
           headers: {
@@ -127,7 +128,7 @@ export default function SettingsScreen() {
         }
       );
 
-      setTeamMessage({ text: `הצוות "${name}" נוצר בהצלחה!`, isError: false });
+      setTeamMessage({ text: `הצוות "${name}" ממתין לאישור של ${approverEmail}.`, isError: false });
       fetchAdminTeams();
     } catch (err: any) {
       setTeamMessage({

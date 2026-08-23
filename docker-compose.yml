@@ -15,11 +15,12 @@ services:
       context: ./backend
       dockerfile: Dockerfile.dev
     ports:
-      - "5005:5005"
+      - "127.0.0.1:5005:5005"
     environment:
       - BACKEND_PORT=5005
-    env_file:
-      - ./backend/.env
+      - DATABASE_URL=${DATABASE_URL}
+      - EXPO_PUBLIC_BACKEND_URL_PROD=${EXPO_PUBLIC_BACKEND_URL_PROD}
+      - RESEND_API_KEY=${RESEND_API_KEY}
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -28,10 +29,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.dev
     ports:
-      - "8085:8081"
+      - "127.0.0.1:8085:8081"
     environment:
       - BROWSER=none
-      - EXPO_PUBLIC_BACKEND_URL=http://localhost:5005
+      - EXPO_PUBLIC_BACKEND_URL=${PUBLIC_BACKEND_URL:-http://localhost:5005}
       - WATCHPACK_POLLING=true
       - CHOKIDAR_USEPOLLING=true
     volumes:

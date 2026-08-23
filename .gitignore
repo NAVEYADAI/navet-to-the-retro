@@ -11,10 +11,14 @@ node_modules
 dist
 dist-ssr
 *.local
+package-lock.json
 
 # Environment variables
 .env
 .env.*
+
+# Infisical local workspace config
+.infisical.json
 
 # Editor directories and files
 .vscode/*

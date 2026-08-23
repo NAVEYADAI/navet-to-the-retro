@@ -57,12 +57,6 @@ function HomeScreenWeb() {
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const getBackendUrl = () => {
-    return typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
-      ? 'https://navet-to-retro-backend.fly.dev'
-      : 'http://localhost:5005';
-  };
-
   useEffect(() => {
     if (token) {
       fetchMyTeams(token);
@@ -260,12 +254,6 @@ function HomeScreenNative() {
   const [teamCreateLoading, setTeamCreateLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
-
-  const getBackendUrl = () => {
-    return Platform.OS === 'web' && typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
-      ? 'https://navet-to-retro-backend.fly.dev'
-      : 'http://localhost:5005';
-  };
 
   useEffect(() => {
     if (token) {

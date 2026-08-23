@@ -533,7 +533,8 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
                                     fontSize: 11,
                                     fontFamily: 'Rubik, sans-serif',
                                     minWidth: 0,
-                                    p: 0,
+                                    minHeight: 36,
+                                    px: 1,
                                   }}
                                 >
                                   ערוך
@@ -550,7 +551,8 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
                                     fontSize: 11,
                                     fontFamily: 'Rubik, sans-serif',
                                     minWidth: 0,
-                                    p: 0,
+                                    minHeight: 36,
+                                    px: 1,
                                   }}
                                 >
                                   {removingMemberId === member.id ? <CircularProgress size={12} color="inherit" /> : 'הסר'}

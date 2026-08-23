@@ -5,6 +5,7 @@ import { useColorScheme, View, ActivityIndicator, Platform, Image } from 'react-
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { AuthForm } from '@/components/auth-form';
 import AppTabs from '@/components/navigation/app-tabs';
+import { Colors } from '@/constants/theme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -173,7 +174,14 @@ function LayoutContent() {
 
   // Auth Gate: No navbar rendered if not logged in
   if (!token) {
-    return <AuthForm />;
+    const scheme = colorScheme === 'dark' ? 'dark' : 'light';
+    return (
+      <AuthForm
+        isDark={scheme === 'dark'}
+        theme={Colors[scheme]}
+        colorScheme={scheme}
+      />
+    );
   }
 
   // Render main tab layout when logged in

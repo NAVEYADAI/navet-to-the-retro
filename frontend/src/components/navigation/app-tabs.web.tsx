@@ -16,7 +16,7 @@ import { navStyles } from './app-tabs.styles';
 export default function AppTabs() {
   return (
     <Tabs>
-      <TabSlot style={{ flex: 1, minHeight: '100vh', overflowY: Platform.OS === 'web' ? 'auto' : undefined, direction: 'rtl' } as any} />
+      <TabSlot style={{ flex: 1, height: '100vh', overflowY: Platform.OS === 'web' ? 'auto' : undefined, direction: 'rtl' } as any} />
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
@@ -42,7 +42,8 @@ export function TabButton({ children, isFocused, icon, ...props }: TabTriggerSlo
           display: 'flex',
           alignItems: 'center',
           gap: 5,
-          padding: '7px 16px',
+          padding: '10px 16px',
+          minHeight: 40,
           borderRadius: 10,
           backgroundColor: isFocused
             ? (isDark ? 'rgba(129,140,248,0.15)' : 'rgba(99,102,241,0.08)')

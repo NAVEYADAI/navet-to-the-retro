@@ -227,6 +227,7 @@ describe('TeamsService', () => {
   });
 
   describe('addMember', () => {
+    const activeTeam = { ...mockTeam, status: 'ACTIVE' };
     const admin = { userId: creator.id, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER' };
     const nonAdmin = { userId: approver.id, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER' };
     const invitee = { id: 5, username: 'invitee', email: 'invitee@example.com', role: 'DEVELOPER' };
@@ -238,47 +239,55 @@ describe('TeamsService', () => {
         .rejects.toThrow(NotFoundException);
     });
 
+    it('throws ConflictException when the team is not yet ACTIVE', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam); // status: PENDING_APPROVAL
+
+      await expect(service.addMember(mockTeam.id, { username: 'x', role: 'DEVELOPER' } as any, creator.id))
+        .rejects.toThrow(ConflictException);
+      expect(mockPrismaService.teamMember.findUnique).not.toHaveBeenCalled();
+    });
+
     it('throws ForbiddenException when the requester is not an admin', async () => {
-      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
       mockPrismaService.teamMember.findUnique.mockResolvedValue(nonAdmin);
 
-      await expect(service.addMember(mockTeam.id, { username: 'x', role: 'DEVELOPER' } as any, approver.id))
+      await expect(service.addMember(activeTeam.id, { username: 'x', role: 'DEVELOPER' } as any, approver.id))
         .rejects.toThrow(ForbiddenException);
     });
 
     it('throws NotFoundException when the invited user does not exist', async () => {
-      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
       mockPrismaService.teamMember.findUnique.mockResolvedValueOnce(admin);
       mockPrismaService.user.findFirst.mockResolvedValue(null);
 
-      await expect(service.addMember(mockTeam.id, { username: 'ghost', role: 'DEVELOPER' } as any, creator.id))
+      await expect(service.addMember(activeTeam.id, { username: 'ghost', role: 'DEVELOPER' } as any, creator.id))
         .rejects.toThrow(NotFoundException);
     });
 
     it('throws ConflictException with a distinct message when the user already has a pending invite', async () => {
-      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
       mockPrismaService.teamMember.findUnique
         .mockResolvedValueOnce(admin) // requester check
         .mockResolvedValueOnce({ status: 'PENDING' }); // existing membership check
       mockPrismaService.user.findFirst.mockResolvedValue(invitee);
 
-      await expect(service.addMember(mockTeam.id, { username: invitee.username, role: 'DEVELOPER' } as any, creator.id))
+      await expect(service.addMember(activeTeam.id, { username: invitee.username, role: 'DEVELOPER' } as any, creator.id))
         .rejects.toThrow(ConflictException);
     });
 
     it('creates a PENDING invite (does not activate membership immediately)', async () => {
-      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
       mockPrismaService.teamMember.findUnique
         .mockResolvedValueOnce(admin)
         .mockResolvedValueOnce(null);
       mockPrismaService.user.findFirst.mockResolvedValue(invitee);
       mockPrismaService.teamMember.create.mockResolvedValue({ id: 99, status: 'PENDING' });
 
-      await service.addMember(mockTeam.id, { username: invitee.username, role: 'DEVELOPER' } as any, creator.id);
+      await service.addMember(activeTeam.id, { username: invitee.username, role: 'DEVELOPER' } as any, creator.id);
 
       expect(mockPrismaService.teamMember.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ userId: invitee.id, teamId: mockTeam.id, status: 'PENDING' }),
+          data: expect.objectContaining({ userId: invitee.id, teamId: activeTeam.id, status: 'PENDING' }),
         })
       );
     });

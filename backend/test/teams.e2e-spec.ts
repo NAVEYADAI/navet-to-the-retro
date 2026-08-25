@@ -94,6 +94,22 @@ describe('TeamsController (e2e) — dual-approval flow', () => {
     expect(res.body.members[0]).toMatchObject({ userId: creatorId, role: 'TEAM_LEADER', isAdmin: true });
   });
 
+  it('rejects adding a member to a team that is still PENDING_APPROVAL', () => {
+    return request(app.getHttpServer())
+      .post(`/teams/${teamAId}/members`)
+      .set('Authorization', `Bearer ${creatorToken}`)
+      .send({ username: outsider.username, role: 'DEVELOPER' })
+      .expect(409);
+  });
+
+  it('rejects creating a sprint for a team that is still PENDING_APPROVAL', () => {
+    return request(app.getHttpServer())
+      .post(`/teams/${teamAId}/sprints`)
+      .set('Authorization', `Bearer ${creatorToken}`)
+      .send({ name: 'Sprint 1', startDate: '2026-01-01', endDate: '2026-01-14' })
+      .expect(409);
+  });
+
   it('lists both allowed approvers, with the registered one\'s displayName populated', async () => {
     const res = await request(app.getHttpServer())
       .get('/teams/allowed-approvers')

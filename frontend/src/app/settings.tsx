@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { Platform } from 'react-native';
+import React from 'react';
 import { router } from 'expo-router';
 import {
   Box,
@@ -8,171 +7,46 @@ import {
   Grid,
   Card,
   CardContent,
-  TextField,
   Button,
   Alert,
-  CircularProgress,
   Fade,
   Grow,
 } from '@mui/material';
 import { CreateTeamForm } from '@/features/teams';
-import { ProfileFormCard, AdminTeamsCard, getSettingsCardSx } from '@/features/settings';
+import { ProfileFormCard, AdminTeamsCard } from '@/features/settings';
+import { useProfileForm } from '@/features/settings/hooks/use-profile-form';
+import { useTeamsAdmin } from '@/features/settings/hooks/use-teams-admin';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/context/auth-context';
-import axios from 'axios';
-import { getBackendUrl } from '@/api/config';
 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
   const { user, token, login } = useAuth();
 
-  // Personal details states
-  const [firstName, setFirstName] = useState(user?.firstName || '');
-  const [lastName, setLastName] = useState(user?.lastName || '');
-  const [email, setEmail] = useState(user?.email || '');
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileMessage, setProfileMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const {
+    firstName, setFirstName,
+    lastName, setLastName,
+    email, setEmail,
+    profileLoading,
+    profileMessage,
+    handleUpdateProfile,
+  } = useProfileForm(user, token, login);
 
-  // Create Team states
-  const [teamCreateLoading, setTeamCreateLoading] = useState(false);
-  const [teamMessage, setTeamMessage] = useState<{ text: string; isError: boolean } | null>(null);
-
-  // Edit Team states
-  const [adminTeams, setAdminTeams] = useState<any[]>([]);
-  const [loadingTeams, setLoadingTeams] = useState(false);
-  const [editTeamId, setEditTeamId] = useState<number | null>(null);
-  const [editTeamName, setEditTeamName] = useState('');
-  const [editTeamOffice, setEditTeamOffice] = useState('');
-  const [teamEditLoading, setTeamEditLoading] = useState(false);
-  const [teamEditMessage, setTeamEditMessage] = useState<{ text: string; isError: boolean } | null>(null);
-
-
-
-  const fetchAdminTeams = async () => {
-    if (!token || !user) return;
-    setLoadingTeams(true);
-    try {
-      const response = await axios.get(`${getBackendUrl()}/teams/user/me`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const myAdminTeams = response.data.filter((t: any) =>
-        t.members?.some((m: any) => m.userId === user.id && m.isAdmin)
-      );
-      setAdminTeams(myAdminTeams);
-    } catch (err) {
-      console.error('Failed to fetch admin teams:', err);
-    } finally {
-      setLoadingTeams(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAdminTeams();
-  }, [token]);
-
-  const handleUpdateProfile = async () => {
-    setProfileMessage(null);
-    if (!email.trim()) {
-      setProfileMessage({ text: 'כתובת אימייל היא שדה חובה.', isError: true });
-      return;
-    }
-
-    setProfileLoading(true);
-    try {
-      const response = await axios.patch(
-        `${getBackendUrl()}/auth/profile`,
-        {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          email: email.trim(),
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
-      
-      // Update local auth context user object
-      if (token) {
-        await login(token, response.data);
-      }
-      setProfileMessage({ text: 'הפרטים האישיים עודכנו בהצלחה!', isError: false });
-    } catch (err: any) {
-      setProfileMessage({
-        text: err.response?.data?.message || err.message || 'שגיאה בעדכון הפרטים.',
-        isError: true,
-      });
-    } finally {
-      setProfileLoading(false);
-    }
-  };
-
-  const handleCreateTeamSubmit = async (name: string, mainOffice: string, approverEmail: string) => {
-    setTeamMessage(null);
-    setTeamCreateLoading(true);
-    try {
-      await axios.post(
-        `${getBackendUrl()}/teams`,
-        {
-          name: name,
-          mainOffice: mainOffice,
-          approverEmail: approverEmail,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
-
-      setTeamMessage({ text: `הצוות "${name}" ממתין לאישור של ${approverEmail}.`, isError: false });
-      fetchAdminTeams();
-    } catch (err: any) {
-      setTeamMessage({
-        text: err.response?.data?.message || err.message || 'שגיאה ביצירת הצוות.',
-        isError: true,
-      });
-      throw err;
-    } finally {
-      setTeamCreateLoading(false);
-    }
-  };
-
-  const handleSaveTeamEdit = async (teamId: number) => {
-    if (!editTeamName.trim()) {
-      setTeamEditMessage({ text: 'שם צוות הוא שדה חובה.', isError: true });
-      return;
-    }
-    setTeamEditLoading(true);
-    setTeamEditMessage(null);
-    try {
-      await axios.patch(
-        `${getBackendUrl()}/teams/${teamId}`,
-        {
-          name: editTeamName.trim(),
-          mainOffice: editTeamOffice.trim(),
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
-      setTeamEditMessage({ text: 'פרטי הצוות עודכנו בהצלחה!', isError: false });
-      setEditTeamId(null);
-      fetchAdminTeams();
-    } catch (err: any) {
-      setTeamEditMessage({
-        text: err.response?.data?.message || err.message || 'שגיאה בעדכון הצוות.',
-        isError: true,
-      });
-    } finally {
-      setTeamEditLoading(false);
-    }
-  };
+  const {
+    adminTeams,
+    loadingTeams,
+    teamCreateLoading,
+    teamMessage,
+    handleCreateTeamSubmit,
+    editTeamId, setEditTeamId,
+    editTeamName, setEditTeamName,
+    editTeamOffice, setEditTeamOffice,
+    teamEditLoading,
+    teamEditMessage, setTeamEditMessage,
+    handleSaveTeamEdit,
+  } = useTeamsAdmin(token, user);
 
   if (!user) return null;
 
@@ -192,19 +66,6 @@ export default function SettingsScreen() {
       boxShadow: isDark
         ? '0 12px 40px rgba(0,0,0,0.4)'
         : '0 12px 40px rgba(0,0,0,0.06)',
-    },
-  };
-
-  const inputSx = {
-    input: { color: themeColors.text, textAlign: 'right', fontFamily: 'Rubik, sans-serif' },
-    label: { color: themeColors.textSecondary, right: 28, left: 'auto' },
-    '& .MuiOutlinedInput-root': {
-      borderRadius: '12px',
-      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-      transition: 'all 0.2s ease',
-      '&:hover fieldset': { borderColor: accent },
-      '&.Mui-focused fieldset': { borderColor: accent, borderWidth: 2 },
-      fieldset: { borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' },
     },
   };
 

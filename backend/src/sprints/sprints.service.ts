@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateSprintDto } from './dto/sprints.dto';
 
@@ -13,6 +13,9 @@ export class SprintsService {
     });
     if (!team) {
       throw new NotFoundException('Team not found');
+    }
+    if (team.status !== 'ACTIVE') {
+      throw new ConflictException('לא ניתן ליצור ספרינטים לצוות שטרם אושר');
     }
 
     // 2. Verify requester is a team admin

@@ -147,6 +147,9 @@ export class TeamsService {
     if (!team) {
       throw new NotFoundException('Team not found');
     }
+    if (team.status !== 'ACTIVE') {
+      throw new ConflictException('לא ניתן להוסיף חברים לצוות שטרם אושר');
+    }
 
     // Verify requester is an admin member (consistent with updateMember/updateTeam below —
     // `role` is just a free-text job title, `isAdmin` is the actual permission flag)

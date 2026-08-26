@@ -19,6 +19,7 @@ import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { getShadow, retroNativeStyles } from '../styles/retro.styles';
+import { CommentFilterBarNative } from './comment-filter-bar-native';
 
 interface SprintRetroBoardProps {
   sprint: any;
@@ -51,6 +52,10 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Comment list filters (distinct from the compose-form state above)
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [filterText, setFilterText] = useState('');
 
   // Animated spin value for the Yin-Yang wheel
   const [spinAnim] = useState(new Animated.Value(type === 'KEEP' ? 0 : 1));
@@ -117,8 +122,13 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
     setType(nextType);
   };
 
-  const keepComments = comments.filter(c => c.type === 'KEEP');
-  const improveComments = comments.filter(c => c.type === 'IMPROVE');
+  const matchesFilters = (c: any) =>
+    (filterCategories.length === 0 || filterCategories.includes(c.category)) &&
+    (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase()));
+
+  const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
+  const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
+  const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
 
   // Wheel half colors
   const keepBg = colorScheme === 'dark' ? '#1b5e20' : '#e8f5e9';
@@ -332,6 +342,19 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
           </View>
         </View>
 
+        {/* Filters */}
+        {!isLoading && comments.length > 0 && (
+          <View style={{ marginTop: Spacing.two }}>
+            <CommentFilterBarNative
+              categories={filterCategories}
+              onCategoriesChange={setFilterCategories}
+              searchText={filterText}
+              onSearchTextChange={setFilterText}
+              theme={theme}
+            />
+          </View>
+        )}
+
         {/* Board Columns (RTL Flow) */}
         {isLoading ? (
           <View style={styles.loaderContainer}>
@@ -349,7 +372,9 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
               </View>
 
               {keepComments.length === 0 ? (
-                <ThemedText type="default" style={styles.emptyColumnText}>{Strings.retroBoard.emptyKeepText}</ThemedText>
+                <ThemedText type="default" style={styles.emptyColumnText}>
+                  {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyKeepText}
+                </ThemedText>
               ) : (
                 keepComments.map(comment => (
                   <View
@@ -395,7 +420,9 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
               </View>
 
               {improveComments.length === 0 ? (
-                <ThemedText type="default" style={styles.emptyColumnText}>{Strings.retroBoard.emptyImproveText}</ThemedText>
+                <ThemedText type="default" style={styles.emptyColumnText}>
+                  {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyImproveText}
+                </ThemedText>
               ) : (
                 improveComments.map(comment => (
                   <View

@@ -14,6 +14,9 @@ npm run test:e2e --prefix backend
 echo "🧪 Running frontend component tests..."
 npm run test --prefix frontend
 
+echo "🧪 Running frontend E2E tests..."
+npm run test:e2e --prefix frontend
+
 echo "🚀 Starting deployment of all services to Fly.io..."
 
 echo "================================"

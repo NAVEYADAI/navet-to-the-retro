@@ -1,6 +1,5 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
-import { act } from 'react-test-renderer';
 import { SprintRetroBoard } from '../sprint-retro-board';
 import { Strings } from '../../constants/strings';
 import axios from 'axios';
@@ -63,6 +62,36 @@ describe('SprintRetroBoard Component', () => {
       isAnonymous: true,
       createdAt: '2026-08-04T13:00:00.000Z',
       author: { username: 'dev2' },
+    },
+  ];
+
+  const mockCommentsForFilters = [
+    {
+      id: 201,
+      content: 'Great velocity this sprint!',
+      type: 'KEEP',
+      category: 'PLANNING',
+      isAnonymous: false,
+      createdAt: '2026-08-04T12:00:00.000Z',
+      author: { username: 'dev1' },
+    },
+    {
+      id: 202,
+      content: 'Testing took too long.',
+      type: 'IMPROVE',
+      category: 'TESTING',
+      isAnonymous: false,
+      createdAt: '2026-08-04T13:00:00.000Z',
+      author: { username: 'dev2' },
+    },
+    {
+      id: 203,
+      content: 'Good team communication.',
+      type: 'KEEP',
+      category: 'GENERAL',
+      isAnonymous: false,
+      createdAt: '2026-08-04T14:00:00.000Z',
+      author: { username: 'dev3' },
     },
   ];
 
@@ -134,7 +163,7 @@ describe('SprintRetroBoard Component', () => {
 
     // Find the thumb-up icon representing the Keep side of the wheel and click it
     const toggleArea = getByText('👍');
-    fireEvent.press(toggleArea);
+    await fireEvent.press(toggleArea);
 
     expect(await findByText(Strings.retroBoard.improveLabel)).toBeTruthy();
   });
@@ -159,16 +188,12 @@ describe('SprintRetroBoard Component', () => {
     const input = getByPlaceholderText(Strings.retroBoard.notePlaceholderKeep);
     const submitBtn = getByText(Strings.retroBoard.postNoteButton);
 
-    fireEvent.changeText(input, 'Working together was smooth.');
+    await fireEvent.changeText(input, 'Working together was smooth.');
     await waitFor(() => {
       expect(input.props.value).toBe('Working together was smooth.');
     });
 
-    // Wrapping in act() flushes the whole async chain (POST, state reset, comment
-    // refetch) inside the act scope, instead of leaving it to resolve on a stray microtask.
-    await act(async () => {
-      fireEvent.press(submitBtn);
-    });
+    await fireEvent.press(submitBtn);
 
     expect(mockedAxios.post).toHaveBeenCalledWith(
       expect.stringContaining('/sprints/5/comments'),
@@ -183,5 +208,92 @@ describe('SprintRetroBoard Component', () => {
     );
     expect(input.props.value).toBe('');
     expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+  });
+
+  describe('filtering comments', () => {
+    async function renderWithFilterableComments() {
+      mockedAxios.get.mockResolvedValueOnce({ data: mockCommentsForFilters });
+      const utils = await render(
+        <SprintRetroBoard
+          sprint={mockSprint}
+          team={mockTeam}
+          token={mockToken}
+          user={mockUser}
+          theme={mockTheme}
+          onBack={jest.fn()}
+        />
+      );
+      await utils.findByText('Great velocity this sprint!');
+      return utils;
+    }
+
+    it('does not show the "no matching comments" message on initial load', async () => {
+      const { queryByText } = await renderWithFilterableComments();
+
+      expect(queryByText(Strings.retroBoard.noMatchingCommentsText)).toBeNull();
+    });
+
+    it('filters by category: only comments in the selected category remain visible', async () => {
+      const { getByText, getAllByText, queryByText, findByText } = await renderWithFilterableComments();
+
+      // Open the category picker (shows the "all categories" label when unset) and pick TESTING.
+      // The picker's own list item and the matching comment's category chip render the same
+      // label text once selected, so disambiguate: the picker item renders first in the tree.
+      await fireEvent.press(getByText(Strings.retroBoard.filterAllCategoriesLabel));
+      await fireEvent.press(getAllByText(Strings.retroBoard.categories.TESTING)[0]);
+
+      expect(queryByText('Great velocity this sprint!')).toBeNull();
+      expect(queryByText('Good team communication.')).toBeNull();
+      expect(await findByText('Testing took too long.')).toBeTruthy();
+    });
+
+    it('filters by free text appearing in the comment content (case-insensitive)', async () => {
+      const { getByPlaceholderText, queryByText, findByText } = await renderWithFilterableComments();
+
+      const searchInput = getByPlaceholderText(Strings.retroBoard.searchPlaceholder);
+      await fireEvent.changeText(searchInput, 'VELOCITY');
+
+      expect(await findByText('Great velocity this sprint!')).toBeTruthy();
+      expect(queryByText('Testing took too long.')).toBeNull();
+      expect(queryByText('Good team communication.')).toBeNull();
+    });
+
+    it('supports selecting multiple categories (OR within categories)', async () => {
+      const { getByText, getAllByText, queryByText, findByText } = await renderWithFilterableComments();
+
+      // Open the picker once and select both PLANNING and TESTING without it closing in between.
+      await fireEvent.press(getByText(Strings.retroBoard.filterAllCategoriesLabel));
+      await fireEvent.press(getAllByText(Strings.retroBoard.categories.PLANNING)[0]);
+      await fireEvent.press(getAllByText(Strings.retroBoard.categories.TESTING)[0]);
+
+      expect(await findByText('Great velocity this sprint!')).toBeTruthy();
+      expect(await findByText('Testing took too long.')).toBeTruthy();
+      expect(queryByText('Good team communication.')).toBeNull();
+    });
+
+    it('combines category and text filters with AND semantics', async () => {
+      const { getByText, getAllByText, getByPlaceholderText, queryByText, findAllByText } = await renderWithFilterableComments();
+
+      await fireEvent.press(getByText(Strings.retroBoard.filterAllCategoriesLabel));
+      await fireEvent.press(getAllByText(Strings.retroBoard.categories.PLANNING)[0]);
+      await fireEvent.changeText(getByPlaceholderText(Strings.retroBoard.searchPlaceholder), 'communication');
+
+      // PLANNING matches only the "Great velocity" comment, but the text filter doesn't match it,
+      // so both KEEP and IMPROVE columns end up empty and each shows its own "no matches" message.
+      expect(queryByText('Great velocity this sprint!')).toBeNull();
+      expect(queryByText('Good team communication.')).toBeNull();
+      expect(await findAllByText(Strings.retroBoard.noMatchingCommentsText)).toHaveLength(2);
+    });
+
+    it('clearing filters restores the full comment list', async () => {
+      const { getByText, getByPlaceholderText, findByText } = await renderWithFilterableComments();
+
+      await fireEvent.changeText(getByPlaceholderText(Strings.retroBoard.searchPlaceholder), 'velocity');
+      await findByText(Strings.retroBoard.clearFiltersLabel);
+      await fireEvent.press(getByText(Strings.retroBoard.clearFiltersLabel));
+
+      expect(await findByText('Testing took too long.')).toBeTruthy();
+      expect(await findByText('Good team communication.')).toBeTruthy();
+    });
   });
 });

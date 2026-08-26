@@ -6,6 +6,7 @@ import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { CommentCardWeb } from './comment-card-web';
 import { RetroWheelToggle } from './retro-wheel-toggle';
+import { CommentFilterBarWeb } from './comment-filter-bar-web';
 import {
   Box,
   Container,
@@ -50,6 +51,10 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Comment list filters (distinct from the compose-form state above)
+  const [filterCategories, setFilterCategories] = useState<string[]>([]);
+  const [filterText, setFilterText] = useState('');
 
   const fetchComments = async () => {
     setIsLoading(true);
@@ -106,8 +111,13 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }
     setType(prev => prev === 'KEEP' ? 'IMPROVE' : 'KEEP');
   };
 
-  const keepComments = comments.filter(c => c.type === 'KEEP');
-  const improveComments = comments.filter(c => c.type === 'IMPROVE');
+  const matchesFilters = (c: any) =>
+    (filterCategories.length === 0 || filterCategories.includes(c.category)) &&
+    (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase()));
+
+  const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
+  const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
+  const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
 
   const isDark = useRNColorScheme() === 'dark';
   const accent = isDark ? '#818cf8' : '#6366f1';
@@ -443,6 +453,21 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }
           </Card>
         </Grow>
 
+        {/* Filters */}
+        {!isLoading && comments.length > 0 && (
+          <Fade in={true} timeout={500}>
+            <Box>
+              <CommentFilterBarWeb
+                categories={filterCategories}
+                onCategoriesChange={setFilterCategories}
+                searchText={filterText}
+                onSearchTextChange={setFilterText}
+                theme={theme}
+              />
+            </Box>
+          </Fade>
+        )}
+
         {/* Board Columns */}
         {isLoading ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8, gap: 2 }}>
@@ -471,7 +496,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }
 
                 {keepComments.length === 0 ? (
                   <Typography variant="body2" sx={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic', my: 2, fontFamily: 'Rubik, sans-serif' }}>
-                    {Strings.retroBoard.emptyKeepText}
+                    {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyKeepText}
                   </Typography>
                 ) : (
                   keepComments.map((comment, index) => (
@@ -498,7 +523,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }
 
                 {improveComments.length === 0 ? (
                   <Typography variant="body2" sx={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic', my: 2, fontFamily: 'Rubik, sans-serif' }}>
-                    {Strings.retroBoard.emptyImproveText}
+                    {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyImproveText}
                   </Typography>
                 ) : (
                   improveComments.map((comment, index) => (

@@ -8,10 +8,11 @@
   "scripts": {
     "dev": "infisical run -- concurrently \"npm run start:dev --prefix backend\" \"npm run web --prefix frontend\"",
     "deploy": "./deploy.sh",
-    "test": "npm run test:back && npm run test:back:e2e && npm run test:front",
+    "test": "npm run test:back && npm run test:back:e2e && npm run test:front && npm run test:front:e2e",
     "test:back": "npm run test --prefix backend",
     "test:back:e2e": "npm run test:e2e --prefix backend",
-    "test:front": "npm run test --prefix frontend"
+    "test:front": "npm run test --prefix frontend",
+    "test:front:e2e": "npm run test:e2e --prefix frontend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

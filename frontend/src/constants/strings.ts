@@ -100,5 +100,11 @@ export const Strings = {
       GENERAL: 'כללי',
       TECHNICAL: 'טכני',
     } as Record<string, string>,
+    filterSectionLabel: 'סינון הערות',
+    filterAllCategoriesLabel: 'כל הקטגוריות',
+    categoriesSelectedLabel: (count: number) => count === 1 ? 'קטגוריה אחת נבחרה' : `${count} קטגוריות נבחרו`,
+    searchPlaceholder: 'חיפוש בתוך ההערות...',
+    clearFiltersLabel: 'נקה סינון',
+    noMatchingCommentsText: 'אין הערות התואמות לסינון',
   }
 };

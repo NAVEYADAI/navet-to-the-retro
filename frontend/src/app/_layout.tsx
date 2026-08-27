@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, ThemeProvider, Slot, usePathname } from 'expo-router';
 import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme, View, ActivityIndicator, Platform, Image } from 'react-native';
@@ -17,6 +17,8 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 function LayoutContent() {
   const { token, loading } = useAuth();
   const colorScheme = useColorScheme();
+  const pathname = usePathname();
+  const isInviteRoute = pathname?.startsWith('/invite/');
 
   // Hide splash screen when session loading completes
   if (!loading) {
@@ -30,6 +32,14 @@ function LayoutContent() {
         <ActivityIndicator size="large" color={colorScheme === 'dark' ? '#818cf8' : '#6366f1'} />
       </View>
     );
+  }
+
+  // /invite/[token] must stay reachable through this whole flow — before login (it renders its
+  // own AuthForm) and for the moment right after (it still needs to call the consume endpoint
+  // and redirect itself). AppTabs' <Tabs> crashes if mounted on a route it has no trigger for,
+  // so keep bypassing it here until the page navigates itself away from /invite/*.
+  if (isInviteRoute) {
+    return <Slot />;
   }
 
   // Auth Gate: No navbar rendered if not logged in

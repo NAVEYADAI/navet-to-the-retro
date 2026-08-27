@@ -20,6 +20,7 @@ model User {
   pendingApprovals Team[]       @relation("TeamPendingApprover")
   members          TeamMember[]
   comments         Comment[]
+  createdInvites   TeamInvite[]
 }
 
 enum TeamRole {
@@ -53,6 +54,25 @@ model Team {
   members           TeamMember[]
   comments          Comment[]
   sprints           Sprint[]
+  invites           TeamInvite[]
+}
+
+model TeamInvite {
+  id          Int       @id @default(autoincrement())
+  token       String    @unique
+  teamId      Int
+  name        String? // admin-facing label for a generic link, e.g. "לינק לצוות פיתוח"
+  email       String? // set = personal invite locked to this address; null = generic link
+  role        TeamRole  @default(DEVELOPER)
+  createdById Int
+  expiresAt   DateTime?
+  maxUses     Int?
+  useCount    Int       @default(0)
+  isRevoked   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  team      Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
 }
 
 model TeamMember {

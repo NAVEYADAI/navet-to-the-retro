@@ -19,13 +19,14 @@ import { authNativeStyles } from '../styles/auth.styles';
 interface AuthFormNativeProps {
   theme: any;
   colorScheme: string;
+  initialEmail?: string;
 }
 
-export function AuthFormNative({ theme, colorScheme }: AuthFormNativeProps) {
+export function AuthFormNative({ theme, colorScheme, initialEmail }: AuthFormNativeProps) {
   const { login } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(!initialEmail);
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail || '');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');

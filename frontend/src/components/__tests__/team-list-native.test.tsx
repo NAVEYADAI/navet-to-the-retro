@@ -257,4 +257,117 @@ describe('TeamListNative — dual-approval UI', () => {
     expect(await findByText('לא ניתן להסיר את המנהל/ת האחרון/ה')).toBeTruthy();
     expect(onAddMemberSuccess).not.toHaveBeenCalled();
   });
+
+  it('shows an "invite email sent" message (not the pending-invite callback) when adding an unregistered email', async () => {
+    const invitedEmail = 'unregistered@example.com';
+    mockedAxios.post.mockResolvedValueOnce({ data: { email: invitedEmail } });
+    const { getByText, getByPlaceholderText, findByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.changeText(getByPlaceholderText(Strings.teamList.addMemberPlaceholder), invitedEmail);
+    await fireEvent.press(getByText(Strings.teamList.addMemberButton));
+
+    expect(await findByText(Strings.teamList.emailInviteSentText(invitedEmail))).toBeTruthy();
+    expect(onAddMemberSuccess).not.toHaveBeenCalled();
+  });
+
+  it('reports success normally (no email-invite message) when the added member is already registered', async () => {
+    mockedAxios.post.mockResolvedValueOnce({ data: { id: 99 } });
+    const { getByText, getByPlaceholderText, queryByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.changeText(getByPlaceholderText(Strings.teamList.addMemberPlaceholder), 'existinguser');
+    await fireEvent.press(getByText(Strings.teamList.addMemberButton));
+
+    expect(onAddMemberSuccess).toHaveBeenCalledTimes(1);
+    expect(queryByText(Strings.teamList.emailInviteSentText('existinguser'))).toBeNull();
+  });
+
+  it('shows the invite-links toggle for a team admin and expands it to reveal the create-link button', async () => {
+    mockedAxios.get.mockResolvedValueOnce({ data: [] });
+    const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+
+    expect(await findByText(Strings.invites.createLinkButton)).toBeTruthy();
+    expect(await findByText(Strings.invites.noLinksText)).toBeTruthy();
+  });
+
+  it('creates an invite link with the entered expiry/max-uses and displays the shareable URL', async () => {
+    mockedAxios.get.mockResolvedValue({ data: [] });
+    mockedAxios.post.mockResolvedValueOnce({ data: { id: 1, token: 'abc123' } });
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+
+    await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2027-01-01');
+    await fireEvent.changeText(getByPlaceholderText('5'), '3');
+    await fireEvent.press(getByText(Strings.invites.createLinkButton));
+
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect.stringContaining(`/teams/${activeTeamAsAdmin.id}/invites`),
+      { expiresAt: '2027-01-01', maxUses: 3 },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    expect(await findByText(Strings.invites.linkCreatedText)).toBeTruthy();
+    expect(await findByText(/abc123/)).toBeTruthy();
+  });
+
+  it('rejects a past expiry date client-side without calling the API', async () => {
+    mockedAxios.get.mockResolvedValue({ data: [] });
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+
+    await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2020-01-01');
+    await fireEvent.press(getByText(Strings.invites.createLinkButton));
+
+    expect(await findByText('תאריך התפוגה חייב להיות בעתיד')).toBeTruthy();
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+  });
+
+  it('creates a named invite link and shows that name (not the URL) in the list', async () => {
+    const namedInvite = { id: 8, name: 'לינק לצוות פיתוח', token: 'named1', isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 };
+    mockedAxios.get.mockResolvedValue({ data: [] });
+    mockedAxios.post.mockResolvedValueOnce({ data: { id: 8, token: 'named1' } });
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+    await fireEvent.changeText(getByPlaceholderText(Strings.invites.namePlaceholder), namedInvite.name);
+    mockedAxios.get.mockResolvedValueOnce({ data: [namedInvite] });
+    await fireEvent.press(getByText(Strings.invites.createLinkButton));
+
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect.stringContaining(`/teams/${activeTeamAsAdmin.id}/invites`),
+      expect.objectContaining({ name: namedInvite.name }),
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    expect(await findByText(namedInvite.name)).toBeTruthy();
+  });
+
+  it('shows a fallback label for an unnamed link with no personal email', async () => {
+    mockedAxios.get.mockResolvedValue({ data: [{ id: 9, token: 't', isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 }] });
+    const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+
+    expect(await findByText(Strings.invites.unnamedLinkLabel)).toBeTruthy();
+  });
+
+  it('revokes an invite link', async () => {
+    const invite = { id: 7, token: 'xyz', isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 };
+    mockedAxios.get.mockResolvedValue({ data: [invite] });
+    mockedAxios.patch.mockResolvedValueOnce({ data: { ...invite, isRevoked: true } });
+    const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(await findByText(Strings.invites.revokeButton));
+
+    expect(mockedAxios.patch).toHaveBeenCalledWith(
+      expect.stringContaining(`/teams/${activeTeamAsAdmin.id}/invites/${invite.id}`),
+      { isRevoked: true },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+  });
 });

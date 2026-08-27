@@ -4,9 +4,10 @@ import { TeamsService } from './teams.service';
 import { PrismaService } from '../prisma.service';
 import { AuthModule } from '../auth/auth.module';
 import { EmailService } from '../email/email.service';
+import { InvitesModule } from '../invites/invites.module';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, InvitesModule],
   controllers: [TeamsController],
   providers: [TeamsService, PrismaService, EmailService],
   exports: [TeamsService]

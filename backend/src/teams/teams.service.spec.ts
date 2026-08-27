@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { TeamsService } from './teams.service';
 import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
+import { InvitesService } from '../invites/invites.service';
 import {
   ConflictException,
   ForbiddenException,
@@ -51,12 +52,17 @@ describe('TeamsService', () => {
     sendTeamApprovalRequest: jest.fn().mockResolvedValue(undefined),
   };
 
+  const mockInvitesService = {
+    createInvite: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TeamsService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: EmailService, useValue: mockEmailService },
+        { provide: InvitesService, useValue: mockInvitesService },
       ],
     }).compile();
 
@@ -255,13 +261,30 @@ describe('TeamsService', () => {
         .rejects.toThrow(ForbiddenException);
     });
 
-    it('throws NotFoundException when the invited user does not exist', async () => {
+    it('throws NotFoundException when the invited username does not exist and is not an email', async () => {
       mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
       mockPrismaService.teamMember.findUnique.mockResolvedValueOnce(admin);
       mockPrismaService.user.findFirst.mockResolvedValue(null);
 
       await expect(service.addMember(activeTeam.id, { username: 'ghost', role: 'DEVELOPER' } as any, creator.id))
         .rejects.toThrow(NotFoundException);
+      expect(mockInvitesService.createInvite).not.toHaveBeenCalled();
+    });
+
+    it('invites an unregistered email instead of 404ing, and returns the InvitesService result', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValueOnce(admin);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockInvitesService.createInvite.mockResolvedValue({ id: 1, email: 'ghost@example.com', token: 'abc' });
+
+      const result = await service.addMember(activeTeam.id, { username: 'ghost@example.com', role: 'TESTER' } as any, creator.id);
+
+      expect(mockInvitesService.createInvite).toHaveBeenCalledWith(
+        activeTeam.id,
+        { email: 'ghost@example.com', role: 'TESTER' },
+        creator.id
+      );
+      expect(result).toEqual({ id: 1, email: 'ghost@example.com', token: 'abc' });
     });
 
     it('throws ConflictException with a distinct message when the user already has a pending invite', async () => {

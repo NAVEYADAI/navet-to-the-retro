@@ -19,13 +19,14 @@ import { getAuthContainerSx, getAuthCardSx, getAuthTextFieldSx } from '../styles
 
 interface AuthFormWebProps {
   isDark: boolean;
+  initialEmail?: string;
 }
 
-export function AuthFormWeb({ isDark }: AuthFormWebProps) {
+export function AuthFormWeb({ isDark, initialEmail }: AuthFormWebProps) {
   const { login } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const [isLogin, setIsLogin] = useState(!initialEmail);
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail || '');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');

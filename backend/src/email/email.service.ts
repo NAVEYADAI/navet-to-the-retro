@@ -49,4 +49,39 @@ export class EmailService {
       this.logger.error(`Failed to send team approval email to ${to}`, err instanceof Error ? err.stack : err);
     }
   }
+
+  async sendTeamJoinInvite(params: {
+    to: string;
+    teamName: string;
+    inviterName: string;
+    token: string;
+  }) {
+    const { to, teamName, inviterName, token } = params;
+    const registerUrl = `${this.frontendUrl}/invite/${token}`;
+    const subject = `${inviterName} הזמין/ה אותך להצטרף לצוות: ${teamName}`;
+    const html = `
+      <div dir="rtl" style="font-family: sans-serif; text-align: right;">
+        <h2>הוזמנת להצטרף לצוות</h2>
+        <p>${inviterName} הזמין/ה אותך להצטרף לצוות "<strong>${teamName}</strong>".</p>
+        <p>הרשמ/י דרך הקישור הבא כדי להצטרף לצוות באופן מיידי:</p>
+        <p><a href="${registerUrl}">הרשמה והצטרפות לצוות</a></p>
+      </div>
+    `;
+
+    if (!this.client) {
+      this.logger.warn(`[email skipped, no API key] Would have sent "${subject}" to ${to}`);
+      return;
+    }
+
+    try {
+      await this.client.emails.send({
+        from: this.fromAddress,
+        to,
+        subject,
+        html
+      });
+    } catch (err) {
+      this.logger.error(`Failed to send team join invite email to ${to}`, err instanceof Error ? err.stack : err);
+    }
+  }
 }

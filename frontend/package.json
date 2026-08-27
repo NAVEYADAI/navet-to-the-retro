@@ -38,6 +38,7 @@
     "@react-native/jest-preset": "^0.86.2",
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "^30.0.0",
+    "@types/node": "^26.3.0",
     "@types/react": "~19.2.2",
     "@types/react-test-renderer": "^19.1.0",
     "eslint": "^9.0.0",
@@ -61,7 +62,10 @@
   },
   "jest": {
     "preset": "jest-expo",
-    "testPathIgnorePatterns": ["<rootDir>/node_modules/", "<rootDir>/e2e/"],
+    "testPathIgnorePatterns": [
+      "<rootDir>/node_modules/",
+      "<rootDir>/e2e/"
+    ],
     "moduleDirectories": [
       "node_modules",
       "<rootDir>/node_modules",

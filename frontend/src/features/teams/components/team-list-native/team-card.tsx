@@ -10,6 +10,7 @@ import { nativeStyles } from './styles';
 import { getRoleLabel } from './roles';
 import { TeamMemberRow } from './team-member-row';
 import { AddMemberForm } from './add-member-form';
+import { InviteLinksPanel } from './invite-links-panel';
 import type { TeamListTheme } from '@/features/teams/types';
 
 interface TeamCardProps {
@@ -110,6 +111,10 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
 
       {isTeamAdmin && !isPending && (
         <AddMemberForm teamId={team.id} token={token} onInviteSent={onAddMemberSuccess} theme={theme} />
+      )}
+
+      {isTeamAdmin && !isPending && (
+        <InviteLinksPanel teamId={team.id} token={token} theme={theme} />
       )}
 
       {!isPending && (

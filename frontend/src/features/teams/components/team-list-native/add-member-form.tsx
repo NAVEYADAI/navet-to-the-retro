@@ -20,6 +20,7 @@ export function AddMemberForm({ teamId, token, onInviteSent, theme }: AddMemberF
   const [role, setRole] = useState('DEVELOPER');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleAddMember = async () => {
     const trimmed = username.trim();
@@ -29,9 +30,10 @@ export function AddMemberForm({ teamId, token, onInviteSent, theme }: AddMemberF
     }
 
     setError(null);
+    setSuccessMessage(null);
     setIsLoading(true);
     try {
-      await axios.post(`${getBackendUrl()}/teams/${teamId}/members`, {
+      const response = await axios.post(`${getBackendUrl()}/teams/${teamId}/members`, {
         username: trimmed,
         role
       }, {
@@ -40,7 +42,13 @@ export function AddMemberForm({ teamId, token, onInviteSent, theme }: AddMemberF
 
       setUsername('');
       setRole('DEVELOPER');
-      onInviteSent();
+      // A response with an `email` field means the person isn't registered yet — an invite
+      // email was sent instead of creating a pending membership (see TeamsService.addMember).
+      if (response.data?.email) {
+        setSuccessMessage(Strings.teamList.emailInviteSentText(response.data.email));
+      } else {
+        onInviteSent();
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'שגיאה בהוספת חבר צוות.');
     } finally {
@@ -58,6 +66,11 @@ export function AddMemberForm({ teamId, token, onInviteSent, theme }: AddMemberF
         <View style={nativeStyles.errorBannerInline}>
           <ThemedText style={nativeStyles.errorTextInline}>{error}</ThemedText>
         </View>
+      )}
+      {!!successMessage && (
+        <ThemedText style={{ fontSize: 12, color: '#2e7d32', textAlign: 'right' }}>
+          {successMessage}
+        </ThemedText>
       )}
 
       <TextInput

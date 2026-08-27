@@ -6,6 +6,7 @@ import { TeamSprintsManager } from '@/features/sprints';
 import { Box, Card, CardContent, Typography, Button, Chip, Alert, List, Grow } from '@mui/material';
 import { TeamMemberRow } from './team-member-row';
 import { AddMemberForm } from './add-member-form';
+import { InviteLinksPanel } from './invite-links-panel';
 import type { TeamListTheme } from '@/features/teams/types';
 
 interface TeamCardProps {
@@ -150,6 +151,10 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
             }}
             theme={theme}
           />
+
+          {isTeamAdmin && !isPending && (
+            <InviteLinksPanel teamId={team.id} token={token} theme={theme} />
+          )}
 
           {!isPending && (
             <TeamSprintsManager

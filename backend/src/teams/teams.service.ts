@@ -1,6 +1,7 @@
 import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
+import { InvitesService } from '../invites/invites.service';
 import { CreateTeamDto, AddMemberDto, UpdateMemberDto } from './dto/teams.dto';
 
 const TEAM_MEMBER_USER_SELECT = {
@@ -13,11 +14,14 @@ const TEAM_MEMBER_USER_SELECT = {
 // Only these two people are allowed to approve a new team's creation
 const ALLOWED_APPROVER_EMAILS = ['naveyadai@gmail.com', 'lironka13@gmail.com'];
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 @Injectable()
 export class TeamsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly emailService: EmailService
+    private readonly emailService: EmailService,
+    private readonly invitesService: InvitesService
   ) {}
 
   async getAllowedApprovers() {
@@ -175,6 +179,12 @@ export class TeamsService {
       }
     });
     if (!userToJoin) {
+      // No account yet — if a valid email was given, invite them to register instead of a
+      // hard 404. Registering through that invite's link joins the team immediately
+      // (see InvitesService.consumeInvite), skipping the accept/decline step below entirely.
+      if (EMAIL_PATTERN.test(dto.username)) {
+        return this.invitesService.createInvite(teamId, { email: dto.username, role: dto.role }, requesterId);
+      }
       throw new NotFoundException(`User with username or email '${dto.username}' not found`);
     }
 

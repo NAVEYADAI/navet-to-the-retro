@@ -242,20 +242,36 @@ export function InviteLinksPanel({ teamId, token, theme }: InviteLinksPanelProps
                       {Strings.invites.usesLabel(invite.useCount, invite.maxUses)}
                     </ThemedText>
                     {isActive && (
-                      <TouchableOpacity
-                        style={{
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          borderRadius: 4,
-                          borderWidth: 1,
-                          borderColor: '#c62828',
-                        }}
-                        onPress={() => handleRevoke(invite.id)}
-                      >
-                        <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: '#c62828' }}>
-                          {Strings.invites.revokeButton}
-                        </ThemedText>
-                      </TouchableOpacity>
+                      <View style={{ flexDirection: 'row-reverse', gap: 6 }}>
+                        <TouchableOpacity
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            borderRadius: 4,
+                            borderWidth: 1,
+                            borderColor: theme.backgroundSelected,
+                          }}
+                          onPress={() => handleShare(invite.token)}
+                        >
+                          <ThemedText style={{ fontSize: 11, fontWeight: 'bold' }}>
+                            {Strings.invites.copyLinkButton}
+                          </ThemedText>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            borderRadius: 4,
+                            borderWidth: 1,
+                            borderColor: '#c62828',
+                          }}
+                          onPress={() => handleRevoke(invite.id)}
+                        >
+                          <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: '#c62828' }}>
+                            {Strings.invites.revokeButton}
+                          </ThemedText>
+                        </TouchableOpacity>
+                      </View>
                     )}
                   </View>
                 </View>

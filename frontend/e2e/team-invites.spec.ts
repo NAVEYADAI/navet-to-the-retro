@@ -58,15 +58,27 @@ test.describe('Team invites — email invites for unregistered users + shareable
     await loginViaLocalStorage(page, creator.token);
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.invites.manageLinksToggle).click();
-    // First click reveals the create-link form (whose submit button reuses the same label);
-    // the second click submits it with no expiry/max-uses restrictions.
+    // The "show form" button and the form's submit button reuse the same label, so clicking
+    // this text twice back-to-back is a race: on a slower render (e.g. Mobile Chrome) the second
+    // click can fire before the form (and its real submit button) has mounted, and the click never
+    // reaches a submit handler — the test then hangs waiting for linkCreatedText. Waiting for a
+    // field that only exists once the form is showing makes the second click unambiguous.
     await page.getByText(Strings.invites.createLinkButton).click();
+    await page.getByPlaceholder(Strings.invites.namePlaceholder).waitFor();
     await page.getByText(Strings.invites.createLinkButton).click();
 
     await page.getByText(Strings.invites.linkCreatedText).waitFor();
     const linkText = await page.locator('text=/\\/invite\\//').first().textContent();
     const inviteToken = linkText!.trim().split('/invite/')[1];
     expect(inviteToken).toBeTruthy();
+
+    // Regression coverage for the race above: confirm the flow produced exactly one invite,
+    // not zero (a swallowed/misfired click) or two (a double submission).
+    const invitesRes = await request.get(`${BACKEND_URL}/teams/${team.id}/invites`, {
+      headers: { Authorization: `Bearer ${creator.token}` },
+    });
+    const teamInvites = await invitesRes.json();
+    expect(teamInvites).toHaveLength(1);
 
     // A brand-new person, in a fresh browser context (nobody logged in), opens the link,
     // registers through it, and should land in the team immediately — no accept/decline step.
@@ -115,5 +127,45 @@ test.describe('Team invites — email invites for unregistered users + shareable
     await page.getByText(Strings.teamList.addMemberButton).click();
 
     await expect(page.getByText(Strings.teamList.emailInviteSentText(invitedEmail))).toBeVisible();
+  });
+
+  test('an admin can re-copy an already-created link from the list after a page refresh', async ({ page, request, context }) => {
+    const suffix = `${Date.now()}_${test.info().project.name.replace(/\s+/g, '')}_refresh`;
+    const teamName = `E2E Refresh Copy Team ${suffix}`;
+
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+    const creator = await registerAndLogin(request, `e2e_pw_creator3_${suffix}`, `e2e_pw_creator3_${suffix}@example.com`);
+    const approver = await ensureApprover(request, `e2e_pw_approver3_${suffix}`);
+
+    const teamRes = await request.post(`${BACKEND_URL}/teams`, {
+      headers: { Authorization: `Bearer ${creator.token}` },
+      data: { name: teamName, approverEmail: APPROVER_EMAIL },
+    });
+    const team = await teamRes.json();
+    await request.post(`${BACKEND_URL}/teams/${team.id}/approve`, {
+      headers: { Authorization: `Bearer ${approver.token}` },
+    });
+
+    await loginViaLocalStorage(page, creator.token);
+    await page.getByText(teamName).waitFor();
+    await page.getByText(Strings.invites.manageLinksToggle).click();
+    await page.getByText(Strings.invites.createLinkButton).click();
+    await page.getByPlaceholder(Strings.invites.namePlaceholder).waitFor();
+    await page.getByText(Strings.invites.createLinkButton).click();
+
+    await page.getByText(Strings.invites.linkCreatedText).waitFor();
+    const linkText = await page.locator('text=/\\/invite\\//').first().textContent();
+    const inviteToken = linkText!.trim().split('/invite/')[1];
+
+    // Simulate the bug report: refresh the page, losing the ephemeral "link created" card —
+    // the only place a copy action used to exist. The persisted list row must offer one too.
+    await page.reload();
+    await page.getByText(teamName).waitFor();
+    await page.getByText(Strings.invites.manageLinksToggle).click();
+    await page.getByText(Strings.invites.copyLinkButton).click();
+
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clipboardText).toContain(inviteToken);
   });
 });

@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
+import { Share } from 'react-native';
 import axios from 'axios';
 import { TeamListNative } from '@/features/teams/components/team-list-native';
 import { Strings } from '../../constants/strings';
@@ -353,6 +354,19 @@ describe('TeamListNative — dual-approval UI', () => {
     await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
 
     expect(await findByText(Strings.invites.unnamedLinkLabel)).toBeTruthy();
+  });
+
+  it('lets an admin re-copy an already-created link from the list (e.g. after a page refresh)', async () => {
+    const invite = { id: 11, token: 'existing-token', isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 };
+    mockedAxios.get.mockResolvedValue({ data: [invite] });
+    const shareSpy = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' } as any);
+    const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(await findByText(Strings.invites.copyLinkButton));
+
+    expect(shareSpy).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining(invite.token) }));
+    shareSpy.mockRestore();
   });
 
   it('revokes an invite link', async () => {

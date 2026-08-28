@@ -3,6 +3,27 @@
 > Sprint Retrospective Board — Expo (React Native + Web) frontend.
 > Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
+## UI — חובה
+
+כל עבודת UI עוברת דרך @UI-GUIDELINES.md. קרא אותו **לפני** כתיבת מסך, קומפוננטה או תיקון עיצובי.
+
+בקצרה, ובלי חריגות:
+
+- צבע, גופן, ריווח, רדיוס וצל — **רק** מ-`useTheme()` / `src/design/tokens.ts`. אין hex, `rgba(`, `linear-gradient` או `fontFamily` בשום קובץ מחוץ ל-`src/design/`.
+- כל קלט עובר דרך `<Field>` מ-`@/components/ui`. אין `TextField` ישיר תחת `features/`.
+- כל מסך עטוף ב-`<Page>` + `<PageHeader>`, תוכן ב-`<Grid columns={n}>` עם מספר טורים קבוע.
+- כפתור `primary` אחד לכל מסך.
+- RTL: `dir` בשורש בלבד, מאפיינים לוגיים בלבד, אין `row-reverse`.
+- אין `Grow` / `Fade` / `pulse` על טעינת מסך.
+
+לפני סיום כל משימת UI — עבור על ה-checklist בסעיף 7 של UI-GUIDELINES.md והצהר שכל סעיף עומד.
+
+**מצב נוכחי (בתהליך אימוץ הדרגתי):** `src/design/*` ו-`src/components/ui/*` כבר קיימים וזמינים.
+מסכים שעדיין לא הומרו ל-`useTheme()` ומשתמשים בדפוס הישן (`theme`/`isDark`/`colorScheme` כ-prop,
+`Colors` מ-`constants/theme.ts`, MUI ישיר) — ראה את רשימת המשימות המדורגת ב-`UI-MIGRATION-BACKLOG.md`.
+אל תמיר מסך קיים לפי הכללים האלה כחלק אגבי של משימה אחרת; זו עבודה ממוקדת בפני עצמה שעוברת דרך
+הבאקלוג הזה (או דרך סוכן ה-`ui-migration`), כדי לא לשבור מסכים שהילדים שלהם עדיין לא הומרו.
+
 ## Tech Stack
 
 - **Framework:** Expo SDK 57 + React Native 0.86 + React 19.2

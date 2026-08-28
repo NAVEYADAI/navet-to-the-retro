@@ -38,6 +38,7 @@ export function InviteLinksPanel({ teamId, token, theme }: InviteLinksPanelProps
   const [createError, setCreateError] = useState<string | null>(null);
   const [newLinkToken, setNewLinkToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedRowId, setCopiedRowId] = useState<number | null>(null);
 
   const fetchInvites = useCallback(async () => {
     try {
@@ -94,6 +95,16 @@ export function InviteLinksPanel({ teamId, token, theme }: InviteLinksPanelProps
     try {
       await navigator.clipboard.writeText(inviteUrl(inviteToken));
       setCopied(true);
+    } catch (err) {
+      console.error('Failed to copy invite link:', err);
+    }
+  };
+
+  const handleCopyRow = async (invite: { id: number; token: string }) => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl(invite.token));
+      setCopiedRowId(invite.id);
+      setTimeout(() => setCopiedRowId((current) => (current === invite.id ? null : current)), 1500);
     } catch (err) {
       console.error('Failed to copy invite link:', err);
     }
@@ -246,23 +257,41 @@ export function InviteLinksPanel({ teamId, token, theme }: InviteLinksPanelProps
                       {Strings.invites.usesLabel(invite.useCount, invite.maxUses)}
                     </Typography>
                     {isActive && (
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => handleRevoke(invite.id)}
-                        sx={{
-                          borderColor: '#c62828',
-                          color: '#c62828',
-                          fontWeight: 'bold',
-                          fontSize: 11,
-                          fontFamily: 'Rubik, sans-serif',
-                          textTransform: 'none',
-                          px: 1.5,
-                          '&:hover': { borderColor: '#c62828', backgroundColor: 'rgba(198,40,40,0.06)' },
-                        }}
-                      >
-                        {Strings.invites.revokeButton}
-                      </Button>
+                      <Box sx={{ display: 'flex', flexDirection: 'row-reverse', gap: 1 }}>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => handleCopyRow(invite)}
+                          sx={{
+                            borderColor: theme.backgroundSelected,
+                            color: theme.text,
+                            fontWeight: 'bold',
+                            fontSize: 11,
+                            fontFamily: 'Rubik, sans-serif',
+                            textTransform: 'none',
+                            px: 1.5,
+                          }}
+                        >
+                          {copiedRowId === invite.id ? Strings.invites.linkCopiedText : Strings.invites.copyLinkButton}
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => handleRevoke(invite.id)}
+                          sx={{
+                            borderColor: '#c62828',
+                            color: '#c62828',
+                            fontWeight: 'bold',
+                            fontSize: 11,
+                            fontFamily: 'Rubik, sans-serif',
+                            textTransform: 'none',
+                            px: 1.5,
+                            '&:hover': { borderColor: '#c62828', backgroundColor: 'rgba(198,40,40,0.06)' },
+                          }}
+                        >
+                          {Strings.invites.revokeButton}
+                        </Button>
+                      </Box>
                     )}
                   </Box>
                 </Box>

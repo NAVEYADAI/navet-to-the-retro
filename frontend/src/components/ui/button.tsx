@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button as MuiButton } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
+import { Icon, type IconName } from './icon';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'sm' | 'md';
@@ -13,7 +14,18 @@ export interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   fullWidth?: boolean;
+  /** אייקון מוביל אופציונלי, לצד הטקסט — אף פעם לא במקומו. */
+  icon?: IconName;
+  /** `submit` בתוך `<form>` כדי לאפשר שליחה במקש Enter מתוך שדה טקסט. */
+  type?: 'button' | 'submit';
 }
+
+const ICON_TONE_BY_VARIANT = {
+  primary: 'inverse',
+  secondary: 'default',
+  ghost: 'muted',
+  danger: 'danger',
+} as const;
 
 /**
  * הכפתור היחיד באפליקציה. כפתור primary אחד לכל מסך.
@@ -26,6 +38,8 @@ export function Button({
   disabled,
   loading,
   fullWidth,
+  icon,
+  type = 'button',
 }: ButtonProps) {
   const t = useTheme();
   const pad = size === 'sm' ? { py: '7px', px: '14px' } : { py: '10px', px: '18px' };
@@ -60,11 +74,15 @@ export function Button({
 
   return (
     <MuiButton
+      type={type}
       onClick={onPress}
       disabled={disabled || loading}
       fullWidth={fullWidth}
       disableElevation
       sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: `${t.space[1]}px`,
         fontFamily: t.type.bodyStrong.fontFamily,
         fontWeight: 600,
         fontSize,
@@ -84,6 +102,9 @@ export function Button({
         },
       }}
     >
+      {icon && !loading && (
+        <Icon name={icon} size="sm" tone={disabled ? 'muted' : ICON_TONE_BY_VARIANT[variant]} />
+      )}
       {loading ? '...' : children}
     </MuiButton>
   );

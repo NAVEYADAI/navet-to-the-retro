@@ -5,16 +5,15 @@ import { Strings } from '@/constants/strings';
 import {
   Box,
   Typography,
-  Button,
-  Chip,
   Switch as MuiSwitch,
-  CircularProgress,
   Alert,
   ListItem,
   FormControlLabel,
 } from '@mui/material';
-import { roles, getRoleLabel, getRoleStyle } from './roles';
-import type { TeamListTheme } from '@/features/teams/types';
+import { useTheme } from '@/design/theme-context';
+import { Button, Icon, Badge } from '@/components/ui';
+import { getRoleLabel } from './roles';
+import { ROLES } from '@/constants/roles';
 
 interface TeamMemberRowProps {
   member: any;
@@ -23,10 +22,10 @@ interface TeamMemberRowProps {
   isTeamAdmin: boolean;
   isMe: boolean;
   onChanged: () => void;
-  theme: TeamListTheme;
 }
 
-export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChanged, theme }: TeamMemberRowProps) {
+export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChanged }: TeamMemberRowProps) {
+  const t = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [editRole, setEditRole] = useState(member.role);
   const [editIsAdmin, setEditIsAdmin] = useState(member.isAdmin);
@@ -77,161 +76,142 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
     }
   };
 
-  const roleStyle = getRoleStyle(member.role, theme);
   const fullName = member.user?.firstName || member.user?.lastName
     ? `${member.user?.firstName || ''} ${member.user?.lastName || ''}`.trim()
     : `@${member.user?.username || ''}`;
+  const roleBadgeLabel = getRoleLabel(member.role);
+  const currentRoleIcon = ROLES.find((r) => r.value === member.role)?.icon;
 
   return (
     <ListItem
       sx={{
-        p: 0,
-        flexDirection: 'row-reverse',
+        padding: 0,
         justifyContent: 'space-between',
-        backgroundColor: theme.background,
-        borderRadius: 2,
-        px: 2,
-        py: 1,
-        border: '1px solid rgba(0,0,0,0.03)',
+        backgroundColor: t.color.surface,
+        borderRadius: `${t.radius.card}px`,
+        paddingInline: `${t.space[3]}px`,
+        paddingBlock: `${t.space[2]}px`,
+        border: `1px solid ${t.color.border}`,
       }}
     >
       {isEditing ? (
-        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'right', p: 1 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontFamily: 'Rubik, sans-serif' }}>
-            עריכת תפקיד עבור: {fullName}
+        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
+          <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
+            עריכת תפקיד עבור: <bdi>{fullName}</bdi>
           </Typography>
           {editError && (
-            <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
+            <Alert severity="error" sx={{ ...t.type.body }}>
               {editError}
             </Alert>
           )}
-          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 1 }}>
-            {roles.map((r) => {
-              const isSel = editRole === r.value;
-              return (
-                <Chip
-                  key={r.value}
-                  label={r.label}
-                  clickable
-                  onClick={() => setEditRole(r.value)}
-                  sx={{
-                    backgroundColor: isSel ? theme.text : theme.backgroundSelected,
-                    color: isSel ? theme.background : theme.text,
-                    fontFamily: 'Rubik, sans-serif',
-                    fontWeight: 'bold',
-                  }}
-                />
-              );
-            })}
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px` }}>
+            <Typography sx={{ ...t.type.label, color: t.color.textSecondary }}>תפקיד</Typography>
+            <Box sx={{ display: 'flex', gap: `${t.space[2]}px`, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {ROLES.map((r) => {
+                const selected = editRole === r.value;
+                return (
+                  <Box
+                    key={r.value}
+                    component="button"
+                    type="button"
+                    onClick={() => setEditRole(r.value)}
+                    sx={{
+                      ...t.type.caption,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: `${t.space[1] + 2}px`,
+                      fontWeight: selected ? 700 : 500,
+                      borderRadius: `${t.radius.pill}px`,
+                      border: `1.5px solid ${selected ? t.color.accent.base : t.color.border}`,
+                      backgroundColor: selected ? t.color.accent.subtle : t.color.surface,
+                      color: selected ? t.color.accent.base : t.color.textSecondary,
+                      paddingBlock: '7px',
+                      paddingInline: `${t.space[4]}px`,
+                      cursor: 'pointer',
+                      transition: `background-color ${t.motion.fast}, border-color ${t.motion.fast}, color ${t.motion.fast}`,
+                      '&:hover': {
+                        borderColor: selected ? t.color.accent.hover : t.color.borderStrong,
+                        backgroundColor: selected ? t.color.accent.subtle : t.color.surfaceHover,
+                      },
+                    }}
+                  >
+                    <Icon name={r.icon} size="sm" tone={selected ? 'accent' : 'muted'} />
+                    {r.label}
+                  </Box>
+                );
+              })}
+            </Box>
           </Box>
-          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-            <FormControlLabel
-              control={
-                <MuiSwitch
-                  checked={editIsAdmin}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditIsAdmin(e.target.checked)}
-                  disabled={isMe}
-                />
-              }
-              label="הרשאות מנהל (Admin)"
-              labelPlacement="start"
-              sx={{ m: 0, gap: 1, '& .MuiFormControlLabel-label': { color: theme.text, fontSize: 13, fontFamily: 'Rubik, sans-serif' } }}
-            />
-          </Box>
-          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', gap: 1.5, mt: 1 }}>
-            <Button
-              size="small"
-              variant="contained"
-              onClick={handleSaveEdit}
-              disabled={editLoading}
-              sx={{ backgroundColor: theme.text, color: theme.background, fontWeight: 'bold', fontFamily: 'Rubik, sans-serif' }}
-            >
-              {editLoading ? <CircularProgress size={16} color="inherit" /> : 'שמור'}
+
+          <FormControlLabel
+            control={
+              <MuiSwitch
+                checked={editIsAdmin}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditIsAdmin(e.target.checked)}
+                disabled={isMe}
+              />
+            }
+            label={Strings.teamList.teamAdminPrivileges}
+            labelPlacement="start"
+            sx={{ margin: 0, gap: `${t.space[2]}px`, '& .MuiFormControlLabel-label': { ...t.type.body, color: t.color.text } }}
+          />
+
+          <Box sx={{ display: 'flex', flexDirection: 'row', gap: `${t.space[2]}px` }}>
+            <Button size="sm" variant="primary" onPress={handleSaveEdit} disabled={editLoading} loading={editLoading}>
+              {Strings.teamList.saveButton}
             </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => setIsEditing(false)}
-              sx={{ borderColor: theme.backgroundSelected, color: theme.text, fontWeight: 'bold', fontFamily: 'Rubik, sans-serif' }}
-            >
-              ביטול
+            <Button size="sm" variant="secondary" onPress={() => setIsEditing(false)}>
+              {Strings.teamList.cancelButton}
             </Button>
           </Box>
         </Box>
       ) : (
-        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
           {!!removeError && (
-            <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
+            <Alert severity="error" sx={{ ...t.type.body }}>
               {removeError}
             </Alert>
           )}
-          <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 1.5 }}>
-            <Chip
-              label={getRoleLabel(member.role)}
-              size="small"
-              sx={{
-                backgroundColor: roleStyle.bg,
-                color: roleStyle.text,
-                fontWeight: 'bold',
-                fontSize: 11,
-                fontFamily: 'Rubik, sans-serif',
-              }}
-            />
-            {isTeamAdmin && (
-              <Button
-                size="small"
-                onClick={startEdit}
-                sx={{
-                  color: '#007aff',
-                  fontWeight: 'bold',
-                  fontSize: 11,
-                  fontFamily: 'Rubik, sans-serif',
-                  minWidth: 0,
-                  minHeight: 36,
-                  px: 1,
-                }}
-              >
-                ערוך
-              </Button>
-            )}
-            {isTeamAdmin && !isMe && (
-              <Button
-                size="small"
-                onClick={handleRemove}
-                disabled={isRemoving}
-                sx={{
-                  color: '#c62828',
-                  fontWeight: 'bold',
-                  fontSize: 11,
-                  fontFamily: 'Rubik, sans-serif',
-                  minWidth: 0,
-                  minHeight: 36,
-                  px: 1,
-                }}
-              >
-                {isRemoving ? <CircularProgress size={12} color="inherit" /> : 'הסר'}
-              </Button>
-            )}
-          </Box>
-
-          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', gap: 1 }}>
-            {member.isAdmin && (
-              <Typography sx={{ fontSize: 13 }} title="מנהל צוות">
-                👑
+          <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[2]}px` }}>
+            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${t.space[2]}px`, flexWrap: 'wrap' }}>
+              <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
+                <bdi>{fullName}</bdi>
               </Typography>
-            )}
-            {member.status === 'PENDING' && (
-              <Chip
-                label={Strings.teamList.pendingMemberBadge}
-                size="small"
-                sx={{ backgroundColor: '#ede9fe', color: '#6366f1', fontWeight: 'bold', fontSize: 11, fontFamily: 'Rubik, sans-serif' }}
-              />
-            )}
-            <Typography variant="body2" sx={{ color: theme.text, fontWeight: '600', fontFamily: 'Rubik, sans-serif' }}>
-              {fullName}
-            </Typography>
-          </Box>
+              {member.status === 'PENDING' && <Badge tone="accent">{Strings.teamList.pendingMemberBadge}</Badge>}
+            </Box>
+
+            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${t.space[2]}px`, flexWrap: 'wrap' }}>
+              {member.isAdmin && <Badge tone="neutral">{Strings.teamList.adminBadge}</Badge>}
+              <Box
+                sx={{
+                  ...t.type.caption,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: `${t.space[1] + 2}px`,
+                  fontWeight: 700,
+                  borderRadius: `${t.radius.pill}px`,
+                  border: `1.5px solid ${t.color.accent.base}`,
+                  backgroundColor: t.color.accent.subtle,
+                  color: t.color.accent.base,
+                  paddingBlock: '7px',
+                  paddingInline: `${t.space[4]}px`,
+                }}
+              >
+                {currentRoleIcon ? <Icon name={currentRoleIcon} size="sm" tone="accent" /> : null}
+                {roleBadgeLabel}
+              </Box>
+              {isTeamAdmin && (
+                <Button size="sm" variant="ghost" icon="edit" onPress={startEdit}>
+                  ערוך
+                </Button>
+              )}
+              {isTeamAdmin && (
+                <Button size="sm" variant="danger" icon="trash" onPress={handleRemove} disabled={isMe || isRemoving} loading={isRemoving}>
+                  הסר
+                </Button>
+              )}
+            </Box>
           </Box>
         </Box>
       )}

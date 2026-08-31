@@ -5,7 +5,6 @@ import { useColorScheme, View, ActivityIndicator, Platform, Image } from 'react-
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { AuthForm } from '@/components/auth-form';
 import AppTabs from '@/components/navigation/app-tabs';
-import { Colors } from '@/constants/theme';
 import { injectGlobalWebStyles } from '@/constants/global-web-styles';
 import { AppProviders } from '@/design/app-providers';
 
@@ -45,14 +44,7 @@ function LayoutContent() {
 
   // Auth Gate: No navbar rendered if not logged in
   if (!token) {
-    const scheme = colorScheme === 'dark' ? 'dark' : 'light';
-    return (
-      <AuthForm
-        isDark={scheme === 'dark'}
-        theme={Colors[scheme]}
-        colorScheme={scheme}
-      />
-    );
+    return <AuthForm />;
   }
 
   // Render main tab layout when logged in

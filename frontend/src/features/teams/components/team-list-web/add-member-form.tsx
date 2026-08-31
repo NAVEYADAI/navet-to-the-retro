@@ -2,18 +2,19 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { Strings } from '@/constants/strings';
-import { Box, Typography, Button, TextField, Collapse, CircularProgress, Alert } from '@mui/material';
-import type { TeamListTheme } from '@/features/teams/types';
+import { Box, Typography, Collapse, Alert } from '@mui/material';
+import { useTheme } from '@/design/theme-context';
+import { Button, Field } from '@/components/ui';
 
 interface AddMemberFormProps {
   teamId: number;
   token: string;
   isVisible: boolean;
   onInviteSent: () => void;
-  theme: TeamListTheme;
 }
 
-export function AddMemberForm({ teamId, token, isVisible, onInviteSent, theme }: AddMemberFormProps) {
+export function AddMemberForm({ teamId, token, isVisible, onInviteSent }: AddMemberFormProps) {
+  const t = useTheme();
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,65 +54,42 @@ export function AddMemberForm({ teamId, token, isVisible, onInviteSent, theme }:
 
   return (
     <Collapse in={isVisible} timeout="auto" unmountOnExit>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, p: 2, mt: 1, border: '1px solid rgba(0,0,0,0.06)', borderRadius: 2 }}>
-        <Typography sx={{ fontWeight: 'bold', color: theme.text, fontSize: 13, textAlign: 'right', fontFamily: 'Rubik, sans-serif' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: `${t.space[3]}px`,
+          padding: `${t.space[3]}px`,
+          marginBlockStart: `${t.space[1]}px`,
+          border: `1px solid ${t.color.border}`,
+          borderRadius: `${t.radius.card}px`,
+        }}
+      >
+        <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
           הזמנת חבר חדש לצוות
         </Typography>
 
         {error && (
-          <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
+          <Alert severity="error" sx={{ ...t.type.body }}>
             {error}
           </Alert>
         )}
         {successMessage && (
-          <Alert severity="success" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
+          <Alert severity="success" sx={{ ...t.type.body }}>
             {successMessage}
           </Alert>
         )}
 
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: theme.textSecondary, textAlign: 'right', fontFamily: 'Rubik, sans-serif' }}>
-            כתובת אימייל
-          </Typography>
-          <TextField
-            placeholder="הכנס כתובת אימייל"
-            value={username}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-            size="small"
-            autoCapitalize="none"
-            type="email"
-            sx={{
-              direction: 'rtl',
-              input: { color: theme.text, textAlign: 'right', py: 1.2 },
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: theme.background,
-                borderRadius: '12px',
-                '& fieldset': { borderColor: theme.backgroundSelected },
-                '&:hover fieldset': { borderColor: theme.text },
-                '&.Mui-focused fieldset': { borderColor: theme.text, borderWidth: '1.5px' },
-              },
-              '& .MuiInputLabel-root': { display: 'none' },
-              '& .MuiOutlinedInput-notchedOutline legend': { display: 'none' },
-            }}
-          />
-        </Box>
+        <Field
+          label="כתובת אימייל"
+          value={username}
+          onChangeText={setUsername}
+          type="email"
+          placeholder="הכנס כתובת אימייל"
+        />
 
-        <Button
-          variant="contained"
-          onClick={handleAddMember}
-          disabled={isLoading}
-          sx={{
-            backgroundColor: theme.text,
-            color: theme.background,
-            fontWeight: 'bold',
-            fontFamily: 'Rubik, sans-serif',
-            textTransform: 'none',
-            '&:hover': {
-              backgroundColor: theme.textSecondary,
-            }
-          }}
-        >
-          {isLoading ? <CircularProgress size={20} color="inherit" /> : Strings.teamList.addMemberButton}
+        <Button variant="primary" icon="user-plus" onPress={handleAddMember} disabled={isLoading} loading={isLoading}>
+          {Strings.teamList.addMemberButton}
         </Button>
       </Box>
     </Collapse>

@@ -1,28 +1,35 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import {
-  StyleSheet,
   View,
+  Text,
   ActivityIndicator,
   ScrollView,
   useWindowDimensions,
   TouchableOpacity,
+  type TextStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { CreateTeamForm, TeamList } from '@/features/teams';
 import { SprintRetroBoard } from '@/features/retro';
-import { BottomTabInset, MaxContentWidth, Spacing, Colors } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/design/theme-context';
 import { useAuth } from '@/context/auth-context';
 import { getBackendUrl } from '@/api/config';
 import { useTeamsData } from '../hooks/use-teams-data';
 
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
+}
+
 export function DashboardNative() {
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
+  const t = useTheme();
   const { user, token } = useAuth();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -34,6 +41,17 @@ export function DashboardNative() {
   const [showCreateTeam, setShowCreateTeam] = useState(false);
 
   const { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams } = useTeamsData(token);
+
+  // CreateTeamForm still declares the old theme-shaped prop (not yet on the migration
+  // backlog) — kept here only to forward until it's converted too. SprintRetroBoard's
+  // dispatcher still accepts this prop optionally but no longer reads it.
+  const legacyTheme = {
+    text: t.color.text,
+    background: t.color.bg,
+    backgroundElement: t.color.surface,
+    backgroundSelected: t.color.surfaceSubtle,
+    textSecondary: t.color.textSecondary,
+  };
 
   const handleCreateTeamSubmit = async (name: string, mainOffice: string, approverEmail: string) => {
     setErrorMessage(null);
@@ -65,14 +83,14 @@ export function DashboardNative() {
 
   if (activeView === 'retro' && selectedSprint && selectedTeam) {
     return (
-      <ThemedView style={nativeStyles.container}>
-        <SafeAreaView style={nativeStyles.safeArea}>
+      <View style={{ flex: 1, justifyContent: 'center', flexDirection: 'row', backgroundColor: t.color.bg }}>
+        <SafeAreaView style={{ flex: 1, maxWidth: MaxContentWidth, width: '100%' }}>
           <SprintRetroBoard
             sprint={selectedSprint}
             team={selectedTeam}
             token={token || ''}
             user={user}
-            theme={theme}
+            theme={legacyTheme}
             onBack={() => {
               setActiveView('dashboard');
               if (token) {
@@ -81,67 +99,115 @@ export function DashboardNative() {
             }}
           />
         </SafeAreaView>
-      </ThemedView>
+      </View>
     );
   }
 
   return (
-    <ThemedView style={nativeStyles.container}>
-      <SafeAreaView style={nativeStyles.safeArea}>
+    <View style={{ flex: 1, justifyContent: 'center', flexDirection: 'row', backgroundColor: t.color.bg }}>
+      <SafeAreaView style={{ flex: 1, maxWidth: MaxContentWidth, width: '100%' }}>
         <ScrollView
-          contentContainerStyle={[nativeStyles.scrollContent, { paddingTop: isDesktop ? 80 : 100 }]}
+          contentContainerStyle={{
+            paddingHorizontal: t.space[4],
+            paddingBottom: BottomTabInset + t.space[4],
+            paddingTop: isDesktop ? 80 : 100,
+            width: '100%',
+          }}
           showsVerticalScrollIndicator={false}
         >
-          <View style={nativeStyles.dashboardContainer}>
-            <View style={nativeStyles.header}>
-              <ThemedText type="title" style={nativeStyles.title}>
+          <View style={{ width: '100%', maxWidth: 1100, alignSelf: 'center', gap: t.space[4] }}>
+            <View style={{ gap: t.space[1], alignItems: 'center', marginVertical: t.space[2] }}>
+              <Text style={[rnText(t.type.pageTitle), { color: t.color.text, textAlign: 'center' }]}>
                 {Strings.dashboard.welcomeTitle(user.firstName || user.username)}
-              </ThemedText>
-              <ThemedText type="default" style={nativeStyles.subtitle}>
+              </Text>
+              <Text style={[rnText(t.type.body), { color: t.color.textSecondary, textAlign: 'center' }]}>
                 {Strings.dashboard.welcomeSubtitle}
-              </ThemedText>
+              </Text>
             </View>
 
             {!!errorMessage && (
-              <View style={nativeStyles.errorBanner}>
-                <ThemedText style={nativeStyles.errorText}>{errorMessage}</ThemedText>
+              <View
+                style={{
+                  backgroundColor: t.color.status.danger.bg,
+                  borderWidth: 1,
+                  borderColor: t.color.status.danger.border,
+                  borderRadius: t.radius.field,
+                  padding: t.space[2],
+                  alignSelf: 'center',
+                  width: '100%',
+                  maxWidth: 480,
+                }}
+              >
+                <Text style={[rnText(t.type.body), { color: t.color.status.danger.fg, textAlign: 'center' }]}>
+                  {errorMessage}
+                </Text>
               </View>
             )}
 
             {isLoadingTeams ? (
-              <View style={nativeStyles.loadingContainer}>
-                <ActivityIndicator size="large" color={theme.text} />
-                <ThemedText type="default">{Strings.dashboard.loadingTeams}</ThemedText>
+              <View style={{ padding: t.space[4], alignItems: 'center', gap: t.space[2] }}>
+                <ActivityIndicator size="large" color={t.color.text} />
+                <Text style={rnText(t.type.body)}>{Strings.dashboard.loadingTeams}</Text>
               </View>
             ) : teams.length === 0 ? (
-              <View style={[nativeStyles.centeredCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
+              <View
+                style={{
+                  width: '100%',
+                  maxWidth: 480,
+                  padding: t.space[4],
+                  borderRadius: t.radius.card,
+                  borderWidth: 1,
+                  alignSelf: 'center',
+                  backgroundColor: t.color.surface,
+                  borderColor: t.color.border,
+                }}
+              >
                 <CreateTeamForm
                   onSubmit={handleCreateTeamSubmit}
                   isLoading={teamCreateLoading}
                   isFirstTeam={true}
-                  theme={theme}
+                  theme={legacyTheme}
                 />
               </View>
             ) : (
-              <View style={{ width: '100%', gap: Spacing.four }}>
+              <View style={{ width: '100%', gap: t.space[4] }}>
                 {showCreateTeam ? (
-                  <View style={[nativeStyles.columnCard, { backgroundColor: theme.background, borderColor: theme.backgroundElement }]}>
+                  <View
+                    style={{
+                      padding: t.space[4],
+                      borderRadius: t.radius.card,
+                      borderWidth: 1,
+                      width: '100%',
+                      backgroundColor: t.color.surface,
+                      borderColor: t.color.border,
+                    }}
+                  >
                     <CreateTeamForm
                       onSubmit={handleCreateTeamSubmit}
                       isLoading={teamCreateLoading}
                       isFirstTeam={false}
                       onCancel={() => setShowCreateTeam(false)}
-                      theme={theme}
+                      theme={legacyTheme}
                     />
                   </View>
                 ) : (
                   <TouchableOpacity
-                    style={[nativeStyles.toggleCreateBtn, { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected }]}
+                    style={{
+                      padding: t.space[4],
+                      borderRadius: t.radius.card,
+                      borderWidth: 1,
+                      borderStyle: 'dashed',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '100%',
+                      backgroundColor: t.color.surfaceSubtle,
+                      borderColor: t.color.border,
+                    }}
                     onPress={() => setShowCreateTeam(true)}
                   >
-                    <ThemedText style={{ fontWeight: 'bold', color: theme.text }}>
+                    <Text style={[rnText({ ...t.type.bodyStrong, fontWeight: 700 }), { color: t.color.text }]}>
                       {Strings.dashboard.createNewTeamButton}
-                    </ThemedText>
+                    </Text>
                   </TouchableOpacity>
                 )}
 
@@ -155,104 +221,12 @@ export function DashboardNative() {
                     setSelectedTeam(team);
                     setActiveView('retro');
                   }}
-                  theme={theme}
                 />
               </View>
             )}
           </View>
         </ScrollView>
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
-
-const nativeStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    maxWidth: MaxContentWidth,
-    width: '100%',
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.four,
-    paddingBottom: BottomTabInset + Spacing.four,
-    width: '100%',
-  },
-  dashboardContainer: {
-    width: '100%',
-    maxWidth: 1100,
-    alignSelf: 'center',
-    gap: Spacing.four,
-  },
-  header: {
-    gap: Spacing.one,
-    alignItems: 'center',
-    marginVertical: Spacing.two,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  subtitle: {
-    opacity: 0.7,
-  },
-  centeredCard: {
-    width: '100%',
-    maxWidth: 480,
-    padding: Spacing.four,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
-    alignSelf: 'center',
-  },
-  dashboardGrid: {
-    gap: Spacing.four,
-    width: '100%',
-  },
-  leftColumn: {
-    width: '100%',
-    gap: Spacing.four,
-  },
-  rightColumn: {
-    width: '100%',
-    gap: Spacing.four,
-  },
-  columnCard: {
-    padding: Spacing.four,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
-    width: '100%',
-  },
-  loadingContainer: {
-    padding: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  errorBanner: {
-    backgroundColor: '#ffebee',
-    padding: Spacing.two,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ffcdd2',
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 480,
-  },
-  errorText: {
-    color: '#c62828',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  toggleCreateBtn: {
-    padding: Spacing.four,
-    borderRadius: Spacing.three,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    borderStyle: 'dashed',
-  },
-});

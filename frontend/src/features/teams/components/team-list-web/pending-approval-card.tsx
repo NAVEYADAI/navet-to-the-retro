@@ -2,20 +2,20 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { Strings } from '@/constants/strings';
-import { Box, Card, CardContent, Typography, Button, CircularProgress, Alert, Grow } from '@mui/material';
-import type { TeamListTheme } from '@/features/teams/types';
+import { Box, Typography, Alert } from '@mui/material';
+import { useTheme } from '@/design/theme-context';
+import { Button, Card, Badge } from '@/components/ui';
 
 interface PendingApprovalCardProps {
   team: any;
   token: string;
   onResolved: () => void;
-  theme: TeamListTheme;
-  animationDelay: number;
 }
 
 // Shown to the designated approver while the team they were asked to approve is still
 // PENDING_APPROVAL — approve/decline the team's creation itself.
-export function PendingApprovalCard({ team, token, onResolved, theme, animationDelay }: PendingApprovalCardProps) {
+export function PendingApprovalCard({ team, token, onResolved }: PendingApprovalCardProps) {
+  const t = useTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,40 +40,29 @@ export function PendingApprovalCard({ team, token, onResolved, theme, animationD
     : `@${creatorMember?.user?.username || ''}`;
 
   return (
-    <Grow in={true} timeout={300 + animationDelay}>
-      <Card sx={{ backgroundColor: theme.backgroundElement, border: '2px solid #6366f1', borderRadius: 4 }}>
-        <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'right' }}>
-          <Typography variant="h6" sx={{ fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
-            {team.name}
-          </Typography>
-          <Typography sx={{ color: theme.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
-            {Strings.dashboard.approvalInviteText(creatorName)}
-          </Typography>
-          {error && (
-            <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>
-              {error}
-            </Alert>
-          )}
-          <Box sx={{ display: 'flex', flexDirection: 'row-reverse', gap: 1.5 }}>
-            <Button
-              variant="contained"
-              disabled={loading}
-              onClick={() => respond('approve')}
-              sx={{ backgroundColor: '#6366f1', fontWeight: 'bold', fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
-            >
-              {loading ? <CircularProgress size={18} color="inherit" /> : Strings.dashboard.approveTeamButton}
-            </Button>
-            <Button
-              variant="outlined"
-              disabled={loading}
-              onClick={() => respond('decline')}
-              sx={{ borderColor: theme.backgroundSelected, color: theme.text, fontWeight: 'bold', fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
-            >
-              {Strings.dashboard.declineTeamButton}
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
-    </Grow>
+    <Card padding={5}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[3]}px` }}>
+        <Typography component="h3" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
+          {team.name}
+        </Typography>
+        <Badge tone="accent">ממתין לאישורך</Badge>
+      </Box>
+      <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
+        {Strings.dashboard.approvalInviteText(creatorName)}
+      </Typography>
+      {error && (
+        <Alert severity="error" sx={{ ...t.type.body }}>
+          {error}
+        </Alert>
+      )}
+      <Box sx={{ display: 'flex', flexDirection: 'row', gap: `${t.space[3]}px` }}>
+        <Button variant="primary" icon="check" disabled={loading} loading={loading} onPress={() => respond('approve')}>
+          {Strings.dashboard.approveTeamButton}
+        </Button>
+        <Button variant="secondary" icon="x" disabled={loading} onPress={() => respond('decline')}>
+          {Strings.dashboard.declineTeamButton}
+        </Button>
+      </Box>
+    </Card>
   );
 }

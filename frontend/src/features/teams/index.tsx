@@ -8,13 +8,6 @@ interface TeamListProps {
   userId: number;
   onAddMemberSuccess: () => void;
   onSelectSprint: (sprint: any, team: any) => void;
-  theme: {
-    text: string;
-    background: string;
-    backgroundElement: string;
-    backgroundSelected: string;
-    textSecondary: string;
-  };
 }
 
 export function TeamList(props: TeamListProps) {

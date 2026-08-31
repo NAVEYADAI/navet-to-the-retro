@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React from 'react';
 import {
   Tabs,
   TabList,
@@ -7,23 +7,38 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from 'expo-router/ui';
-import { Pressable, useColorScheme, View, TouchableOpacity, Platform, Image } from 'react-native';
+import { Pressable, View, TouchableOpacity, Platform, Image } from 'react-native';
 import { ThemedText } from '../themed-text';
-import { Colors } from '@/constants/theme';
 import { useAuth } from '@/context/auth-context';
-import { navStyles } from './app-tabs.styles';
+import { useTheme } from '@/design/theme-context';
+import { Icon, type IconName } from '@/components/ui';
+import { MaxContentWidth } from '@/constants/theme';
+
+/** מיקום וגובה סרגל הניווט הצף (CustomTabList) — משמשים גם לחישוב ה-padding שמפנה לו מקום בתוכן המסך. */
+const NAV_TOP = 14;
+const NAV_HEIGHT = 62;
+const NAV_CLEARANCE = NAV_TOP + NAV_HEIGHT;
 
 export default function AppTabs() {
+  const t = useTheme();
   return (
     <Tabs>
-      <TabSlot style={{ flex: 1, height: '100vh', overflowY: Platform.OS === 'web' ? 'auto' : undefined, direction: 'rtl' } as any} />
+      <TabSlot
+        style={{
+          flex: 1,
+          height: '100vh',
+          overflowY: Platform.OS === 'web' ? 'auto' : undefined,
+          direction: 'rtl',
+          paddingTop: NAV_CLEARANCE + t.space[4],
+        } as any}
+      />
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton icon="🏠">ראשי</TabButton>
+            <TabButton icon="home">ראשי</TabButton>
           </TabTrigger>
           <TabTrigger name="settings" href="/settings" asChild>
-            <TabButton icon="⚙️">הגדרות</TabButton>
+            <TabButton icon="settings">הגדרות</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -31,9 +46,8 @@ export default function AppTabs() {
   );
 }
 
-export function TabButton({ children, isFocused, icon, ...props }: TabTriggerSlotProps & { icon?: string }) {
-  const scheme = useColorScheme();
-  const isDark = scheme === 'dark';
+export function TabButton({ children, isFocused, icon, ...props }: TabTriggerSlotProps & { icon?: IconName }) {
+  const t = useTheme();
 
   return (
     <Pressable {...props} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
@@ -41,23 +55,22 @@ export function TabButton({ children, isFocused, icon, ...props }: TabTriggerSlo
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 5,
-          padding: '10px 16px',
+          gap: t.space[1],
+          paddingBlock: t.space[2],
+          paddingInline: t.space[4],
           minHeight: 40,
-          borderRadius: 10,
-          backgroundColor: isFocused
-            ? (isDark ? 'rgba(129,140,248,0.15)' : 'rgba(99,102,241,0.08)')
-            : 'transparent',
-          transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+          borderRadius: t.radius.field,
+          backgroundColor: isFocused ? t.color.accent.subtle : 'transparent',
+          transition: `background-color ${t.motion.fast}`,
           cursor: 'pointer',
         }}
       >
-        {icon && <span style={{ fontSize: 14 }}>{icon}</span>}
+        {icon && <Icon name={icon} size="sm" tone={isFocused ? 'accent' : 'muted'} />}
         <ThemedText
           type="smallBold"
           themeColor={isFocused ? 'text' : 'textSecondary'}
           style={{
-            fontSize: 13,
+            fontSize: t.type.label.fontSize,
             fontWeight: isFocused ? '700' : '500',
             letterSpacing: -0.2,
           }}
@@ -70,84 +83,84 @@ export function TabButton({ children, isFocused, icon, ...props }: TabTriggerSlo
 }
 
 export function CustomTabList(props: TabListProps) {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const t = useTheme();
   const { logout, user } = useAuth();
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const isDark = scheme === 'dark';
-
-  useEffect(() => {
-    if (Platform.OS === 'web' && containerRef.current) {
-      const el = containerRef.current;
-      el.style.backdropFilter = 'blur(20px) saturate(1.8)';
-      (el.style as any).webkitBackdropFilter = 'blur(20px) saturate(1.8)';
-      el.style.boxShadow = isDark
-        ? '0 4px 30px rgba(0,0,0,0.4), 0 0 1px rgba(255,255,255,0.05) inset'
-        : '0 4px 30px rgba(0,0,0,0.06), 0 0 1px rgba(255,255,255,0.8) inset';
-      el.style.animation = 'navSlideIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both';
-      el.style.transition = 'background 0.3s ease, border-color 0.3s ease';
-    }
-  }, [isDark]);
 
   return (
     <View
       {...props}
-      ref={containerRef as any}
-      style={[
-        navStyles.tabListContainer,
-        {
-          backgroundColor: isDark ? 'rgba(10,10,18,0.82)' : 'rgba(255,255,255,0.78)',
-          borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-        },
-      ]}
+      style={{
+        position: 'fixed' as any,
+        top: NAV_TOP,
+        left: 0,
+        right: 0,
+        height: NAV_HEIGHT,
+        zIndex: 1000,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: t.radius.card,
+        borderWidth: 1,
+        borderColor: t.color.border,
+        backgroundColor: t.color.surface,
+        boxShadow: t.shadow.md,
+        width: '94%',
+        maxWidth: MaxContentWidth + 40,
+        marginHorizontal: 'auto',
+        direction: 'rtl',
+      } as any}
     >
-      <View style={navStyles.innerContainer}>
-        {/* Brand (Right side in RTL) */}
-        <View style={navStyles.brandContainer}>
+      <View
+        style={{
+          width: '100%',
+          paddingInline: t.space[5],
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        } as any}
+      >
+        {/* Brand */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.space[2] } as any}>
           <Image source={require('../../../assets/images/app-logo.png')} style={{ width: 38, height: 38 }} resizeMode="contain" />
           <div className="nav-brand-text">
-            <View style={navStyles.brandTextBlock}>
-              <ThemedText style={[navStyles.brandTitle, { color: colors.text }]}>נווט לרט</ThemedText>
-              <ThemedText style={[navStyles.brandSubtitle, { color: isDark ? '#818cf8' : '#6366f1' }]}>RETRO BOARD</ThemedText>
+            <View style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 0 } as any}>
+              <ThemedText style={{ fontFamily: t.type.rowTitle.fontFamily, fontSize: t.type.rowTitle.fontSize, fontWeight: '800', letterSpacing: -0.4, color: t.color.text }}>נווט לרט</ThemedText>
+              <ThemedText style={{ fontFamily: t.type.overline.fontFamily, fontSize: t.type.overline.fontSize, fontWeight: '700', letterSpacing: 1.5, color: t.color.accent.base }}>RETRO BOARD</ThemedText>
             </View>
           </div>
         </View>
 
         {/* Navigation */}
-        <View style={navStyles.navLinks}>
+        <View style={{ flexDirection: 'row', gap: t.space[1], alignItems: 'center' } as any}>
           {props.children}
         </View>
 
-        {/* User & Logout (Left side in RTL) */}
+        {/* User & Logout */}
         {!!user ? (
-          <View style={navStyles.leftActions}>
-            <View style={navStyles.userInfo}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.space[3] } as any}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.space[2] } as any}>
               <div
                 style={{
                   width: 30,
                   height: 30,
-                  borderRadius: 8,
-                  background: isDark
-                    ? 'linear-gradient(135deg, #334155 0%, #1e293b 100%)'
-                    : 'linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%)',
+                  borderRadius: t.radius.field,
+                  backgroundColor: t.color.accent.subtle,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: 13,
+                  fontSize: t.type.label.fontSize,
                   fontWeight: 700,
-                  color: isDark ? '#818cf8' : '#4f46e5',
-                  fontFamily: 'Rubik, sans-serif',
+                  color: t.color.accent.base,
+                  fontFamily: t.type.bodyStrong.fontFamily,
                 }}
               >
                 {(user.firstName?.[0] || user.email?.[0] || '?').toUpperCase()}
               </div>
               <div className="nav-user-text">
                 <View>
-                  <ThemedText style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>
+                  <ThemedText style={{ fontSize: t.type.caption.fontSize, fontWeight: '600', color: t.color.text }}>
                     {user.firstName || user.email?.split('@')[0]}
                   </ThemedText>
-                  <ThemedText style={{ fontSize: 10, color: colors.textSecondary, opacity: 0.7 }}>
+                  <ThemedText style={{ fontSize: t.type.overline.fontSize, color: t.color.textSecondary, opacity: 0.7 }}>
                     מחובר
                   </ThemedText>
                 </View>
@@ -159,25 +172,28 @@ export function CustomTabList(props: TabListProps) {
             >
               <div
                 style={{
-                  padding: '5px 12px',
-                  borderRadius: 8,
-                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-                  transition: 'all 0.2s ease',
+                  paddingBlock: t.space[1],
+                  paddingInline: t.space[3],
+                  borderRadius: t.radius.field,
+                  border: `1px solid ${t.color.border}`,
+                  transition: `all ${t.motion.fast}`,
                   cursor: 'pointer',
-                  fontSize: 12,
+                  fontSize: t.type.caption.fontSize,
                   fontWeight: 600,
-                  color: colors.textSecondary,
-                  fontFamily: 'Rubik, sans-serif',
+                  color: t.color.textSecondary,
+                  fontFamily: t.type.bodyStrong.fontFamily,
                 }}
                 onMouseEnter={(e) => {
-                  (e.target as HTMLElement).style.borderColor = '#ef4444';
-                  (e.target as HTMLElement).style.color = '#ef4444';
-                  (e.target as HTMLElement).style.background = 'rgba(239,68,68,0.06)';
+                  const el = e.target as HTMLElement;
+                  el.style.borderColor = t.color.status.danger.fg;
+                  el.style.color = t.color.status.danger.fg;
+                  el.style.background = t.color.status.danger.bg;
                 }}
                 onMouseLeave={(e) => {
-                  (e.target as HTMLElement).style.borderColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-                  (e.target as HTMLElement).style.color = colors.textSecondary;
-                  (e.target as HTMLElement).style.background = 'transparent';
+                  const el = e.target as HTMLElement;
+                  el.style.borderColor = t.color.border;
+                  el.style.color = t.color.textSecondary;
+                  el.style.background = 'transparent';
                 }}
               >
                 יציאה

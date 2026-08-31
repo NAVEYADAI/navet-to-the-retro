@@ -7,14 +7,16 @@ interface SprintRetroBoardProps {
   team: any;
   token: string;
   user: any;
-  theme: {
+  onBack: () => void;
+  // Optional: <SprintRetroBoardNative> hasn't been converted off the legacy
+  // theme-shaped prop everywhere it's called from yet. Web no longer reads it.
+  theme?: {
     text: string;
     background: string;
     backgroundElement: string;
     backgroundSelected: string;
     textSecondary: string;
   };
-  onBack: () => void;
 }
 
 export function SprintRetroBoard(props: SprintRetroBoardProps) {

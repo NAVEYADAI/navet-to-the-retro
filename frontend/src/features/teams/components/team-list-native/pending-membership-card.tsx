@@ -1,24 +1,31 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { View, Text, TouchableOpacity, ActivityIndicator, type TextStyle } from 'react-native';
 import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
-import { nativeStyles } from './styles';
-import type { TeamListTheme } from '@/features/teams/types';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
 
 interface PendingMembershipCardProps {
   team: any;
   token: string;
   onResolved: () => void;
-  theme: TeamListTheme;
+}
+
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
 }
 
 // Shown instead of the full team card when the current user has a PENDING invite to join —
 // they aren't an active member yet, so they only get an accept/decline choice, not the full
 // member list / sprints / admin tools.
-export function PendingMembershipCard({ team, token, onResolved, theme }: PendingMembershipCardProps) {
+export function PendingMembershipCard({ team, token, onResolved }: PendingMembershipCardProps) {
+  const t = useTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,38 +45,81 @@ export function PendingMembershipCard({ team, token, onResolved, theme }: Pendin
   };
 
   return (
-    <View style={[nativeStyles.infoSection, { backgroundColor: theme.backgroundElement, borderWidth: 2, borderColor: '#6366f1' }]}>
-      <ThemedText type="subtitle" style={{ fontWeight: 'bold', textAlign: 'right' }}>
+    <View
+      style={{
+        backgroundColor: t.color.surface,
+        borderWidth: 1,
+        borderColor: t.color.accent.border,
+        borderRadius: t.radius.card,
+        padding: t.space[5],
+        gap: t.space[4],
+      }}
+    >
+      <Text style={[rnText(t.type.cardTitle), { color: t.color.text, textAlign: 'right' }]}>
         {team.name}
-      </ThemedText>
-      <ThemedText type="default" style={{ textAlign: 'right', opacity: 0.8 }}>
+      </Text>
+      <Text style={[rnText(t.type.body), { color: t.color.textSecondary, textAlign: 'right' }]}>
         {Strings.dashboard.memberInviteText}
-      </ThemedText>
+      </Text>
       {!!error && (
-        <View style={nativeStyles.errorBannerInline}>
-          <ThemedText style={nativeStyles.errorTextInline}>{error}</ThemedText>
+        <View
+          style={{
+            backgroundColor: t.color.status.danger.bg,
+            borderWidth: 1,
+            borderColor: t.color.status.danger.border,
+            borderRadius: t.radius.field,
+            padding: t.space[2],
+          }}
+        >
+          <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+            {error}
+          </Text>
         </View>
       )}
-      <View style={{ flexDirection: 'row-reverse', gap: Spacing.two }}>
+      <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
         <TouchableOpacity
-          style={[nativeStyles.actionSaveBtn, { backgroundColor: '#6366f1' }]}
+          style={{
+            flexDirection: 'row-reverse',
+            gap: t.space[1],
+            backgroundColor: t.color.accent.base,
+            borderRadius: t.radius.field,
+            minHeight: t.layout.minTouchTarget,
+            paddingHorizontal: t.space[4],
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
           onPress={() => respond('accept')}
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={t.color.accent.onBase} />
           ) : (
-            <ThemedText style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>
-              {Strings.dashboard.approveTeamButton}
-            </ThemedText>
+            <>
+              <Icon name="check" size="sm" tone="inverse" />
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+                {Strings.dashboard.approveTeamButton}
+              </Text>
+            </>
           )}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[nativeStyles.actionCancelBtn, { backgroundColor: theme.backgroundSelected }]}
+          style={{
+            flexDirection: 'row-reverse',
+            gap: t.space[1],
+            backgroundColor: t.color.surfaceSubtle,
+            borderRadius: t.radius.field,
+            minHeight: t.layout.minTouchTarget,
+            paddingHorizontal: t.space[4],
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
           onPress={() => respond('decline')}
           disabled={loading}
         >
-          <ThemedText style={{ fontSize: 13 }}>{Strings.dashboard.declineTeamButton}</ThemedText>
+          <Icon name="x" size="sm" />
+          <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
+            {Strings.dashboard.declineTeamButton}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

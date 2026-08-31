@@ -1,24 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import {
-  StyleSheet,
   View,
+  Text,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
   Platform,
-  useColorScheme as useRNColorScheme,
   useWindowDimensions,
   Animated,
   Modal,
   FlatList,
+  type TextStyle,
 } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
-import { getShadow, retroNativeStyles } from '../styles/retro.styles';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
 
 interface SprintRetroBoardProps {
@@ -26,18 +25,20 @@ interface SprintRetroBoardProps {
   team: any;
   token: string;
   user: any;
-  theme: {
-    text: string;
-    background: string;
-    backgroundElement: string;
-    backgroundSelected: string;
-    textSecondary: string;
-  };
   onBack: () => void;
 }
 
-export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBack }: SprintRetroBoardProps) {
-  const colorScheme = useRNColorScheme();
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
+}
+
+export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: SprintRetroBoardProps) {
+  const t = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
@@ -57,8 +58,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [filterText, setFilterText] = useState('');
 
-  // Animated spin value for the Yin-Yang wheel
-  const [spinAnim] = useState(new Animated.Value(type === 'KEEP' ? 0 : 1));
+  // Press-triggered scale feedback for the KEEP/IMPROVE toggle (no animation on mount/type-change).
+  const [wheelScale] = useState(new Animated.Value(1));
 
   const fetchComments = async () => {
     setIsLoading(true);
@@ -112,14 +113,15 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
   };
 
   const toggleType = () => {
-    const nextType = type === 'KEEP' ? 'IMPROVE' : 'KEEP';
-    Animated.spring(spinAnim, {
-      toValue: nextType === 'KEEP' ? 0 : 1,
-      tension: 30,
-      friction: 6,
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
-    setType(nextType);
+    setType(prev => (prev === 'KEEP' ? 'IMPROVE' : 'KEEP'));
+  };
+
+  const handleWheelPressIn = () => {
+    Animated.spring(wheelScale, { toValue: 0.92, useNativeDriver: Platform.OS !== 'web', speed: 40 }).start();
+  };
+
+  const handleWheelPressOut = () => {
+    Animated.spring(wheelScale, { toValue: 1, useNativeDriver: Platform.OS !== 'web', speed: 40 }).start();
   };
 
   const matchesFilters = (c: any) =>
@@ -130,115 +132,183 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
   const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
 
-  // Wheel half colors
-  const keepBg = colorScheme === 'dark' ? '#1b5e20' : '#e8f5e9';
-  const improveBg = colorScheme === 'dark' ? '#b71c1c' : '#ffebee';
+  const isKeep = type === 'KEEP';
+  const wheelTone = isKeep ? t.color.status.success : t.color.status.danger;
 
-  // Rotation interpolations
-  const wheelRotation = spinAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '180deg'],
-  });
+  const renderCommentCard = (comment: any, accent: { fg: string; bg: string; border: string }) => {
+    const categoryLabel = comment.category ? Strings.retroBoard.categories[comment.category] : null;
+    const authorName = comment.isAnonymous
+      ? Strings.retroBoard.anonymousAuthor
+      : `${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || comment.author.username;
 
-  const contentRotation = spinAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '-180deg'],
-  });
+    return (
+      <View
+        key={comment.id}
+        style={{
+          backgroundColor: t.color.surface,
+          borderRightWidth: 3,
+          borderRightColor: accent.fg,
+          borderRadius: t.radius.card,
+          padding: t.space[3],
+          gap: t.space[2],
+        }}
+      >
+        {!!categoryLabel && (
+          <View
+            style={{
+              alignSelf: 'flex-end',
+              backgroundColor: accent.bg,
+              borderRadius: t.radius.pill,
+              borderTopRightRadius: t.radius.badge,
+              paddingHorizontal: t.space[2],
+              paddingVertical: 3,
+            }}
+          >
+            <Text style={[rnText(t.type.overline), { color: accent.fg }]}>{categoryLabel}</Text>
+          </View>
+        )}
+        <Text style={[rnText(t.type.body), { color: t.color.text, textAlign: 'right' }]}>
+          {comment.content}
+        </Text>
+        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={[rnText({ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 700 }), { color: t.color.textSecondary }]}>
+            {authorName}
+          </Text>
+          <Text style={[rnText(t.type.caption), { color: t.color.textMuted }]}>
+            {`${new Date(comment.createdAt).toLocaleDateString('he-IL')} · ${new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`}
+          </Text>
+        </View>
+      </View>
+    );
+  };
 
   return (
-    <ScrollView 
-      style={[retroNativeStyles.scrollContainer, { backgroundColor: theme.background }]} 
-      contentContainerStyle={{ paddingTop: isDesktop ? 80 : 100, paddingBottom: Spacing.four }}
+    <ScrollView
+      style={{ flex: 1, backgroundColor: t.color.bg }}
+      contentContainerStyle={{ paddingTop: isDesktop ? 80 : 100, paddingBottom: t.space[6] }}
       showsVerticalScrollIndicator={false}
     >
-      <View style={retroNativeStyles.container}>
+      <View style={{ paddingHorizontal: t.space[4], gap: t.space[4], maxWidth: 1100, alignSelf: 'center', width: '100%' }}>
         {/* Header (RTL flow) */}
-        <View style={[retroNativeStyles.header, { borderBottomColor: theme.backgroundSelected }]}>
-          <TouchableOpacity style={[retroNativeStyles.backButton, { backgroundColor: theme.backgroundSelected }]} onPress={onBack}>
-            <ThemedText style={{ fontSize: 13, fontWeight: 'bold', color: theme.text }}>
+        <View
+          style={{
+            flexDirection: 'row-reverse',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            paddingBottom: t.space[3],
+            borderBottomWidth: 1,
+            borderBottomColor: t.color.border,
+          }}
+        >
+          <TouchableOpacity
+            style={{ paddingHorizontal: t.space[3], paddingVertical: t.space[1] + 2, borderRadius: t.radius.field, backgroundColor: t.color.surfaceSubtle }}
+            onPress={onBack}
+          >
+            <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
               {Strings.retroBoard.backButton}
-            </ThemedText>
+            </Text>
           </TouchableOpacity>
-          
-          <View style={retroNativeStyles.titleContainer}>
-            <ThemedText type="title" style={retroNativeStyles.title}>
+
+          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+            <Text style={[rnText(t.type.sectionTitle), { color: t.color.text, textAlign: 'right' }]}>
               {sprint.name}
-            </ThemedText>
-            <ThemedText type="default" style={retroNativeStyles.subtitle}>
+            </Text>
+            <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
               {`${team.name} • ${new Date(sprint.startDate).toLocaleDateString()} - ${new Date(sprint.endDate).toLocaleDateString()}`}
-            </ThemedText>
-            {sprint.description && (
-              <ThemedText type="default" style={retroNativeStyles.description}>
+            </Text>
+            {!!sprint.description && (
+              <Text style={[rnText(t.type.caption), { color: t.color.textMuted, textAlign: 'right' }]}>
                 {sprint.description}
-              </ThemedText>
+              </Text>
             )}
           </View>
         </View>
 
-        {/* Main Form for Posting (RTL formatted) */}
-        <View style={[
-          retroNativeStyles.postSection,
-          {
-            backgroundColor: isAnonymous ? '#161618' : theme.backgroundElement,
-            borderColor: isAnonymous ? '#8b5cf6' : type === 'KEEP' ? '#00e676' : '#ff1744',
-            borderWidth: 2.5,
-          },
-          getShadow(0.04, 5, 3)
-        ]}>
-          <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 14, marginBottom: Spacing.one, textAlign: 'right', color: isAnonymous ? '#e8eaed' : undefined }}>
-            {isAnonymous ? `🥸 ${Strings.retroBoard.writeNoteHeader}` : Strings.retroBoard.writeNoteHeader}
-          </ThemedText>
+        {/* Main form for posting (RTL formatted) */}
+        <View
+          style={{
+            backgroundColor: isAnonymous ? t.color.surfaceSubtle : t.color.surface,
+            borderColor: isAnonymous ? t.color.accent.border : wheelTone.border,
+            borderWidth: 2,
+            borderRadius: t.radius.card,
+            padding: t.space[4],
+            gap: t.space[2],
+          }}
+        >
+          <Text style={[rnText({ ...t.type.bodyStrong, fontWeight: 700 }), { color: t.color.text, textAlign: 'right' }]}>
+            {Strings.retroBoard.writeNoteHeader}
+          </Text>
 
           {!!error && (
-            <View style={retroNativeStyles.errorBanner}>
-              <ThemedText style={retroNativeStyles.errorText}>{error}</ThemedText>
+            <View
+              style={{
+                backgroundColor: t.color.status.danger.bg,
+                borderWidth: 1,
+                borderColor: t.color.status.danger.border,
+                borderRadius: t.radius.field,
+                padding: t.space[2],
+              }}
+            >
+              <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'center' }]}>
+                {error}
+              </Text>
             </View>
           )}
 
-          {/* Yin-Yang Style Animated Toggle Wheel */}
-          <View style={retroNativeStyles.wheelWrapper}>
-            <TouchableOpacity activeOpacity={0.9} onPress={toggleType}>
-              <Animated.View style={[styles.yinYangWheel, { transform: [{ rotate: wheelRotation }] }]}>
-                <View style={[styles.wheelHalf, styles.keepHalf, { backgroundColor: keepBg }]}>
-                  <Animated.View style={{ transform: [{ rotate: contentRotation }] }}>
-                    <ThemedText style={{ fontSize: 24 }}>👍</ThemedText>
-                  </Animated.View>
-                </View>
-                <View style={[styles.wheelHalf, styles.improveHalf, { backgroundColor: improveBg }]}>
-                  <Animated.View style={{ transform: [{ rotate: contentRotation }] }}>
-                    <ThemedText style={{ fontSize: 24 }}>🔧</ThemedText>
-                  </Animated.View>
-                </View>
-                <View style={[styles.wheelCenter, { backgroundColor: theme.backgroundElement }]} />
+          {/* KEEP / IMPROVE toggle */}
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: t.space[4], marginVertical: t.space[3] }}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={toggleType}
+              onPressIn={handleWheelPressIn}
+              onPressOut={handleWheelPressOut}
+              accessibilityLabel={Strings.retroBoard.spinLabel}
+            >
+              <Animated.View
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 32,
+                  borderWidth: 2,
+                  borderColor: wheelTone.border,
+                  backgroundColor: wheelTone.bg,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transform: [{ scale: wheelScale }],
+                }}
+              >
+                <Icon name={isKeep ? 'check' : 'wrench'} tone={isKeep ? 'success' : 'danger'} size="lg" />
               </Animated.View>
             </TouchableOpacity>
 
-            <View style={styles.wheelLabelContainer}>
-              <ThemedText style={{ fontSize: 11, color: theme.textSecondary, marginBottom: 2, textAlign: 'right' }}>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[rnText({ ...t.type.caption, fontWeight: 600 }), { color: t.color.textSecondary, marginBottom: 2, textAlign: 'right' }]}>
                 {Strings.retroBoard.spinLabel}
-              </ThemedText>
-              <ThemedText style={{
-                fontSize: 14,
-                fontWeight: 'bold',
-                color: type === 'KEEP' ? '#2e7d32' : '#c62828',
-                textAlign: 'right'
-              }}>
-                {type === 'KEEP' ? Strings.retroBoard.keepLabel : Strings.retroBoard.improveLabel}
-              </ThemedText>
+              </Text>
+              <Text testID="retro-type-label" style={[rnText({ ...t.type.cardTitle, fontWeight: 800 }), { color: wheelTone.fg, textAlign: 'right' }]}>
+                {isKeep ? Strings.retroBoard.keepLabel : Strings.retroBoard.improveLabel}
+              </Text>
             </View>
           </View>
 
           <TextInput
             style={[
-              styles.textarea,
+              rnText(t.type.body),
               {
-                color: isAnonymous ? '#e8eaed' : theme.text,
-                borderColor: isAnonymous ? 'rgba(139,92,246,0.4)' : theme.backgroundSelected,
-                backgroundColor: isAnonymous ? 'rgba(255,255,255,0.04)' : theme.background,
+                height: 60,
+                borderWidth: 1,
+                borderRadius: t.radius.field,
+                paddingHorizontal: t.space[2],
+                paddingVertical: t.space[2],
+                textAlign: 'right',
+                textAlignVertical: 'top',
+                color: t.color.text,
+                borderColor: t.color.border,
+                backgroundColor: t.color.bg,
               },
             ]}
-            placeholder={type === 'KEEP' ? Strings.retroBoard.notePlaceholderKeep : Strings.retroBoard.notePlaceholderImprove}
-            placeholderTextColor={isAnonymous ? 'rgba(232,234,237,0.5)' : theme.textSecondary}
+            placeholder={isKeep ? Strings.retroBoard.notePlaceholderKeep : Strings.retroBoard.notePlaceholderImprove}
+            placeholderTextColor={t.color.textMuted}
             value={content}
             onChangeText={setContent}
             multiline
@@ -250,24 +320,16 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
             activeOpacity={0.8}
             style={{
               alignSelf: 'flex-end',
-              paddingVertical: 6,
-              paddingHorizontal: 14,
-              borderRadius: 999,
-              borderTopRightRadius: 4,
-              backgroundColor: isAnonymous
-                ? 'rgba(139,92,246,0.18)'
-                : category
-                ? (colorScheme === 'dark' ? 'rgba(129,140,248,0.16)' : 'rgba(99,102,241,0.1)')
-                : theme.backgroundSelected,
+              paddingVertical: t.space[1] + 2,
+              paddingHorizontal: t.space[3] + 2,
+              borderRadius: t.radius.pill,
+              borderTopRightRadius: t.radius.badge,
+              backgroundColor: category ? t.color.accent.subtle : t.color.surfaceSubtle,
             }}
           >
-            <ThemedText style={{
-              fontSize: 13,
-              fontWeight: category ? '700' : '400',
-              color: category ? (isAnonymous ? '#e8eaed' : colorScheme === 'dark' ? '#818cf8' : '#6366f1') : theme.textSecondary,
-            }}>
+            <Text style={[rnText({ ...t.type.label, fontWeight: category ? 700 : 400 }), { color: category ? t.color.accent.base : t.color.textSecondary }]}>
               {category ? Strings.retroBoard.categories[category] : Strings.retroBoard.categoryLabel}
-            </ThemedText>
+            </Text>
           </TouchableOpacity>
 
           <Modal
@@ -277,13 +339,19 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
             onRequestClose={() => setIsCategoryPickerOpen(false)}
           >
             <TouchableOpacity
-              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+              style={{ flex: 1, backgroundColor: t.color.overlay, justifyContent: 'flex-end' }}
               activeOpacity={1}
               onPress={() => setIsCategoryPickerOpen(false)}
             >
               <TouchableOpacity
                 activeOpacity={1}
-                style={{ backgroundColor: theme.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', paddingVertical: 8 }}
+                style={{
+                  backgroundColor: t.color.surface,
+                  borderTopLeftRadius: t.radius.card + 8,
+                  borderTopRightRadius: t.radius.card + 8,
+                  maxHeight: '70%',
+                  paddingVertical: t.space[2],
+                }}
               >
                 <FlatList
                   data={[['', Strings.retroBoard.categoryNone] as [string, string], ...Object.entries(Strings.retroBoard.categories)]}
@@ -292,14 +360,14 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
                     <TouchableOpacity
                       onPress={() => { setCategory(key); setIsCategoryPickerOpen(false); }}
                       style={{
-                        paddingVertical: 14,
-                        paddingHorizontal: 20,
-                        backgroundColor: category === key ? theme.backgroundSelected : 'transparent',
+                        paddingVertical: t.space[3] + 2,
+                        paddingHorizontal: t.space[5],
+                        backgroundColor: category === key ? t.color.surfaceSubtle : 'transparent',
                       }}
                     >
-                      <ThemedText style={{ fontSize: 15, textAlign: 'right', fontWeight: category === key ? 'bold' : 'normal' }}>
+                      <Text style={[rnText({ ...t.type.body, fontWeight: category === key ? 700 : 400 }), { color: t.color.text, textAlign: 'right' }]}>
                         {label}
-                      </ThemedText>
+                      </Text>
                     </TouchableOpacity>
                   )}
                 />
@@ -307,36 +375,47 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
             </TouchableOpacity>
           </Modal>
 
-          <View style={styles.formControls}>
+          <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: t.space[1] }}>
             <TouchableOpacity
               onPress={() => setIsAnonymous(prev => !prev)}
               activeOpacity={0.8}
               accessibilityLabel={Strings.retroBoard.anonymousToggleHint}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: isAnonymous }}
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
+                height: t.layout.minTouchTarget,
+                paddingHorizontal: t.space[3],
+                borderRadius: t.radius.pill,
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: isAnonymous ? '#3c4043' : theme.backgroundSelected,
-                borderWidth: isAnonymous ? 1.5 : 0,
-                borderColor: '#8b5cf6',
+                backgroundColor: isAnonymous ? t.color.accent.subtle : t.color.surfaceSubtle,
+                borderWidth: isAnonymous ? 1 : 0,
+                borderColor: t.color.accent.border,
               }}
             >
-              <ThemedText style={{ fontSize: 18 }}>{isAnonymous ? '🥸' : '👤'}</ThemedText>
+              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: isAnonymous ? t.color.accent.base : t.color.textSecondary }]}>
+                {isAnonymous ? Strings.retroBoard.anonymousToggleLabel : Strings.retroBoard.identifiedToggleLabel}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: theme.text }]}
+              style={{
+                height: 40,
+                borderRadius: t.radius.field,
+                justifyContent: 'center',
+                alignItems: 'center',
+                paddingHorizontal: t.space[4],
+                backgroundColor: t.color.text,
+              }}
               onPress={handlePostComment}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
-                <ActivityIndicator color={theme.background} size="small" />
+                <ActivityIndicator color={t.color.bg} size="small" />
               ) : (
-                <ThemedText style={{ fontWeight: 'bold', color: theme.background, fontSize: 13 }}>
+                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.bg }]}>
                   {Strings.retroBoard.postNoteButton}
-                </ThemedText>
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -344,118 +423,73 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
 
         {/* Filters */}
         {!isLoading && comments.length > 0 && (
-          <View style={{ marginTop: Spacing.two }}>
+          <View style={{ marginTop: t.space[2] }}>
             <CommentFilterBarNative
               categories={filterCategories}
               onCategoriesChange={setFilterCategories}
               searchText={filterText}
               onSearchTextChange={setFilterText}
-              theme={theme}
             />
           </View>
         )}
 
-        {/* Board Columns (RTL Flow) */}
+        {/* Board columns (RTL flow) */}
         {isLoading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={theme.text} />
-            <ThemedText type="default">{Strings.retroBoard.loadingBoard}</ThemedText>
+          <View style={{ padding: t.space[6], alignItems: 'center', gap: t.space[2] }}>
+            <ActivityIndicator size="large" color={t.color.text} />
+            <Text style={[rnText(t.type.body), { color: t.color.text }]}>{Strings.retroBoard.loadingBoard}</Text>
           </View>
         ) : (
-          <View style={[styles.columnsContainer, { flexDirection: isDesktop ? 'row-reverse' : 'column' }]}>
+          <View style={{ flexDirection: isDesktop ? 'row-reverse' : 'column', gap: t.space[4], marginTop: t.space[2] }}>
             {/* Column 1: KEEP */}
-            <View style={styles.column}>
-              <View style={[styles.columnHeader, { backgroundColor: 'rgba(46, 125, 50, 0.08)', borderColor: '#2e7d32' }]}>
-                <ThemedText type="default" style={{ fontWeight: 'bold', color: '#2e7d32' }}>
+            <View style={{ flex: 1, gap: t.space[3] }}>
+              <View
+                style={{
+                  padding: t.space[2],
+                  borderRadius: t.radius.badge,
+                  borderWidth: 1,
+                  alignItems: 'center',
+                  backgroundColor: t.color.status.success.bg,
+                  borderColor: t.color.status.success.border,
+                }}
+              >
+                <Text style={[rnText({ ...t.type.bodyStrong, fontWeight: 700 }), { color: t.color.status.success.fg }]}>
                   {Strings.retroBoard.keepColumnHeader}
-                </ThemedText>
+                </Text>
               </View>
 
               {keepComments.length === 0 ? (
-                <ThemedText type="default" style={styles.emptyColumnText}>
+                <Text style={[rnText(t.type.caption), { textAlign: 'center', color: t.color.textMuted, marginVertical: t.space[2] }]}>
                   {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyKeepText}
-                </ThemedText>
+                </Text>
               ) : (
-                keepComments.map(comment => (
-                  <View
-                    key={comment.id}
-                    style={[styles.commentCard, { backgroundColor: theme.backgroundElement, borderRightColor: '#10b981' }, getShadow(0.03, 3, 2)]}
-                  >
-                    {!!comment.category && (
-                      <View style={[styles.categoryChip, { backgroundColor: 'rgba(16,185,129,0.14)' }]}>
-                        <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: '#10b981' }}>
-                          {Strings.retroBoard.categories[comment.category]}
-                        </ThemedText>
-                      </View>
-                    )}
-                    <ThemedText type="default" style={[styles.commentContent, { color: theme.text }]}>
-                      {comment.content}
-                    </ThemedText>
-
-                    <View style={styles.commentMeta}>
-                      {comment.isAnonymous ? (
-                        <ThemedText style={[styles.metaText, { fontWeight: 'normal', color: theme.textSecondary }]}>
-                          🥸 {Strings.retroBoard.anonymousAuthor}
-                        </ThemedText>
-                      ) : (
-                        <ThemedText style={[styles.metaText, { color: theme.textSecondary }]}>
-                          {`${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || comment.author.username}
-                        </ThemedText>
-                      )}
-                      <ThemedText style={[styles.metaText, { opacity: 0.6, fontWeight: 'normal', color: theme.textSecondary }]}>
-                        {new Date(comment.createdAt).toLocaleDateString('he-IL')} · {new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
-                      </ThemedText>
-                    </View>
-                  </View>
-                ))
+                keepComments.map(comment => renderCommentCard(comment, t.color.status.success))
               )}
             </View>
 
             {/* Column 2: IMPROVE */}
-            <View style={styles.column}>
-              <View style={[styles.columnHeader, { backgroundColor: 'rgba(198, 40, 40, 0.08)', borderColor: '#c62828' }]}>
-                <ThemedText type="default" style={{ fontWeight: 'bold', color: '#c62828' }}>
+            <View style={{ flex: 1, gap: t.space[3] }}>
+              <View
+                style={{
+                  padding: t.space[2],
+                  borderRadius: t.radius.badge,
+                  borderWidth: 1,
+                  alignItems: 'center',
+                  backgroundColor: t.color.status.danger.bg,
+                  borderColor: t.color.status.danger.border,
+                }}
+              >
+                <Text style={[rnText({ ...t.type.bodyStrong, fontWeight: 700 }), { color: t.color.status.danger.fg }]}>
                   {Strings.retroBoard.improveColumnHeader}
-                </ThemedText>
+                </Text>
               </View>
 
               {improveComments.length === 0 ? (
-                <ThemedText type="default" style={styles.emptyColumnText}>
+                <Text style={[rnText(t.type.caption), { textAlign: 'center', color: t.color.textMuted, marginVertical: t.space[2] }]}>
                   {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyImproveText}
-                </ThemedText>
+                </Text>
               ) : (
-                improveComments.map(comment => (
-                  <View
-                    key={comment.id}
-                    style={[styles.commentCard, { backgroundColor: theme.backgroundElement, borderRightColor: '#ef4444' }, getShadow(0.03, 3, 2)]}
-                  >
-                    {!!comment.category && (
-                      <View style={[styles.categoryChip, { backgroundColor: 'rgba(239,68,68,0.14)' }]}>
-                        <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: '#ef4444' }}>
-                          {Strings.retroBoard.categories[comment.category]}
-                        </ThemedText>
-                      </View>
-                    )}
-                    <ThemedText type="default" style={[styles.commentContent, { color: theme.text }]}>
-                      {comment.content}
-                    </ThemedText>
-
-                    <View style={styles.commentMeta}>
-                      {comment.isAnonymous ? (
-                        <ThemedText style={[styles.metaText, { fontWeight: 'normal', color: theme.textSecondary }]}>
-                          🥸 {Strings.retroBoard.anonymousAuthor}
-                        </ThemedText>
-                      ) : (
-                        <ThemedText style={[styles.metaText, { color: theme.textSecondary }]}>
-                          {`${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || comment.author.username}
-                        </ThemedText>
-                      )}
-                      <ThemedText style={[styles.metaText, { opacity: 0.6, fontWeight: 'normal', color: theme.textSecondary }]}>
-                        {new Date(comment.createdAt).toLocaleDateString('he-IL')} · {new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
-                      </ThemedText>
-                    </View>
-                  </View>
-                ))
+                improveComments.map(comment => renderCommentCard(comment, t.color.status.danger))
               )}
             </View>
           </View>
@@ -464,133 +498,3 @@ export function SprintRetroBoardNative({ sprint, team, token, user, theme, onBac
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  wheelWrapper: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.four,
-    marginVertical: Spacing.two,
-  },
-  yinYangWheel: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  wheelHalf: {
-    position: 'absolute',
-    width: '100%',
-    height: '50%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  keepHalf: {
-    top: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  improveHalf: {
-    bottom: 0,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.05)',
-  },
-  wheelCenter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#ffffff',
-    zIndex: 10,
-  },
-  wheelLabelContainer: {
-    alignItems: 'flex-end',
-  },
-  textarea: {
-    height: 60,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-    fontSize: 14,
-    textAlign: 'right',
-    textAlignVertical: 'top',
-  },
-  formControls: {
-    flexDirection: 'row-reverse',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: Spacing.one,
-  },
-  submitButton: {
-    height: 40,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-  },
-  loaderContainer: {
-    padding: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.two,
-  },
-  columnsContainer: {
-    gap: Spacing.four,
-    marginTop: Spacing.two,
-  },
-  column: {
-    flex: 1,
-    gap: Spacing.three,
-  },
-  columnHeader: {
-    padding: Spacing.two,
-    borderRadius: 6,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  emptyColumnText: {
-    fontSize: 13,
-    opacity: 0.5,
-    textAlign: 'center',
-    marginVertical: Spacing.two,
-    fontStyle: 'italic',
-  },
-  commentCard: {
-    padding: Spacing.three,
-    borderRadius: 8,
-    borderRightWidth: 3,
-    gap: Spacing.two,
-  },
-  categoryChip: {
-    alignSelf: 'flex-end',
-    borderRadius: 999,
-    borderTopRightRadius: 3,
-    paddingVertical: 2,
-    paddingHorizontal: 9,
-  },
-  commentContent: {
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: '500',
-    textAlign: 'right',
-  },
-  commentMeta: {
-    flexDirection: 'row-reverse',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.03)',
-    paddingTop: 4,
-  },
-  metaText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-});

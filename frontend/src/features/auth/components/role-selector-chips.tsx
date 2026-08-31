@@ -1,72 +1,62 @@
 import React from 'react';
-import { Box, Typography, Chip } from '@mui/material';
+import { Box, Typography } from '@mui/material';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
+import { ROLES } from '@/constants/roles';
 
 interface RoleSelectorChipsProps {
   role: string;
   onSelectRole: (role: string) => void;
-  accent: string;
-  isDark: boolean;
 }
 
-const ROLES = [
-  { label: '👑 ראש צוות', value: 'TEAM_LEADER' },
-  { label: '🎯 מנהל מוצר', value: 'PRODUCT_MANAGER' },
-  { label: '💻 מפתח', value: 'DEVELOPER' },
-  { label: '🧪 QA / בודק', value: 'TESTER' },
-  { label: '⚙️ DevOps', value: 'DEVOPS' },
-];
+export function RoleSelectorChips({ role, onSelectRole }: RoleSelectorChipsProps) {
+  const t = useTheme();
 
-export function RoleSelectorChips({ role, onSelectRole, accent, isDark }: RoleSelectorChipsProps) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 0.5 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1]}px`, marginBlockStart: `${t.space[1]}px` }}>
       <Typography
-        variant="caption"
         sx={{
-          color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)',
-          fontFamily: 'Rubik, sans-serif',
+          ...t.type.caption,
           fontWeight: 600,
-          textAlign: 'right',
+          color: t.color.textSecondary,
+          textAlign: 'start',
         }}
       >
         תפקיד מקצועי
       </Typography>
-      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <Box sx={{ display: 'flex', gap: `${t.space[2]}px`, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {ROLES.map((r) => {
           const isSelected = role === r.value;
           return (
-            <Chip
+            <Box
               key={r.value}
-              label={r.label}
+              component="button"
+              type="button"
               onClick={() => onSelectRole(r.value)}
               sx={{
-                fontFamily: 'Rubik, sans-serif',
+                ...t.type.caption,
+                display: 'flex',
+                alignItems: 'center',
+                gap: `${t.space[1] + 2}px`,
                 fontWeight: isSelected ? 700 : 500,
-                fontSize: '12px',
-                borderRadius: '8px',
+                borderRadius: `${t.radius.pill}px`,
+                border: `1.5px solid ${isSelected ? t.color.accent.base : t.color.border}`,
+                backgroundColor: isSelected ? t.color.accent.subtle : t.color.surface,
+                color: isSelected ? t.color.accent.base : t.color.textSecondary,
+                paddingBlock: '7px',
+                paddingInline: `${t.space[4]}px`,
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                backgroundColor: isSelected
-                  ? isDark
-                    ? 'rgba(129,140,248,0.2)'
-                    : 'rgba(99,102,241,0.1)'
-                  : isDark
-                  ? 'rgba(255,255,255,0.04)'
-                  : 'rgba(0,0,0,0.03)',
-                color: isSelected ? accent : isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
-                border: `1px solid ${
-                  isSelected ? accent : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
-                }`,
+                transition: `background-color ${t.motion.fast}, border-color ${t.motion.fast}, color ${t.motion.fast}, transform ${t.motion.fast}`,
                 '&:hover': {
-                  backgroundColor: isSelected
-                    ? isDark
-                      ? 'rgba(129,140,248,0.25)'
-                      : 'rgba(99,102,241,0.15)'
-                    : isDark
-                    ? 'rgba(255,255,255,0.08)'
-                    : 'rgba(0,0,0,0.06)',
+                  borderColor: isSelected ? t.color.accent.hover : t.color.borderStrong,
+                  backgroundColor: isSelected ? t.color.accent.subtle : t.color.surfaceHover,
                 },
+                '&:active': { transform: 'scale(0.96)' },
               }}
-            />
+            >
+              <Icon name={r.icon} size="sm" tone={isSelected ? 'accent' : 'muted'} />
+              {r.label}
+            </Box>
           );
         })}
       </Box>

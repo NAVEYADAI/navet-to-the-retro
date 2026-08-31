@@ -142,9 +142,9 @@ describe('SprintRetroBoard Component', () => {
     expect(getByText('dev1')).toBeTruthy();
   });
 
-  it('toggles note type when clicking the Yin-Yang wheel', async () => {
+  it('toggles note type when pressing the KEEP/IMPROVE toggle', async () => {
     const mockBack = jest.fn();
-    const { getByText, findByText } = await render(
+    const { getByTestId, getByLabelText, findByText } = await render(
       <SprintRetroBoard
         sprint={mockSprint}
         team={mockTeam}
@@ -158,14 +158,16 @@ describe('SprintRetroBoard Component', () => {
     // Wait for comments to load so that initial mount state updates settle
     expect(await findByText('Great velocity this sprint!')).toBeTruthy();
 
-    // Initial state: Keep
-    expect(getByText(Strings.retroBoard.keepLabel)).toBeTruthy();
+    // Initial state: Keep (queried by testID since the label text also appears as a column header)
+    expect(getByTestId('retro-type-label').props.children).toBe(Strings.retroBoard.keepLabel);
 
-    // Find the thumb-up icon representing the Keep side of the wheel and click it
-    const toggleArea = getByText('👍');
+    // Find the KEEP/IMPROVE toggle control (identified by its accessibility label) and press it
+    const toggleArea = getByLabelText(Strings.retroBoard.spinLabel);
     await fireEvent.press(toggleArea);
 
-    expect(await findByText(Strings.retroBoard.improveLabel)).toBeTruthy();
+    await waitFor(() => {
+      expect(getByTestId('retro-type-label').props.children).toBe(Strings.retroBoard.improveLabel);
+    });
   });
 
   it('submits a new note successfully via API', async () => {

@@ -2,42 +2,42 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Strings } from '@/constants/strings';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
 
 interface RetroWheelToggleProps {
   type: 'KEEP' | 'IMPROVE';
   toggleType: () => void;
-  theme: {
-    text: string;
-    textSecondary: string;
-  };
 }
 
-export function RetroWheelToggle({ type, toggleType, theme }: RetroWheelToggleProps) {
+export function RetroWheelToggle({ type, toggleType }: RetroWheelToggleProps) {
+  const t = useTheme();
   const isKeep = type === 'KEEP';
+  const tone = isKeep ? t.color.status.success : t.color.status.danger;
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'center', gap: 4, my: 1.5 }}>
-      <motion.button
+    <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: `${t.space[4]}px`, marginBlock: `${t.space[3]}px` }}>
+      <Box
+        component="button"
         type="button"
         onClick={toggleType}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.92 }}
-        style={{
-          width: 84,
-          height: 84,
+        aria-label={Strings.retroBoard.spinLabel}
+        sx={{
+          width: 64,
+          height: 64,
           borderRadius: '50%',
-          border: '3px solid #ffffff',
+          border: `2px solid ${tone.border}`,
+          backgroundColor: tone.bg,
           cursor: 'pointer',
-          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           padding: 0,
-          overflow: 'hidden',
-          background: isKeep
-            ? 'linear-gradient(135deg, #00e676 0%, #059669 100%)'
-            : 'linear-gradient(135deg, #ff1744 0%, #b71c1c 100%)',
-          boxShadow: isKeep
-            ? '0 0 24px rgba(0,230,118,0.5), 0 8px 20px rgba(0,0,0,0.25)'
-            : '0 0 24px rgba(255,23,68,0.5), 0 8px 20px rgba(0,0,0,0.25)',
-          transition: 'background 0.4s ease, box-shadow 0.4s ease',
+          transition: `background-color ${t.motion.fast}, border-color ${t.motion.fast}, transform ${t.motion.fast}`,
+          '&:hover': { borderColor: tone.fg },
+          '&:active': { transform: 'scale(0.94)' },
+          '&:focus-visible': { outline: `2px solid ${t.color.accent.border}`, outlineOffset: 2 },
+          perspective: 600,
         }}
       >
         <AnimatePresence mode="wait" initial={false}>
@@ -46,35 +46,20 @@ export function RetroWheelToggle({ type, toggleType, theme }: RetroWheelTogglePr
             initial={{ rotateY: 90, opacity: 0 }}
             animate={{ rotateY: 0, opacity: 1 }}
             exit={{ rotateY: -90, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 32,
-              filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.35))',
-            }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            style={{ display: 'flex', backfaceVisibility: 'hidden' }}
           >
-            {isKeep ? '👍' : '🔧'}
+            <Icon name={isKeep ? 'check' : 'wrench'} tone={isKeep ? 'success' : 'danger'} size="lg" />
           </motion.span>
         </AnimatePresence>
-      </motion.button>
+      </Box>
 
-      <Box sx={{ textAlign: 'right' }}>
-        <Typography sx={{ fontSize: 12, color: theme.textSecondary, fontFamily: 'Rubik, sans-serif', mb: 0.5, fontWeight: 600 }}>
+      <Box sx={{ textAlign: 'start' }}>
+        <Typography sx={{ ...t.type.caption, fontWeight: 600, color: t.color.textSecondary, marginBlockEnd: `${t.space[1]}px` }}>
           {Strings.retroBoard.spinLabel}
         </Typography>
-        <Typography sx={{
-          fontSize: 20,
-          fontWeight: 900,
-          color: isKeep ? '#00c853' : '#ff1744',
-          fontFamily: 'Rubik, sans-serif',
-          letterSpacing: -0.5,
-          textShadow: isKeep ? '0 2px 10px rgba(0,230,118,0.3)' : '0 2px 10px rgba(255,23,68,0.3)',
-        }}>
-          {isKeep ? `👍 ${Strings.retroBoard.keepLabel}` : `🔧 ${Strings.retroBoard.improveLabel}`}
+        <Typography sx={{ ...t.type.cardTitle, fontWeight: 800, color: tone.fg }}>
+          {isKeep ? Strings.retroBoard.keepLabel : Strings.retroBoard.improveLabel}
         </Typography>
       </Box>
     </Box>

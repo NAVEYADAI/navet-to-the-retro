@@ -121,7 +121,7 @@ test.describe('Team invites — email invites for unregistered users + shareable
     await loginViaLocalStorage(page, creator.token);
     await page.getByText(teamName).waitFor();
     // The add-member form is collapsed behind this toggle by default (team-card.tsx web).
-    await page.getByText('+ הוסף חבר צוות').click();
+    await page.getByText(Strings.teamList.addMemberToggle).click();
 
     await page.getByPlaceholder('הכנס כתובת אימייל').fill(invitedEmail);
     await page.getByText(Strings.teamList.addMemberButton).click();

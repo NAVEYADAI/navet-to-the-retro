@@ -1,22 +1,18 @@
 import React from 'react';
+import { Box, Select, MenuItem, Checkbox, ListItemText, Typography, type SelectChangeEvent } from '@mui/material';
 import { Strings } from '@/constants/strings';
-import { Box, Select, MenuItem, Checkbox, ListItemText, TextField, Button, type SelectChangeEvent } from '@mui/material';
+import { useTheme } from '@/design/theme-context';
+import { Field, Button } from '@/components/ui';
 
 interface CommentFilterBarWebProps {
   categories: string[];
   onCategoriesChange: (values: string[]) => void;
   searchText: string;
   onSearchTextChange: (value: string) => void;
-  theme: {
-    text: string;
-    background: string;
-    backgroundElement: string;
-    backgroundSelected: string;
-    textSecondary: string;
-  };
 }
 
-export function CommentFilterBarWeb({ categories, onCategoriesChange, searchText, onSearchTextChange, theme }: CommentFilterBarWebProps) {
+export function CommentFilterBarWeb({ categories, onCategoriesChange, searchText, onSearchTextChange }: CommentFilterBarWebProps) {
+  const t = useTheme();
   const isFilterActive = categories.length > 0 || !!searchText.trim();
 
   const handleChange = (e: SelectChangeEvent<string[]>) => {
@@ -25,63 +21,58 @@ export function CommentFilterBarWeb({ categories, onCategoriesChange, searchText
   };
 
   return (
-    <Box sx={{
-      display: 'flex',
-      flexDirection: { xs: 'column', sm: 'row-reverse' },
-      alignItems: { xs: 'stretch', sm: 'center' },
-      gap: 1.5,
-    }}>
-      <Select
-        multiple
-        value={categories}
-        onChange={handleChange}
-        displayEmpty
-        renderValue={(selected) =>
-          selected.length === 0
-            ? Strings.retroBoard.filterAllCategoriesLabel
-            : Strings.retroBoard.categoriesSelectedLabel(selected.length)
-        }
-        size="small"
-        sx={{
-          minWidth: 200,
-          direction: 'rtl',
-          borderRadius: '12px',
-          backgroundColor: theme.background,
-          color: theme.text,
-          fontFamily: 'Rubik, sans-serif',
-          '& .MuiOutlinedInput-notchedOutline': { borderColor: theme.backgroundSelected },
-        }}
-      >
-        {Object.entries(Strings.retroBoard.categories).map(([key, label]) => (
-          <MenuItem key={key} value={key} sx={{ fontFamily: 'Rubik, sans-serif' }}>
-            <Checkbox checked={categories.includes(key)} />
-            <ListItemText primary={label} sx={{ textAlign: 'right' }} />
-          </MenuItem>
-        ))}
-      </Select>
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        alignItems: { xs: 'stretch', sm: 'flex-end' },
+        gap: `${t.space[3]}px`,
+      }}
+    >
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px` }}>
+        <Typography sx={{ ...t.type.label, color: t.color.textSecondary }}>
+          {Strings.retroBoard.categoryLabel}
+        </Typography>
+        <Select
+          multiple
+          value={categories}
+          onChange={handleChange}
+          displayEmpty
+          renderValue={(selected) =>
+            selected.length === 0
+              ? Strings.retroBoard.filterAllCategoriesLabel
+              : Strings.retroBoard.categoriesSelectedLabel(selected.length)
+          }
+          size="small"
+          sx={{
+            minWidth: 200,
+            borderRadius: `${t.radius.field}px`,
+            backgroundColor: t.color.surface,
+            color: t.color.text,
+            ...t.type.body,
+            '& .MuiOutlinedInput-notchedOutline': { borderColor: t.color.borderStrong },
+          }}
+        >
+          {Object.entries(Strings.retroBoard.categories).map(([key, label]) => (
+            <MenuItem key={key} value={key} sx={{ ...t.type.body }}>
+              <Checkbox checked={categories.includes(key)} />
+              <ListItemText primary={label} />
+            </MenuItem>
+          ))}
+        </Select>
+      </Box>
 
-      <TextField
-        placeholder={Strings.retroBoard.searchPlaceholder}
-        value={searchText}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onSearchTextChange(e.target.value)}
-        size="small"
-        sx={{
-          flex: 1,
-          direction: 'rtl',
-          input: { color: theme.text, textAlign: 'right', fontFamily: 'Rubik, sans-serif' },
-          '& .MuiOutlinedInput-root': {
-            borderRadius: '12px',
-            backgroundColor: theme.background,
-            '& fieldset': { borderColor: theme.backgroundSelected },
-          },
-        }}
-      />
+      <Box sx={{ flex: 1 }}>
+        <Field
+          label={Strings.retroBoard.searchFieldLabel}
+          value={searchText}
+          onChangeText={onSearchTextChange}
+          placeholder={Strings.retroBoard.searchPlaceholder}
+        />
+      </Box>
 
       {isFilterActive && (
-        <Button
-          onClick={() => { onCategoriesChange([]); onSearchTextChange(''); }}
-          sx={{ color: theme.textSecondary, fontWeight: 'bold', fontFamily: 'Rubik, sans-serif', textTransform: 'none', whiteSpace: 'nowrap' }}
-        >
+        <Button variant="ghost" size="sm" icon="x" onPress={() => { onCategoriesChange([]); onSearchTextChange(''); }}>
           {Strings.retroBoard.clearFiltersLabel}
         </Button>
       )}

@@ -10,14 +10,6 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 describe('TeamSprintsManager Component', () => {
   const mockTeam = { id: 10, name: 'Core Team' };
   const mockToken = 'mock-token';
-  const mockTheme = {
-    text: '#000',
-    background: '#fff',
-    backgroundElement: '#eee',
-    backgroundSelected: '#ddd',
-    textSecondary: '#666',
-  };
-
   const activeStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const activeEnd = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const futureStart = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
@@ -64,7 +56,6 @@ describe('TeamSprintsManager Component', () => {
         team={mockTeam}
         token={mockToken}
         isAdmin={false}
-        theme={mockTheme}
         onSelectSprint={mockSelect}
       />
     );
@@ -87,7 +78,6 @@ describe('TeamSprintsManager Component', () => {
         team={mockTeam}
         token={mockToken}
         isAdmin={false}
-        theme={mockTheme}
         onSelectSprint={mockSelect}
       />
     );
@@ -109,7 +99,6 @@ describe('TeamSprintsManager Component', () => {
         team={mockTeam}
         token={mockToken}
         isAdmin={true}
-        theme={mockTheme}
         onSelectSprint={mockSelect}
       />
     );
@@ -136,7 +125,6 @@ describe('TeamSprintsManager Component', () => {
         team={mockTeam}
         token={mockToken}
         isAdmin={false}
-        theme={mockTheme}
         onSelectSprint={mockSelect}
       />
     );

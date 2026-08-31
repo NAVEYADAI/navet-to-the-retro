@@ -20,70 +20,70 @@ Effort ratings are from a direct line-count / theme-prop / raw-color-usage surve
 
 ## 1. Settings — first task, proves the pipeline end-to-end
 
-- [ ] `src/features/settings/components/profile-form-card.tsx` — self-contained, no unconverted
+- [x] `src/features/settings/components/profile-form-card.tsx` — self-contained, no unconverted
       children. **Has reference.** Small.
-- [ ] `src/features/settings/components/appearance-card.tsx` — new file, self-contained. **Has
+- [x] `src/features/settings/components/appearance-card.tsx` — new file, self-contained. **Has
       reference.** Small. Add it under `ProfileFormCard` in `src/app/settings.tsx` (remove
       `isDark`/`accent`/`themeColors` from the `ProfileFormCard` call only — `AdminTeamsCard` on the
       same page is untouched, still gets the old props, until its own turn below).
 
 ## 2. Teams — leaves (convert all of these before touching `team-card.tsx`)
 
-- [ ] `src/features/teams/components/team-list-web/pending-approval-card.tsx` — Small
-- [ ] `src/features/teams/components/team-list-native/pending-approval-card.tsx` — Small
-- [ ] `src/features/teams/components/team-list-web/pending-membership-card.tsx` — Small
-- [ ] `src/features/teams/components/team-list-native/pending-membership-card.tsx` — Small
-- [ ] `src/features/teams/components/team-list-web/add-member-form.tsx` — Small-Medium
-- [ ] `src/features/teams/components/team-list-native/add-member-form.tsx` — Small-Medium
-- [ ] `src/features/teams/components/team-list-web/team-member-row.tsx` — Medium
-- [ ] `src/features/teams/components/team-list-native/team-member-row.tsx` — Medium
+- [x] `src/features/teams/components/team-list-web/pending-approval-card.tsx` — Small
+- [x] `src/features/teams/components/team-list-native/pending-approval-card.tsx` — Small
+- [x] `src/features/teams/components/team-list-web/pending-membership-card.tsx` — Small
+- [x] `src/features/teams/components/team-list-native/pending-membership-card.tsx` — Small
+- [x] `src/features/teams/components/team-list-web/add-member-form.tsx` — Small-Medium
+- [x] `src/features/teams/components/team-list-native/add-member-form.tsx` — Small-Medium
+- [x] `src/features/teams/components/team-list-web/team-member-row.tsx` — Medium
+- [x] `src/features/teams/components/team-list-native/team-member-row.tsx` — Medium
 
 ## 3. Teams — composites (only after all of section 2 is checked off)
 
-- [ ] `src/features/teams/components/team-list-web/team-card.tsx` — Medium
-- [ ] `src/features/teams/components/team-list-native/team-card.tsx` — Medium
-- [ ] `src/features/teams/components/team-list-web/invite-links-panel.tsx` — **Large**
-- [ ] `src/features/teams/components/team-list-native/invite-links-panel.tsx` — **Large**
-- [ ] `src/features/teams/components/team-list-web/index.tsx` — Small (just re-exports; convert last)
-- [ ] `src/features/teams/components/team-list-native/index.tsx` — Small
-- [ ] `src/features/teams/components/team-list-native/styles.ts` — Small (roll into the components that use it as inline `useTheme()` values; delete the file once nothing imports it)
+- [x] `src/features/teams/components/team-list-web/team-card.tsx` — Medium
+- [x] `src/features/teams/components/team-list-native/team-card.tsx` — Medium
+- [x] `src/features/teams/components/team-list-web/invite-links-panel.tsx` — **Large**
+- [x] `src/features/teams/components/team-list-native/invite-links-panel.tsx` — **Large**
+- [x] `src/features/teams/components/team-list-web/index.tsx` — Small (just re-exports; convert last)
+- [x] `src/features/teams/components/team-list-native/index.tsx` — Small
+- [x] `src/features/teams/components/team-list-native/styles.ts` — Small (roll into the components that use it as inline `useTheme()` values; delete the file once nothing imports it)
 
 ## 4. Retro — leaves
 
-- [ ] `src/features/retro/components/comment-card-web.tsx` — Small
-- [ ] `src/features/retro/components/comment-filter-bar-web.tsx` — Small
-- [ ] `src/features/retro/components/comment-filter-bar-native.tsx` — Medium
-- [ ] `src/features/retro/components/retro-wheel-toggle.tsx` — Small-Medium (high raw-color density despite small size — take care)
+- [x] `src/features/retro/components/comment-card-web.tsx` — Small
+- [x] `src/features/retro/components/comment-filter-bar-web.tsx` — Small
+- [x] `src/features/retro/components/comment-filter-bar-native.tsx` — Medium
+- [x] `src/features/retro/components/retro-wheel-toggle.tsx` — Small-Medium (high raw-color density despite small size — take care)
 
 ## 5. Retro — composite (only after section 4 is done)
 
-- [ ] `src/features/retro/components/sprint-retro-board-web.tsx` — **Large**
-- [ ] `src/features/retro/components/sprint-retro-board-native.tsx` — **Large**
+- [x] `src/features/retro/components/sprint-retro-board-web.tsx` — **Large**
+- [x] `src/features/retro/components/sprint-retro-board-native.tsx` — **Large**
 
 ## 6. Auth
 
-- [ ] `src/features/auth/components/role-selector-chips.tsx` — Small-Medium (high raw-color density)
-- [ ] `src/features/auth/components/auth-form-web.tsx` — **Large**
-- [ ] `src/features/auth/components/auth-form-native.tsx` — Medium-Large
-- [ ] Update the one call site in `src/app/_layout.tsx` (and `src/app/invite/[token].tsx`) to stop
+- [x] `src/features/auth/components/role-selector-chips.tsx` — Small-Medium (high raw-color density)
+- [x] `src/features/auth/components/auth-form-web.tsx` — **Large**
+- [x] `src/features/auth/components/auth-form-native.tsx` — Medium-Large
+- [x] Update the one call site in `src/app/_layout.tsx` (and `src/app/invite/[token].tsx`) to stop
       passing `isDark`/`theme`/`colorScheme` to `<AuthForm>` once both platforms above are converted.
 
 ## 7. Settings (remaining) + navigation
 
-- [ ] `src/features/settings/components/admin-teams-card.tsx` — Medium
-- [ ] `src/components/navigation/app-tabs.web.tsx` — Medium
-- [ ] `src/components/navigation/app-tabs.tsx` (native) — Trivial, already near-compliant (uses `useColorScheme()` internally)
-- [ ] `src/components/navigation/app-tabs.styles.ts` — Small
+- [x] `src/features/settings/components/admin-teams-card.tsx` — Medium
+- [x] `src/components/navigation/app-tabs.web.tsx` — Medium
+- [x] `src/components/navigation/app-tabs.tsx` (native) — Trivial, already near-compliant (uses `useColorScheme()` internally)
+- [x] `src/components/navigation/app-tabs.styles.ts` — Small
 
 ## 8. Dashboard + sprint list — last (blocked on sections 2–6)
 
-- [ ] `src/features/dashboard/components/dashboard-web.tsx` — **Has reference**, but the reference
+- [x] `src/features/dashboard/components/dashboard-web.tsx` — **Has reference**, but the reference
       drops the `theme` prop to `<TeamList>`/`<SprintRetroBoard>` — only apply it once sections 2–5 are
       fully done, otherwise it breaks both.
-- [ ] `src/features/dashboard/components/dashboard-native.tsx` — Medium
-- [ ] `src/features/sprints/components/sprint-list-web.tsx` — **Has reference**, same caveat as
+- [x] `src/features/dashboard/components/dashboard-native.tsx` — Medium
+- [x] `src/features/sprints/components/sprint-list-web.tsx` — **Has reference**, same caveat as
       dashboard-web (renders team/sprint children — verify no unconverted child remains before applying).
-- [ ] `src/features/sprints/components/sprint-list-native.tsx` — Medium-Large
+- [x] `src/features/sprints/components/sprint-list-native.tsx` — Medium-Large
 
 ## Not covered by this backlog
 

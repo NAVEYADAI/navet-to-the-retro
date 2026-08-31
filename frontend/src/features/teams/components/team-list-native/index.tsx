@@ -1,11 +1,10 @@
 import React from 'react';
-import { View } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
+import { View, Text } from 'react-native';
+import { useTheme } from '@/design/theme-context';
+import { Strings } from '@/constants/strings';
 import { PendingMembershipCard } from './pending-membership-card';
 import { PendingApprovalCard } from './pending-approval-card';
 import { TeamCard } from './team-card';
-import { nativeStyles } from './styles';
-import type { TeamListTheme } from '@/features/teams/types';
 
 interface TeamListProps {
   teams: any[];
@@ -13,15 +12,24 @@ interface TeamListProps {
   userId: number;
   onAddMemberSuccess: () => void;
   onSelectSprint: (sprint: any, team: any) => void;
-  theme: TeamListTheme;
 }
 
-export function TeamListNative({ teams, token, userId, onAddMemberSuccess, onSelectSprint, theme }: TeamListProps) {
+export function TeamListNative({ teams, token, userId, onAddMemberSuccess, onSelectSprint }: TeamListProps) {
+  const t = useTheme();
+
   return (
-    <View style={nativeStyles.teamsList}>
-      <ThemedText type="subtitle" style={nativeStyles.sectionHeader}>
-        הצוותים שלי
-      </ThemedText>
+    <View style={{ gap: t.space[4] }}>
+      <Text
+        style={{
+          fontSize: t.type.sectionTitle.fontSize,
+          lineHeight: Math.round(t.type.sectionTitle.fontSize * t.type.sectionTitle.lineHeight),
+          fontWeight: String(t.type.sectionTitle.fontWeight) as any,
+          color: t.color.text,
+          textAlign: 'right',
+        }}
+      >
+        {Strings.teamList.myTeamsHeader}
+      </Text>
       {teams.map((team) => {
         const isPending = team.status === 'PENDING_APPROVAL';
         const isMyApproval = isPending && team.pendingApproverId === userId;
@@ -34,7 +42,6 @@ export function TeamListNative({ teams, token, userId, onAddMemberSuccess, onSel
               team={team}
               token={token}
               onResolved={onAddMemberSuccess}
-              theme={theme}
             />
           );
         }
@@ -46,7 +53,6 @@ export function TeamListNative({ teams, token, userId, onAddMemberSuccess, onSel
               team={team}
               token={token}
               onResolved={onAddMemberSuccess}
-              theme={theme}
             />
           );
         }
@@ -59,7 +65,6 @@ export function TeamListNative({ teams, token, userId, onAddMemberSuccess, onSel
             userId={userId}
             onAddMemberSuccess={onAddMemberSuccess}
             onSelectSprint={onSelectSprint}
-            theme={theme}
           />
         );
       })}

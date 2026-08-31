@@ -1,28 +1,35 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  Animated,
-  Image,
-} from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Image, type TextStyle } from 'react-native';
 import { Strings } from '@/constants/strings';
 import { useAuth } from '@/context/auth-context';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
-import { authNativeStyles } from '../styles/auth.styles';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
 
 interface AuthFormNativeProps {
-  theme: any;
-  colorScheme: string;
   initialEmail?: string;
 }
 
-export function AuthFormNative({ theme, colorScheme, initialEmail }: AuthFormNativeProps) {
+const ROLES = [
+  { label: 'ראש צוות', value: 'TEAM_LEADER' },
+  { label: 'מנהל מוצר', value: 'PRODUCT_MANAGER' },
+  { label: 'מפתח', value: 'DEVELOPER' },
+  { label: 'QA / בודק', value: 'TESTER' },
+  { label: 'DevOps', value: 'DEVOPS' },
+];
+
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
+}
+
+export function AuthFormNative({ initialEmail }: AuthFormNativeProps) {
+  const t = useTheme();
   const { login } = useAuth();
   const [isLogin, setIsLogin] = useState(!initialEmail);
   const [username, setUsername] = useState('');
@@ -34,16 +41,6 @@ export function AuthFormNative({ theme, colorScheme, initialEmail }: AuthFormNat
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 0,
-      useNativeDriver: false,
-    }).start();
-  }, [isLogin]);
 
   const handleAuthSubmit = async () => {
     setErrorMessage(null);
@@ -77,43 +74,68 @@ export function AuthFormNative({ theme, colorScheme, initialEmail }: AuthFormNat
     setShowPassword(false);
   };
 
+  const inputStyle: TextStyle = {
+    ...rnText(t.type.body),
+    height: t.layout.minTouchTarget,
+    borderWidth: 1,
+    borderRadius: t.radius.field,
+    paddingHorizontal: t.space[3],
+    textAlign: 'right',
+    color: t.color.text,
+    borderColor: t.color.border,
+    backgroundColor: t.color.surface,
+  };
+
   return (
-    <ThemedView style={authNativeStyles.container}>
-      <Animated.View
-        style={[
-          authNativeStyles.contentCard,
-          {
-            backgroundColor: theme.backgroundElement,
-            borderColor: theme.backgroundSelected,
-            opacity: fadeAnim,
-            transform: [{ translateY: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
-          },
-        ]}
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: t.space[5] }}>
+      <View
+        style={{
+          width: '100%',
+          maxWidth: 420,
+          padding: t.space[6],
+          borderRadius: t.radius.card,
+          gap: t.space[4],
+          borderWidth: 1,
+          backgroundColor: t.color.surface,
+          borderColor: t.color.border,
+        }}
       >
-        <View style={authNativeStyles.logoContainer}>
-          <Image source={require('../../../../assets/images/app-logo.png')} style={{ width: 88, height: 88, marginBottom: 8 }} resizeMode="contain" />
-          <ThemedText type="title" style={authNativeStyles.title}>
+        <View style={{ alignItems: 'center', gap: t.space[1] }}>
+          <Image
+            source={require('../../../../assets/images/app-logo.png')}
+            style={{ width: 88, height: 88, marginBottom: t.space[1] }}
+            resizeMode="contain"
+          />
+          <Text style={[rnText(t.type.sectionTitle), { color: t.color.text, textAlign: 'center' }]}>
             {isLogin ? Strings.auth.welcomeBack : Strings.auth.getStarted}
-          </ThemedText>
-          <ThemedText type="default" style={authNativeStyles.subtitle}>
+          </Text>
+          <Text style={[rnText(t.type.body), { color: t.color.textSecondary, textAlign: 'center' }]}>
             {isLogin ? Strings.auth.loginSubtitle : Strings.auth.registerSubtitle}
-          </ThemedText>
+          </Text>
         </View>
 
-        {errorMessage && (
-          <View style={[authNativeStyles.errorBanner, { backgroundColor: colorScheme === 'dark' ? '#b71c1c' : '#ffebee' }]}>
-            <ThemedText style={[authNativeStyles.errorText, { color: colorScheme === 'dark' ? '#ffebee' : '#c62828' }]}>
+        {!!errorMessage && (
+          <View
+            style={{
+              backgroundColor: t.color.status.danger.bg,
+              borderWidth: 1,
+              borderColor: t.color.status.danger.border,
+              borderRadius: t.radius.field,
+              padding: t.space[2],
+            }}
+          >
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
               {errorMessage}
-            </ThemedText>
+            </Text>
           </View>
         )}
 
-        <View style={authNativeStyles.formContainer}>
+        <View style={{ gap: t.space[3] }}>
           {isLogin && (
             <TextInput
-              style={[authNativeStyles.input, { color: theme.text, borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}
+              style={inputStyle}
               placeholder={Strings.auth.usernamePlaceholder}
-              placeholderTextColor={theme.textSecondary}
+              placeholderTextColor={t.color.textSecondary}
               value={username}
               onChangeText={setUsername}
               autoCapitalize="none"
@@ -124,57 +146,52 @@ export function AuthFormNative({ theme, colorScheme, initialEmail }: AuthFormNat
           {!isLogin && (
             <>
               <TextInput
-                style={[authNativeStyles.input, { color: theme.text, borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}
+                style={inputStyle}
                 placeholder={Strings.auth.emailPlaceholder}
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={t.color.textSecondary}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
               <TextInput
-                style={[authNativeStyles.input, { color: theme.text, borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}
+                style={inputStyle}
                 placeholder={Strings.auth.firstNamePlaceholder}
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={t.color.textSecondary}
                 value={firstName}
                 onChangeText={setFirstName}
               />
               <TextInput
-                style={[authNativeStyles.input, { color: theme.text, borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}
+                style={inputStyle}
                 placeholder={Strings.auth.lastNamePlaceholder}
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={t.color.textSecondary}
                 value={lastName}
                 onChangeText={setLastName}
               />
-              <View style={{ gap: Spacing.one, marginVertical: Spacing.one, paddingHorizontal: 4 }}>
-                <ThemedText style={{ fontSize: 13, fontWeight: 'bold', textAlign: 'right', color: theme.textSecondary }}>
-                  תפקיד מקצועי:
-                </ThemedText>
-                <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: Spacing.two, marginTop: 4 }}>
-                  {[
-                    { label: 'ראש צוות', value: 'TEAM_LEADER' },
-                    { label: 'מנהל מוצר', value: 'PRODUCT_MANAGER' },
-                    { label: 'מפתח', value: 'DEVELOPER' },
-                    { label: 'QA', value: 'TESTER' },
-                    { label: 'DevOps', value: 'DEVOPS' },
-                  ].map((r) => {
+
+              <View style={{ gap: t.space[1] }}>
+                <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.textSecondary, textAlign: 'right' }]}>
+                  תפקיד מקצועי
+                </Text>
+                <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
+                  {ROLES.map((r) => {
                     const isSelected = role === r.value;
                     return (
                       <TouchableOpacity
                         key={r.value}
                         style={{
-                          backgroundColor: isSelected ? theme.text : theme.backgroundElement,
-                          borderColor: isSelected ? theme.text : theme.backgroundSelected,
+                          backgroundColor: isSelected ? t.color.accent.subtle : t.color.surfaceSubtle,
+                          borderColor: isSelected ? t.color.accent.border : t.color.border,
                           borderWidth: 1,
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          borderRadius: 6,
+                          paddingHorizontal: t.space[3],
+                          paddingVertical: t.space[1],
+                          borderRadius: t.radius.badge,
                         }}
                         onPress={() => setRole(r.value)}
                       >
-                        <ThemedText style={{ color: isSelected ? theme.background : theme.text, fontSize: 12, fontWeight: 'bold' }}>
+                        <Text style={[rnText({ ...t.type.caption, fontWeight: isSelected ? 700 : 500 }), { color: isSelected ? t.color.accent.base : t.color.textSecondary }]}>
                           {r.label}
-                        </ThemedText>
+                        </Text>
                       </TouchableOpacity>
                     );
                   })}
@@ -183,42 +200,61 @@ export function AuthFormNative({ theme, colorScheme, initialEmail }: AuthFormNat
             </>
           )}
 
-          <View style={[authNativeStyles.passwordInputContainer, { borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}>
+          <View
+            style={{
+              flexDirection: 'row-reverse',
+              alignItems: 'center',
+              gap: t.space[2],
+              height: t.layout.minTouchTarget,
+              borderWidth: 1,
+              borderRadius: t.radius.field,
+              paddingHorizontal: t.space[3],
+              borderColor: t.color.border,
+              backgroundColor: t.color.surface,
+            }}
+          >
             <TextInput
-              style={[authNativeStyles.passwordInput, { color: theme.text }]}
+              style={[rnText(t.type.body), { flex: 1, height: '100%', padding: 0, color: t.color.text, textAlign: 'right' }]}
               placeholder={Strings.auth.passwordPlaceholder}
-              placeholderTextColor={theme.textSecondary}
+              placeholderTextColor={t.color.textSecondary}
               value={password}
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
             />
-            <TouchableOpacity style={authNativeStyles.showPasswordBtn} onPress={() => setShowPassword(!showPassword)}>
-              <ThemedText style={{ fontSize: 16 }}>{showPassword ? '👁️' : '🔒'}</ThemedText>
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <Icon name={showPassword ? 'eye' : 'eye-off'} size="sm" tone="muted" />
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[authNativeStyles.button, { backgroundColor: theme.text }, formLoading && authNativeStyles.buttonDisabled]}
+            style={{
+              height: t.layout.minTouchTarget,
+              borderRadius: t.radius.field,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: t.color.accent.base,
+              opacity: formLoading ? 0.6 : 1,
+            }}
             onPress={handleAuthSubmit}
             disabled={formLoading}
           >
             {formLoading ? (
-              <ActivityIndicator color={theme.background} />
+              <ActivityIndicator color={t.color.accent.onBase} />
             ) : (
-              <ThemedText style={[authNativeStyles.buttonText, { color: theme.background }]}>
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
                 {isLogin ? Strings.auth.loginButton : Strings.auth.signUpButton}
-              </ThemedText>
+              </Text>
             )}
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={authNativeStyles.toggleLink} onPress={toggleForm}>
-          <ThemedText style={{ color: '#6366f1', textAlign: 'center', fontWeight: 'bold', fontSize: 13 }}>
+        <TouchableOpacity onPress={toggleForm} style={{ paddingVertical: t.space[1] }}>
+          <Text style={[rnText(t.type.label), { color: t.color.accent.base, textAlign: 'center' }]}>
             {isLogin ? Strings.auth.toggleToSignUp : Strings.auth.toggleToLogin}
-          </ThemedText>
+          </Text>
         </TouchableOpacity>
-      </Animated.View>
-    </ThemedView>
+      </View>
+    </View>
   );
 }

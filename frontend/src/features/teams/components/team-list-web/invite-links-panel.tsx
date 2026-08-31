@@ -2,31 +2,29 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { getBackendUrl, getFrontendUrl } from '@/api/config';
 import { Strings } from '@/constants/strings';
-import { Box, Typography, Button, TextField, Alert, Chip, Collapse } from '@mui/material';
-import type { TeamListTheme } from '@/features/teams/types';
+import { Box, Typography, Alert, Collapse } from '@mui/material';
+import { useTheme } from '@/design/theme-context';
+import { Button, Field, Badge, Icon } from '@/components/ui';
+import type { Tone } from '@/components/ui';
 
 interface InviteLinksPanelProps {
   teamId: number;
   token: string;
-  theme: TeamListTheme;
 }
 
 function inviteUrl(inviteToken: string) {
   return `${getFrontendUrl()}/invite/${inviteToken}`;
 }
 
-function todayDateString() {
-  return new Date().toISOString().slice(0, 10);
+function inviteStatus(invite: any): { label: string; tone: Tone } {
+  if (invite.isRevoked) return { label: Strings.invites.statusRevoked, tone: 'danger' };
+  if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) return { label: Strings.invites.statusExpired, tone: 'danger' };
+  if (invite.maxUses !== null && invite.useCount >= invite.maxUses) return { label: Strings.invites.statusExhausted, tone: 'danger' };
+  return { label: Strings.invites.statusActive, tone: 'success' };
 }
 
-function inviteStatus(invite: any): { label: string; color: string } {
-  if (invite.isRevoked) return { label: Strings.invites.statusRevoked, color: '#c62828' };
-  if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) return { label: Strings.invites.statusExpired, color: '#c62828' };
-  if (invite.maxUses !== null && invite.useCount >= invite.maxUses) return { label: Strings.invites.statusExhausted, color: '#c62828' };
-  return { label: Strings.invites.statusActive, color: '#2e7d32' };
-}
-
-export function InviteLinksPanel({ teamId, token, theme }: InviteLinksPanelProps) {
+export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
+  const t = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [invites, setInvites] = useState<any[]>([]);
 
@@ -110,131 +108,104 @@ export function InviteLinksPanel({ teamId, token, theme }: InviteLinksPanelProps
     }
   };
 
-  const textFieldSx = { direction: 'rtl' as const };
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Button
-        onClick={() => setIsExpanded(v => !v)}
-        sx={{ alignSelf: 'flex-end', color: theme.textSecondary, fontWeight: 'bold', fontSize: 13, fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
-      >
-        {isExpanded ? '▲ ' : '▼ '}{Strings.invites.manageLinksToggle}
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
+      <Button size="sm" variant="ghost" onPress={() => setIsExpanded((v) => !v)}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px` }}>
+          <Icon name="chevron-down" size="sm" tone="muted" rotate={isExpanded ? 180 : 0} />
+          {Strings.invites.manageLinksToggle}
+        </Box>
       </Button>
 
       <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
           {newLinkToken && (
             <Box
               sx={{
-                backgroundColor: theme.background,
-                borderInlineStart: '3px solid #2e7d32',
-                borderRadius: 1.5,
-                p: 2,
+                backgroundColor: t.color.status.success.bg,
+                borderInlineStart: `3px solid ${t.color.status.success.fg}`,
+                borderRadius: `${t.radius.card}px`,
+                padding: `${t.space[4]}px`,
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 1,
+                gap: `${t.space[2]}px`,
               }}
             >
-              <Typography sx={{ fontSize: 13, fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif', textAlign: 'right' }}>
+              <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
                 {Strings.invites.linkCreatedText}
               </Typography>
-              <Typography sx={{ fontSize: 12, color: theme.textSecondary, fontFamily: 'Rubik, sans-serif', textAlign: 'right' }}>
+              <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>
                 {Strings.invites.linkCreatedSubtext}
               </Typography>
               <Box
                 sx={{
-                  backgroundColor: theme.backgroundElement,
-                  borderRadius: 1,
-                  p: 1.2,
-                  fontSize: 12,
-                  fontFamily: 'monospace',
+                  backgroundColor: t.color.surface,
+                  borderRadius: `${t.radius.field}px`,
+                  padding: `${t.space[2]}px`,
+                  ...t.type.caption,
+                  color: t.color.text,
                   wordBreak: 'break-all',
-                  textAlign: 'left',
-                  direction: 'ltr',
-                  color: theme.text,
                 }}
               >
-                {inviteUrl(newLinkToken)}
+                <bdi>{inviteUrl(newLinkToken)}</bdi>
               </Box>
-              <Button
-                onClick={() => handleCopy(newLinkToken)}
-                sx={{
-                  alignSelf: 'flex-end',
-                  backgroundColor: theme.text,
-                  color: theme.background,
-                  fontSize: 12,
-                  fontWeight: 'bold',
-                  fontFamily: 'Rubik, sans-serif',
-                  textTransform: 'none',
-                  px: 2,
-                  '&:hover': { backgroundColor: theme.text, opacity: 0.85 },
-                }}
-              >
+              <Button size="sm" variant="primary" icon={copied ? 'check' : 'copy'} onPress={() => handleCopy(newLinkToken)}>
                 {copied ? Strings.invites.linkCopiedText : Strings.invites.copyLinkButton}
               </Button>
             </Box>
           )}
 
           {showCreateForm ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 2, border: '1px solid rgba(0,0,0,0.06)', borderRadius: 2 }}>
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: `${t.space[3]}px`,
+                padding: `${t.space[4]}px`,
+                border: `1px solid ${t.color.border}`,
+                borderRadius: `${t.radius.card}px`,
+              }}
+            >
               {createError && (
-                <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right' }}>{createError}</Alert>
+                <Alert severity="error" sx={{ ...t.type.body }}>
+                  {createError}
+                </Alert>
               )}
-              <TextField
+              <Field
                 label={Strings.invites.nameLabel}
                 placeholder={Strings.invites.namePlaceholder}
                 value={name}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-                size="small"
-                sx={textFieldSx}
+                onChangeText={setName}
               />
-              <TextField
+              <Field
                 label={Strings.invites.expiresAtLabel}
                 type="date"
                 value={expiresAt}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpiresAt(e.target.value)}
-                size="small"
-                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: todayDateString() } }}
-                sx={textFieldSx}
+                onChangeText={setExpiresAt}
               />
-              <TextField
+              <Field
                 label={Strings.invites.maxUsesLabel}
                 type="number"
                 value={maxUses}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaxUses(e.target.value)}
-                size="small"
-                sx={textFieldSx}
+                onChangeText={setMaxUses}
               />
-              <Box sx={{ display: 'flex', flexDirection: 'row-reverse', gap: 1.5 }}>
-                <Button
-                  variant="contained"
-                  onClick={handleCreateLink}
-                  disabled={isCreating}
-                  sx={{ backgroundColor: theme.text, color: theme.background, fontWeight: 'bold', fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
-                >
+              <Box sx={{ display: 'flex', flexDirection: 'row', gap: `${t.space[3]}px` }}>
+                <Button variant="primary" icon="plus" onPress={handleCreateLink} disabled={isCreating} loading={isCreating}>
                   {Strings.invites.createLinkButton}
                 </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => setShowCreateForm(false)}
-                  sx={{ borderColor: theme.backgroundSelected, color: theme.text, fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
-                >
+                <Button variant="secondary" onPress={() => setShowCreateForm(false)}>
                   {Strings.teamList.cancelButton}
                 </Button>
               </Box>
             </Box>
           ) : (
-            <Button
-              variant="outlined"
-              onClick={() => setShowCreateForm(true)}
-              sx={{ alignSelf: 'flex-end', borderColor: theme.backgroundSelected, color: theme.text, fontSize: 12, fontWeight: 'bold', fontFamily: 'Rubik, sans-serif', textTransform: 'none' }}
-            >
+            <Button size="sm" variant="secondary" icon="plus" onPress={() => setShowCreateForm(true)}>
               {Strings.invites.createLinkButton}
             </Button>
           )}
 
           {invites.length === 0 ? (
-            <Typography sx={{ fontSize: 12, opacity: 0.6, textAlign: 'right', fontFamily: 'Rubik, sans-serif' }}>
+            <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
               {Strings.invites.noLinksText}
             </Typography>
           ) : (
@@ -244,51 +215,33 @@ export function InviteLinksPanel({ teamId, token, theme }: InviteLinksPanelProps
               return (
                 <Box
                   key={invite.id}
-                  sx={{ display: 'flex', flexDirection: 'column', gap: 0.8, px: 2, py: 1.2, backgroundColor: theme.background, borderRadius: 2, border: '1px solid rgba(0,0,0,0.06)' }}
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: `${t.space[2]}px`,
+                    paddingInline: `${t.space[4]}px`,
+                    paddingBlock: `${t.space[3]}px`,
+                    backgroundColor: t.color.surfaceSubtle,
+                    borderRadius: `${t.radius.card}px`,
+                    border: `1px solid ${t.color.border}`,
+                  }}
                 >
-                  <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 'bold', color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[2]}px` }}>
+                    <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
                       {invite.name || invite.email || Strings.invites.unnamedLinkLabel}
                     </Typography>
-                    <Chip label={status.label} size="small" sx={{ backgroundColor: `${status.color}1a`, color: status.color, fontWeight: 'bold', fontSize: 11, fontFamily: 'Rubik, sans-serif' }} />
+                    <Badge tone={status.tone}>{status.label}</Badge>
                   </Box>
-                  <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: 1 }}>
-                    <Typography sx={{ fontSize: 11, opacity: 0.7, fontFamily: 'Rubik, sans-serif', color: theme.textSecondary }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[2]}px` }}>
+                    <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>
                       {Strings.invites.usesLabel(invite.useCount, invite.maxUses)}
                     </Typography>
                     {isActive && (
-                      <Box sx={{ display: 'flex', flexDirection: 'row-reverse', gap: 1 }}>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => handleCopyRow(invite)}
-                          sx={{
-                            borderColor: theme.backgroundSelected,
-                            color: theme.text,
-                            fontWeight: 'bold',
-                            fontSize: 11,
-                            fontFamily: 'Rubik, sans-serif',
-                            textTransform: 'none',
-                            px: 1.5,
-                          }}
-                        >
+                      <Box sx={{ display: 'flex', flexDirection: 'row', gap: `${t.space[2]}px` }}>
+                        <Button size="sm" variant="secondary" icon={copiedRowId === invite.id ? 'check' : 'copy'} onPress={() => handleCopyRow(invite)}>
                           {copiedRowId === invite.id ? Strings.invites.linkCopiedText : Strings.invites.copyLinkButton}
                         </Button>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => handleRevoke(invite.id)}
-                          sx={{
-                            borderColor: '#c62828',
-                            color: '#c62828',
-                            fontWeight: 'bold',
-                            fontSize: 11,
-                            fontFamily: 'Rubik, sans-serif',
-                            textTransform: 'none',
-                            px: 1.5,
-                            '&:hover': { borderColor: '#c62828', backgroundColor: 'rgba(198,40,40,0.06)' },
-                          }}
-                        >
+                        <Button size="sm" variant="danger" icon="trash" onPress={() => handleRevoke(invite.id)}>
                           {Strings.invites.revokeButton}
                         </Button>
                       </Box>

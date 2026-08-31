@@ -54,7 +54,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (e) {
         await storage.removeItem('userToken');
-        console.error('Failed to restore session', e);
+        if (axios.isAxiosError(e) && e.response?.status === 401) {
+          console.warn('Session expired, please log in again');
+        } else {
+          console.error('Failed to restore session', e);
+        }
       } finally {
         setLoading(false);
       }

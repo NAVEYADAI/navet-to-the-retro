@@ -1,6 +1,8 @@
-import React from 'react';
-import { Box, TextField, MenuItem, Typography } from '@mui/material';
+import React, { useState } from 'react';
+import { Box, TextField, MenuItem, Typography, IconButton, InputAdornment } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
+import { Icon } from './icon';
+import { Strings } from '@/constants/strings';
 
 type FieldType = 'text' | 'email' | 'password' | 'date' | 'number' | 'textarea' | 'select';
 
@@ -37,6 +39,8 @@ export function Field({
 }: FieldProps) {
   const t = useTheme();
   const borderColor = error ? t.color.status.danger.fg : t.color.borderStrong;
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === 'password';
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px` }}>
@@ -56,8 +60,28 @@ export function Field({
         select={type === 'select'}
         multiline={type === 'textarea'}
         minRows={type === 'textarea' ? rows : undefined}
-        type={type === 'select' || type === 'textarea' ? undefined : type}
+        type={isPassword ? (showPassword ? 'text' : 'password') : type === 'select' || type === 'textarea' ? undefined : type}
         size="small"
+        slotProps={
+          isPassword
+            ? {
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        onClick={() => setShowPassword((v) => !v)}
+                        edge="end"
+                        size="small"
+                        aria-label={showPassword ? Strings.auth.hidePasswordLabel : Strings.auth.showPasswordLabel}
+                      >
+                        <Icon name={showPassword ? 'eye-off' : 'eye'} size="sm" tone="muted" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }
+            : undefined
+        }
         sx={{
           '& .MuiInputBase-root': {
             ...t.type.body,

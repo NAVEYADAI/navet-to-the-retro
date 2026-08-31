@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { View, Text, TouchableOpacity, type TextStyle } from 'react-native';
 import { Strings } from '@/constants/strings';
 import { TeamSprintsManager } from '@/features/sprints';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
-import { nativeStyles } from './styles';
-import { getRoleLabel } from './roles';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
+import { getRoleLabel, getMemberRank } from './roles';
 import { TeamMemberRow } from './team-member-row';
 import { AddMemberForm } from './add-member-form';
 import { InviteLinksPanel } from './invite-links-panel';
-import type { TeamListTheme } from '@/features/teams/types';
 
 interface TeamCardProps {
   team: any;
@@ -19,15 +17,27 @@ interface TeamCardProps {
   userId: number;
   onAddMemberSuccess: () => void;
   onSelectSprint: (sprint: any, team: any) => void;
-  theme: TeamListTheme;
 }
 
-export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSprint, theme }: TeamCardProps) {
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
+}
+
+export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSprint }: TeamCardProps) {
+  const t = useTheme();
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   const myMembership = team.members?.find((m: any) => m.userId === userId);
   const isTeamAdmin = myMembership?.isAdmin || false;
+  const sortedMembers = [...(team.members || [])].sort((a: any, b: any) =>
+    getMemberRank(a, userId) - getMemberRank(b, userId)
+  );
 
   const isPending = team.status === 'PENDING_APPROVAL';
   const isMyPendingTeam = isPending && team.creatorId === userId;
@@ -48,54 +58,92 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
   };
 
   return (
-    <View style={[nativeStyles.infoSection, { backgroundColor: theme.backgroundElement }]}>
-      <View style={nativeStyles.teamHeaderRow}>
-        <View style={{ flex: 1, marginLeft: Spacing.two }}>
-          <ThemedText type="subtitle" style={{ fontWeight: 'bold', textAlign: 'right' }}>
+    <View
+      style={{
+        backgroundColor: t.color.surface,
+        borderWidth: 1,
+        borderColor: t.color.border,
+        borderRadius: t.radius.card,
+        padding: t.space[3],
+        gap: t.space[3],
+      }}
+    >
+      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
+        <View style={{ flex: 1 }}>
+          <Text style={[rnText(t.type.cardTitle), { color: t.color.text, textAlign: 'right' }]}>
             {team.name}
-          </ThemedText>
+          </Text>
         </View>
-        <View style={[nativeStyles.roleBadge, { backgroundColor: theme.backgroundSelected }]}>
-          <ThemedText style={[nativeStyles.roleText, { color: theme.text }]}>
+        <View
+          style={{
+            backgroundColor: t.color.surfaceSubtle,
+            paddingHorizontal: t.space[2],
+            paddingVertical: t.space[1],
+            borderRadius: t.radius.badge,
+          }}
+        >
+          <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.text }]}>
             {`${team.roleInTeam ? getRoleLabel(team.roleInTeam) : ''}${isTeamAdmin ? ' • מנהל' : ''}`}
-          </ThemedText>
+          </Text>
         </View>
       </View>
 
       {isMyPendingTeam && (
-        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.two }}>
-          <View style={[nativeStyles.roleBadge, { backgroundColor: '#ede9fe' }]}>
-            <ThemedText style={{ fontSize: 12, fontWeight: 'bold', color: '#6366f1' }}>
+        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
+          <View
+            style={{
+              backgroundColor: t.color.accent.subtle,
+              borderWidth: 1,
+              borderColor: t.color.accent.border,
+              borderRadius: t.radius.badge,
+              paddingHorizontal: t.space[2],
+              paddingVertical: t.space[1],
+            }}
+          >
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base }]}>
               {Strings.dashboard.pendingApprovalFromLabel(team.pendingApprover?.email || '')}
-            </ThemedText>
+            </Text>
           </View>
           <TouchableOpacity onPress={handleCancelPendingTeam} disabled={cancelLoading}>
-            <ThemedText style={{ fontSize: 12, fontWeight: 'bold', color: '#c62828' }}>
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.status.danger.fg }]}>
               {Strings.dashboard.cancelPendingTeamButton}
-            </ThemedText>
+            </Text>
           </TouchableOpacity>
         </View>
       )}
       {isMyPendingTeam && !!cancelError && (
-        <View style={nativeStyles.errorBannerInline}>
-          <ThemedText style={nativeStyles.errorTextInline}>{cancelError}</ThemedText>
+        <View
+          style={{
+            backgroundColor: t.color.status.danger.bg,
+            borderWidth: 1,
+            borderColor: t.color.status.danger.border,
+            borderRadius: t.radius.field,
+            padding: t.space[2],
+          }}
+        >
+          <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+            {cancelError}
+          </Text>
         </View>
       )}
 
       {!!team.mainOffice && (
-        <View style={nativeStyles.infoRow}>
-          <ThemedText type="default" style={{ fontWeight: 'bold', textAlign: 'right' }}>
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1] }}>
+          <Icon name="map-pin" size="sm" tone="muted" />
+          <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
             {Strings.teamList.officeLocationLabel}
-          </ThemedText>
-          <ThemedText type="default" style={{ textAlign: 'right' }}>{team.mainOffice}</ThemedText>
+          </Text>
+          <Text style={[rnText(t.type.body), { color: t.color.text, textAlign: 'right' }]}>
+            {team.mainOffice}
+          </Text>
         </View>
       )}
 
-      <View style={nativeStyles.membersContainer}>
-        <ThemedText type="default" style={{ fontWeight: 'bold', marginBottom: Spacing.one, textAlign: 'right' }}>
+      <View style={{ gap: t.space[2] }}>
+        <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
           {Strings.teamList.membersHeader(team.members?.length || 0)}
-        </ThemedText>
-        {team.members?.map((member: any) => (
+        </Text>
+        {sortedMembers.map((member: any) => (
           <TeamMemberRow
             key={member.id}
             member={member}
@@ -104,17 +152,16 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
             isTeamAdmin={isTeamAdmin}
             isMe={member.userId === userId}
             onChanged={onAddMemberSuccess}
-            theme={theme}
           />
         ))}
       </View>
 
       {isTeamAdmin && !isPending && (
-        <AddMemberForm teamId={team.id} token={token} onInviteSent={onAddMemberSuccess} theme={theme} />
+        <AddMemberForm teamId={team.id} token={token} onInviteSent={onAddMemberSuccess} />
       )}
 
       {isTeamAdmin && !isPending && (
-        <InviteLinksPanel teamId={team.id} token={token} theme={theme} />
+        <InviteLinksPanel teamId={team.id} token={token} />
       )}
 
       {!isPending && (
@@ -122,7 +169,6 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
           team={team}
           token={token}
           isAdmin={isTeamAdmin}
-          theme={theme}
           onSelectSprint={onSelectSprint}
         />
       )}

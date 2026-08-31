@@ -1,17 +1,15 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { useColorScheme } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/design/theme-context';
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const t = useTheme();
 
   return (
     <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
+      backgroundColor={t.color.surface}
+      indicatorColor={t.color.accent.subtle}
+      labelStyle={{ selected: { color: t.color.text } }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>ראשי</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon

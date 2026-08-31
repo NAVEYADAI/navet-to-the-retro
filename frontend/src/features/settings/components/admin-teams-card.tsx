@@ -1,16 +1,7 @@
 import React from 'react';
-import {
-  Card,
-  CardContent,
-  Typography,
-  Box,
-  TextField,
-  Button,
-  CircularProgress,
-  Alert,
-  Grow,
-} from '@mui/material';
-import { getSettingsCardSx, getSettingsInputSx } from '../styles/settings.styles';
+import { Box, Typography, Alert, CircularProgress } from '@mui/material';
+import { useTheme } from '@/design/theme-context';
+import { Card, Button, Field, Icon } from '@/components/ui';
 
 interface AdminTeamsCardProps {
   adminTeams: any[];
@@ -25,14 +16,6 @@ interface AdminTeamsCardProps {
   teamEditMessage: { text: string; isError: boolean } | null;
   setTeamEditMessage: (msg: { text: string; isError: boolean } | null) => void;
   onSaveTeamEdit: (teamId: number) => void;
-  isDark: boolean;
-  themeColors: {
-    text: string;
-    background: string;
-    backgroundElement: string;
-    backgroundSelected: string;
-    textSecondary: string;
-  };
 }
 
 export function AdminTeamsCard({
@@ -48,150 +31,111 @@ export function AdminTeamsCard({
   teamEditMessage,
   setTeamEditMessage,
   onSaveTeamEdit,
-  isDark,
-  themeColors,
 }: AdminTeamsCardProps) {
-  const cardSx = getSettingsCardSx(isDark);
-  const inputSx = getSettingsInputSx(themeColors);
+  const t = useTheme();
 
   return (
-    <Grow in={true} timeout={600}>
-      <Card sx={cardSx}>
-        <CardContent sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 3, textAlign: 'right' }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, color: themeColors.text, fontFamily: 'Rubik, sans-serif' }}>
-            🛠️ ניהול ועריכת צוותים בניהולך
-          </Typography>
+    <Card padding={5}>
+      <Typography component="h2" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
+        ניהול ועריכת צוותים בניהולך
+      </Typography>
 
-          {teamEditMessage && (
-            <Alert
-              severity={teamEditMessage.isError ? 'error' : 'success'}
-              sx={{ flexDirection: 'row-reverse', textAlign: 'right', mb: 3 }}
-            >
-              {teamEditMessage.text}
-            </Alert>
-          )}
+      {teamEditMessage && (
+        <Alert severity={teamEditMessage.isError ? 'error' : 'success'} sx={{ ...t.type.body }}>
+          {teamEditMessage.text}
+        </Alert>
+      )}
 
-          {loadingTeams ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress color="inherit" sx={{ color: themeColors.text }} />
-            </Box>
-          ) : adminTeams.length === 0 ? (
-            <Typography sx={{ color: themeColors.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
-              אינך מנהל של אף צוות במערכת כרגע.
-            </Typography>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {adminTeams.map((team) => {
-                const isEditing = editTeamId === team.id;
-                return (
-                  <Box
-                    key={team.id}
-                    sx={{
-                      p: 2.5,
-                      borderRadius: 2,
-                      border: '1px solid rgba(0,0,0,0.06)',
-                      backgroundColor: themeColors.background,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 2
-                    }}
-                  >
-                    {isEditing ? (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
-                          <Typography sx={{ fontSize: 13, fontWeight: 600, color: themeColors.textSecondary, textAlign: 'right', fontFamily: 'Rubik, sans-serif' }}>
-                            שם הצוות
-                          </Typography>
-                          <TextField
-                            placeholder="הכנס שם צוות"
-                            value={editTeamName}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTeamName(e.target.value)}
-                            size="small"
-                            sx={inputSx}
-                          />
-                        </Box>
+      {loadingTeams ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', paddingBlock: `${t.space[4]}px` }}>
+          <CircularProgress size={24} sx={{ color: t.color.text }} />
+        </Box>
+      ) : adminTeams.length === 0 ? (
+        <Typography sx={{ ...t.type.body, color: t.color.textMuted }}>
+          אינך מנהל של אף צוות במערכת כרגע.
+        </Typography>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[4]}px` }}>
+          {adminTeams.map((team) => {
+            const isEditing = editTeamId === team.id;
+            return (
+              <Box
+                key={team.id}
+                sx={{
+                  padding: `${t.space[3]}px`,
+                  borderRadius: `${t.radius.field}px`,
+                  border: `1px solid ${t.color.border}`,
+                  backgroundColor: t.color.surfaceSubtle,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: `${t.space[3]}px`,
+                }}
+              >
+                {isEditing ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[4]}px` }}>
+                    <Field
+                      label="שם הצוות"
+                      value={editTeamName}
+                      onChangeText={setEditTeamName}
+                      placeholder="הכנס שם צוות"
+                    />
+                    <Field
+                      label="משרד ראשי / מיקום"
+                      value={editTeamOffice}
+                      onChangeText={setEditTeamOffice}
+                      placeholder="הכנס מיקום/משרד ראשי"
+                    />
 
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
-                          <Typography sx={{ fontSize: 13, fontWeight: 600, color: themeColors.textSecondary, textAlign: 'right', fontFamily: 'Rubik, sans-serif' }}>
-                            משרד ראשי / מיקום
-                          </Typography>
-                          <TextField
-                            placeholder="הכנס מיקום/משרד ראשי"
-                            value={editTeamOffice}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditTeamOffice(e.target.value)}
-                            size="small"
-                            sx={inputSx}
-                          />
-                        </Box>
-
-                        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-start' }}>
-                          <Button
-                            variant="contained"
-                            onClick={() => onSaveTeamEdit(team.id)}
-                            disabled={teamEditLoading}
-                            sx={{
-                              backgroundColor: themeColors.text,
-                              color: themeColors.background,
-                              fontWeight: 'bold',
-                              fontFamily: 'Rubik, sans-serif'
-                            }}
-                          >
-                            שמור שינויים
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            onClick={() => setEditTeamId(null)}
-                            sx={{
-                              borderColor: themeColors.backgroundSelected,
-                              color: themeColors.text,
-                              fontWeight: 'bold',
-                              fontFamily: 'Rubik, sans-serif'
-                            }}
-                          >
-                            ביטול
-                          </Button>
-                        </Box>
-                      </Box>
-                    ) : (
-                      <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-                          <Typography sx={{ fontWeight: 'bold', color: themeColors.text, fontFamily: 'Rubik, sans-serif' }}>
-                            {team.name}
-                          </Typography>
-                          {!!team.mainOffice && (
-                            <Typography variant="body2" sx={{ color: themeColors.textSecondary, fontFamily: 'Rubik, sans-serif' }}>
-                              🏢 משרד: {team.mainOffice}
-                            </Typography>
-                          )}
-                        </Box>
-
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => {
-                            setEditTeamId(team.id);
-                            setEditTeamName(team.name);
-                            setEditTeamOffice(team.mainOffice || '');
-                            setTeamEditMessage(null);
-                          }}
-                          sx={{
-                            borderColor: themeColors.backgroundSelected,
-                            color: '#007aff',
-                            fontWeight: 'bold',
-                            fontFamily: 'Rubik, sans-serif'
-                          }}
-                        >
-                          ערוך פרטים
-                        </Button>
-                      </Box>
-                    )}
+                    <Box sx={{ display: 'flex', gap: `${t.space[3]}px` }}>
+                      <Button
+                        variant="primary"
+                        onPress={() => onSaveTeamEdit(team.id)}
+                        disabled={teamEditLoading}
+                        loading={teamEditLoading}
+                      >
+                        שמור שינויים
+                      </Button>
+                      <Button variant="secondary" onPress={() => setEditTeamId(null)}>
+                        ביטול
+                      </Button>
+                    </Box>
                   </Box>
-                );
-              })}
-            </Box>
-          )}
-        </CardContent>
-      </Card>
-    </Grow>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[3]}px` }}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1]}px` }}>
+                      <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
+                        {team.name}
+                      </Typography>
+                      {!!team.mainOffice && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px` }}>
+                          <Icon name="map-pin" size="sm" tone="muted" />
+                          <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
+                            {team.mainOffice}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon="edit"
+                      onPress={() => {
+                        setEditTeamId(team.id);
+                        setEditTeamName(team.name);
+                        setEditTeamOffice(team.mainOffice || '');
+                        setTeamEditMessage(null);
+                      }}
+                    >
+                      ערוך פרטים
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+    </Card>
   );
 }

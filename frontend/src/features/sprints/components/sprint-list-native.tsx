@@ -1,26 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { View, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, type TextStyle } from 'react-native';
 import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
-import { sprintsNativeStyles } from '../styles/sprints.styles';
+import { useTheme } from '@/design/theme-context';
+import { sprintTone } from '@/design/tokens';
+import { Icon } from '@/components/ui';
 
 interface TeamSprintsManagerProps {
   team: any;
   token: string;
   isAdmin: boolean;
-  theme: {
-    text: string;
-    background: string;
-    backgroundElement: string;
-    backgroundSelected: string;
-    textSecondary: string;
-  };
   onSelectSprint: (sprint: any, team: any) => void;
 }
 
-export function TeamSprintsManagerNative({ team, token, isAdmin, theme, onSelectSprint }: TeamSprintsManagerProps) {
+type SprintState = keyof typeof sprintTone;
+
+const STATE_LABEL: Record<SprintState, string> = { active: 'פעיל', upcoming: 'עתידי', closed: 'סגור' };
+
+function getSprintState(startDateStr: string, endDateStr: string): SprintState {
+  const now = new Date();
+  const start = new Date(startDateStr);
+  const end = new Date(endDateStr);
+
+  now.setHours(0, 0, 0, 0);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  if (now >= start && now <= end) return 'active';
+  if (now < start) return 'upcoming';
+  return 'closed';
+}
+
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
+}
+
+export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint }: TeamSprintsManagerProps) {
+  const t = useTheme();
+
   const [sprints, setSprints] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -38,9 +61,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, theme, onSelect
     setIsLoading(true);
     try {
       const response = await axios.get(`${getBackendUrl()}/teams/${team.id}/sprints`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { Authorization: `Bearer ${token}` },
       });
       setSprints(response.data);
     } catch (err) {
@@ -63,16 +84,11 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, theme, onSelect
 
     setIsSubmitting(true);
     try {
-      await axios.post(`${getBackendUrl()}/teams/${team.id}/sprints`, {
-        name,
-        description: description || undefined,
-        startDate,
-        endDate
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      await axios.post(
+        `${getBackendUrl()}/teams/${team.id}/sprints`,
+        { name, description: description || undefined, startDate, endDate },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       setName('');
       setDescription('');
@@ -87,119 +103,180 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, theme, onSelect
     }
   };
 
-  const getSprintStatus = (startDateStr: string, endDateStr: string) => {
-    const now = new Date();
-    const start = new Date(startDateStr);
-    const end = new Date(endDateStr);
-    
-    now.setHours(0, 0, 0, 0);
-    start.setHours(0, 0, 0, 0);
-    end.setHours(0, 0, 0, 0);
+  const activeSprints = sprints.filter((s) => getSprintState(s.startDate, s.endDate) !== 'closed');
+  const expiredSprints = sprints.filter((s) => getSprintState(s.startDate, s.endDate) === 'closed');
 
-    if (now >= start && now <= end) {
-      return { label: 'פעיל', color: '#2e7d32', bg: 'rgba(46, 125, 50, 0.08)', isExpired: false };
-    } else if (now < start) {
-      return { label: 'עתידי', color: '#ff8f00', bg: 'rgba(255, 143, 0, 0.08)', isExpired: false };
-    } else {
-      return { label: 'סגור', color: '#757575', bg: 'rgba(117, 117, 117, 0.08)', isExpired: true };
-    }
+  const inputStyle: TextStyle = {
+    ...rnText(t.type.body),
+    height: t.layout.minTouchTarget,
+    borderWidth: 1,
+    borderRadius: t.radius.field,
+    paddingHorizontal: t.space[2],
+    textAlign: 'right',
+    color: t.color.text,
+    borderColor: t.color.border,
+    backgroundColor: t.color.surface,
   };
 
-  const activeSprints = sprints.filter(s => !getSprintStatus(s.startDate, s.endDate).isExpired);
-  const expiredSprints = sprints.filter(s => getSprintStatus(s.startDate, s.endDate).isExpired);
+  function renderSprintCard(sprint: any, muted: boolean) {
+    const state = getSprintState(sprint.startDate, sprint.endDate);
+    const statusColor = t.color.status[sprintTone[state]];
+
+    return (
+      <View
+        key={sprint.id}
+        style={{
+          backgroundColor: t.color.surface,
+          borderWidth: 1,
+          borderColor: t.color.border,
+          borderRadius: t.radius.card,
+          padding: t.space[3],
+          gap: t.space[1],
+          opacity: muted ? 0.8 : 1,
+        }}
+      >
+        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>{sprint.name}</Text>
+          <View
+            style={{
+              backgroundColor: statusColor.bg,
+              paddingHorizontal: t.space[2],
+              paddingVertical: t.space[1] / 2,
+              borderRadius: t.radius.pill,
+            }}
+          >
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: statusColor.fg }]}>
+              {STATE_LABEL[state]}
+            </Text>
+          </View>
+        </View>
+
+        {!!sprint.description && (
+          <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
+            {sprint.description}
+          </Text>
+        )}
+
+        <TouchableOpacity
+          style={{
+            backgroundColor: muted ? t.color.surfaceSubtle : t.color.accent.base,
+            borderRadius: t.radius.field,
+            paddingHorizontal: t.space[3],
+            paddingVertical: t.space[1] + 2,
+            alignSelf: 'flex-start',
+            marginTop: t.space[1],
+          }}
+          onPress={() => onSelectSprint(sprint, team)}
+        >
+          <Text
+            style={[
+              rnText({ ...t.type.caption, fontWeight: 700 }),
+              { color: muted ? t.color.text : t.color.accent.onBase },
+            ]}
+          >
+            {Strings.sprints.enterRetroButton}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
-    <View style={sprintsNativeStyles.container}>
-      <View style={sprintsNativeStyles.headerRow}>
+    <View
+      style={{
+        gap: t.space[2],
+        marginTop: t.space[2],
+        paddingTop: t.space[2],
+        borderTopWidth: 1,
+        borderTopColor: t.color.border,
+      }}
+    >
+      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
         {isAdmin && (
           <TouchableOpacity
-            style={[sprintsNativeStyles.toggleFormButton, { borderColor: theme.backgroundSelected }]}
+            style={{
+              borderWidth: 1,
+              borderColor: t.color.border,
+              borderRadius: t.radius.badge,
+              paddingHorizontal: t.space[2],
+              paddingVertical: t.space[1],
+            }}
             onPress={() => setShowCreateForm(!showCreateForm)}
           >
-            <ThemedText style={{ fontSize: 12, color: '#007aff', fontWeight: 'bold' }}>
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base }]}>
               {showCreateForm ? Strings.sprints.cancelButton : Strings.sprints.newSprintButton}
-            </ThemedText>
+            </Text>
           </TouchableOpacity>
         )}
-        <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 15, textAlign: 'right' }}>
+        <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
           {Strings.sprints.header}
-        </ThemedText>
+        </Text>
       </View>
 
       {showCreateForm && isAdmin && (
-        <View style={[sprintsNativeStyles.createForm, { borderColor: theme.backgroundSelected }]}>
-          <ThemedText type="default" style={{ fontWeight: 'bold', fontSize: 13, textAlign: 'right' }}>
+        <View
+          style={{
+            padding: t.space[3],
+            borderRadius: t.radius.card,
+            borderWidth: 1,
+            borderColor: t.color.border,
+            backgroundColor: t.color.surface,
+            gap: t.space[2],
+            marginVertical: t.space[1],
+          }}
+        >
+          <Text style={[rnText(t.type.label), { color: t.color.text, textAlign: 'right' }]}>
             {Strings.sprints.createSprintHeader}
-          </ThemedText>
+          </Text>
 
           {!!error && (
-            <View style={sprintsNativeStyles.errorBanner}>
-              <ThemedText style={sprintsNativeStyles.errorText}>{error}</ThemedText>
+            <View
+              style={{
+                backgroundColor: t.color.status.danger.bg,
+                borderWidth: 1,
+                borderColor: t.color.status.danger.border,
+                borderRadius: t.radius.field,
+                padding: t.space[2],
+              }}
+            >
+              <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+                {error}
+              </Text>
             </View>
           )}
 
           <TextInput
-            style={[
-              sprintsNativeStyles.input,
-              {
-                color: theme.text,
-                borderColor: theme.backgroundSelected,
-                backgroundColor: theme.background,
-              },
-            ]}
+            style={inputStyle}
             placeholder={Strings.sprints.sprintNamePlaceholder}
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={t.color.textSecondary}
             value={name}
             onChangeText={setName}
             textAlign="right"
           />
 
           <TextInput
-            style={[
-              sprintsNativeStyles.input,
-              {
-                color: theme.text,
-                borderColor: theme.backgroundSelected,
-                backgroundColor: theme.background,
-              },
-            ]}
+            style={inputStyle}
             placeholder={Strings.sprints.descriptionPlaceholder}
-            placeholderTextColor={theme.textSecondary}
+            placeholderTextColor={t.color.textSecondary}
             value={description}
             onChangeText={setDescription}
             textAlign="right"
           />
 
-          <View style={sprintsNativeStyles.datesRow}>
+          <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
             <TextInput
-              style={[
-                sprintsNativeStyles.input,
-                sprintsNativeStyles.halfInput,
-                {
-                  color: theme.text,
-                  borderColor: theme.backgroundSelected,
-                  backgroundColor: theme.background,
-                },
-              ]}
-              placeholder="תאריך התחלה"
-              placeholderTextColor={theme.textSecondary}
+              style={[inputStyle, { flex: 1 }]}
+              placeholder={Strings.sprints.startDateLabel}
+              placeholderTextColor={t.color.textSecondary}
               value={startDate}
               onChangeText={setStartDate}
               textAlign="right"
             />
 
             <TextInput
-              style={[
-                sprintsNativeStyles.input,
-                sprintsNativeStyles.halfInput,
-                {
-                  color: theme.text,
-                  borderColor: theme.backgroundSelected,
-                  backgroundColor: theme.background,
-                },
-              ]}
-              placeholder="תאריך סיום"
-              placeholderTextColor={theme.textSecondary}
+              style={[inputStyle, { flex: 1 }]}
+              placeholder={Strings.sprints.endDateLabel}
+              placeholderTextColor={t.color.textSecondary}
               value={endDate}
               onChangeText={setEndDate}
               textAlign="right"
@@ -207,118 +284,53 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, theme, onSelect
           </View>
 
           <TouchableOpacity
-            style={[sprintsNativeStyles.submitButton, { backgroundColor: theme.text }]}
+            style={{
+              backgroundColor: t.color.accent.base,
+              borderRadius: t.radius.field,
+              height: t.layout.minTouchTarget,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
             onPress={handleCreateSprint}
             disabled={isSubmitting}
           >
             {isSubmitting ? (
-              <ActivityIndicator color={theme.background} size="small" />
+              <ActivityIndicator color={t.color.accent.onBase} size="small" />
             ) : (
-              <ThemedText style={{ fontWeight: 'bold', color: theme.background, fontSize: 13 }}>
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
                 {Strings.sprints.openRetroButton}
-              </ThemedText>
+              </Text>
             )}
           </TouchableOpacity>
         </View>
       )}
 
       {isLoading ? (
-        <ActivityIndicator size="small" color={theme.text} />
+        <ActivityIndicator size="small" color={t.color.accent.base} />
       ) : activeSprints.length === 0 && expiredSprints.length === 0 ? (
-        <ThemedText style={{ fontSize: 12, opacity: 0.7, textAlign: 'right' }}>
+        <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
           {isAdmin ? Strings.sprints.noSprintsTextAdmin : Strings.sprints.noSprintsTextMember}
-        </ThemedText>
+        </Text>
       ) : (
-        <View style={sprintsNativeStyles.sprintsList}>
-          {activeSprints.map((sprint) => {
-            const status = getSprintStatus(sprint.startDate, sprint.endDate);
-
-            return (
-              <View
-                key={sprint.id}
-                style={[
-                  sprintsNativeStyles.sprintCard,
-                  { backgroundColor: theme.background, borderColor: theme.backgroundSelected }
-                ]}
-              >
-                <View style={sprintsNativeStyles.sprintCardHeader}>
-                  <ThemedText style={{ fontWeight: 'bold', fontSize: 14 }}>{sprint.name}</ThemedText>
-                  <View style={[sprintsNativeStyles.statusBadge, { backgroundColor: status.bg }]}>
-                    <ThemedText style={{ color: status.color, fontSize: 11, fontWeight: 'bold' }}>
-                      {status.label}
-                    </ThemedText>
-                  </View>
-                </View>
-
-                {!!sprint.description && (
-                  <ThemedText style={{ fontSize: 12, opacity: 0.7, textAlign: 'right' }}>
-                    {sprint.description}
-                  </ThemedText>
-                )}
-
-                <TouchableOpacity
-                  style={[sprintsNativeStyles.enterButton, { backgroundColor: theme.text }]}
-                  onPress={() => onSelectSprint(sprint, team)}
-                >
-                  <ThemedText style={{ color: theme.background, fontSize: 12, fontWeight: 'bold' }}>
-                    {Strings.sprints.enterRetroButton}
-                  </ThemedText>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
+        <View style={{ gap: t.space[2] }}>
+          {activeSprints.map((sprint) => renderSprintCard(sprint, false))}
 
           {expiredSprints.length > 0 && (
-            <View style={{ marginTop: 8 }}>
+            <View style={{ marginTop: t.space[2] }}>
               <TouchableOpacity
                 testID="toggle-expired-sprints"
                 onPress={() => setIsExpiredExpanded(!isExpiredExpanded)}
-                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 6, paddingVertical: 4 }}
+                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1] + 2, paddingVertical: t.space[1] }}
               >
-                <ThemedText style={{ fontSize: 13, fontWeight: 'bold', color: theme.textSecondary }}>
-                  {`${isExpiredExpanded ? '▼' : '◄'} ספרינטים קודמים שנסגרו (${expiredSprints.length})`}
-                </ThemedText>
+                <Icon name="chevron-down" size="sm" tone="muted" rotate={isExpiredExpanded ? 180 : 0} />
+                <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.textSecondary }]}>
+                  {`ספרינטים קודמים שנסגרו (${expiredSprints.length})`}
+                </Text>
               </TouchableOpacity>
 
               {isExpiredExpanded && (
-                <View style={[sprintsNativeStyles.sprintsList, { marginTop: 8 }]}>
-                  {expiredSprints.map((sprint) => {
-                    const status = getSprintStatus(sprint.startDate, sprint.endDate);
-
-                    return (
-                      <View
-                        key={sprint.id}
-                        style={[
-                          sprintsNativeStyles.sprintCard,
-                          { backgroundColor: theme.background, borderColor: theme.backgroundSelected, opacity: 0.8 }
-                        ]}
-                      >
-                        <View style={sprintsNativeStyles.sprintCardHeader}>
-                          <ThemedText style={{ fontWeight: 'bold', fontSize: 14 }}>{sprint.name}</ThemedText>
-                          <View style={[sprintsNativeStyles.statusBadge, { backgroundColor: status.bg }]}>
-                            <ThemedText style={{ color: status.color, fontSize: 11, fontWeight: 'bold' }}>
-                              {status.label}
-                            </ThemedText>
-                          </View>
-                        </View>
-
-                        {!!sprint.description && (
-                          <ThemedText style={{ fontSize: 12, opacity: 0.7, textAlign: 'right' }}>
-                            {sprint.description}
-                          </ThemedText>
-                        )}
-
-                        <TouchableOpacity
-                          style={[sprintsNativeStyles.enterButton, { backgroundColor: theme.backgroundSelected }]}
-                          onPress={() => onSelectSprint(sprint, team)}
-                        >
-                          <ThemedText style={{ color: theme.text, fontSize: 12, fontWeight: 'bold' }}>
-                            {Strings.sprints.enterRetroButton}
-                          </ThemedText>
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
+                <View style={{ gap: t.space[2], marginTop: t.space[2] }}>
+                  {expiredSprints.map((sprint) => renderSprintCard(sprint, true))}
                 </View>
               )}
             </View>

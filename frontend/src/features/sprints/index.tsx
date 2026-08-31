@@ -6,13 +6,6 @@ interface TeamSprintsManagerProps {
   team: any;
   token: string;
   isAdmin: boolean;
-  theme: {
-    text: string;
-    background: string;
-    backgroundElement: string;
-    backgroundSelected: string;
-    textSecondary: string;
-  };
   onSelectSprint: (sprint: any, team: any) => void;
 }
 

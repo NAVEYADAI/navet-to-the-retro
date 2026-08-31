@@ -1,9 +1,10 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
+import { useTheme } from '@/design/theme-context';
+import { Strings } from '@/constants/strings';
 import { PendingMembershipCard } from './pending-membership-card';
 import { PendingApprovalCard } from './pending-approval-card';
 import { TeamCard } from './team-card';
-import type { TeamListTheme } from '@/features/teams/types';
 
 interface TeamListProps {
   teams: any[];
@@ -11,21 +12,21 @@ interface TeamListProps {
   userId: number;
   onAddMemberSuccess: () => void;
   onSelectSprint: (sprint: any, team: any) => void;
-  theme: TeamListTheme;
 }
 
-export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelectSprint, theme }: TeamListProps) {
+export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelectSprint }: TeamListProps) {
+  const t = useTheme();
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Typography variant="h5" sx={{ fontWeight: 'bold', color: theme.text, textAlign: 'right', fontFamily: 'Rubik, sans-serif' }}>
-        הצוותים שלי
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
+      <Typography sx={{ ...t.type.sectionTitle, color: t.color.text, textAlign: 'start' }}>
+        {Strings.teamList.myTeamsHeader}
       </Typography>
 
-      {teams.map((team, index) => {
+      {teams.map((team) => {
         const isPending = team.status === 'PENDING_APPROVAL';
         const isMyApproval = isPending && team.pendingApproverId === userId;
         const isMyPendingMembership = team.myMembershipStatus === 'PENDING';
-        const animationDelay = index * 120;
 
         if (isMyPendingMembership) {
           return (
@@ -34,8 +35,6 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
               team={team}
               token={token}
               onResolved={onAddMemberSuccess}
-              theme={theme}
-              animationDelay={animationDelay}
             />
           );
         }
@@ -47,8 +46,6 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
               team={team}
               token={token}
               onResolved={onAddMemberSuccess}
-              theme={theme}
-              animationDelay={animationDelay}
             />
           );
         }
@@ -61,8 +58,6 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
             userId={userId}
             onAddMemberSuccess={onAddMemberSuccess}
             onSelectSprint={onSelectSprint}
-            theme={theme}
-            animationDelay={animationDelay}
           />
         );
       })}

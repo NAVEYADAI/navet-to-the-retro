@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { View, Text, TouchableOpacity, ActivityIndicator, Switch, type TextStyle } from 'react-native';
 import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
-import { nativeStyles } from './styles';
-import { roles, getRoleLabel } from './roles';
-import type { TeamListTheme } from '@/features/teams/types';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
+import { getRoleLabel } from './roles';
+import { ROLES } from '@/constants/roles';
 
 interface TeamMemberRowProps {
   member: any;
@@ -16,10 +15,19 @@ interface TeamMemberRowProps {
   isTeamAdmin: boolean;
   isMe: boolean;
   onChanged: () => void;
-  theme: TeamListTheme;
 }
 
-export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChanged, theme }: TeamMemberRowProps) {
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
+}
+
+export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChanged }: TeamMemberRowProps) {
+  const t = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [editRole, setEditRole] = useState(member.role);
   const [editIsAdmin, setEditIsAdmin] = useState(member.isAdmin);
@@ -70,119 +78,263 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
     }
   };
 
+  const fullName = member.user?.firstName || member.user?.lastName
+    ? `${member.user?.firstName || ''} ${member.user?.lastName || ''}`.trim()
+    : `@${member.user?.username || ''}`;
+  const roleBadgeLabel = getRoleLabel(member.role);
+  const currentRoleIcon = ROLES.find((r) => r.value === member.role)?.icon;
+
   if (isEditing) {
     return (
-      <View style={nativeStyles.memberListItem}>
-        <View style={nativeStyles.editMemberPane}>
-          <ThemedText style={{ fontSize: 13, fontWeight: 'bold', textAlign: 'right' }}>
-            {Strings.teamList.editMemberHeader(member.user?.username)}
-          </ThemedText>
+      <View
+        style={{
+          padding: t.space[3],
+          borderRadius: t.radius.card,
+          backgroundColor: t.color.surfaceSubtle,
+          gap: t.space[2],
+        }}
+      >
+        <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
+          {Strings.teamList.editMemberHeader(member.user?.username)}
+        </Text>
 
-          {!!editError && (
-            <View style={nativeStyles.errorBannerInline}>
-              <ThemedText style={nativeStyles.errorTextInline}>{editError}</ThemedText>
-            </View>
-          )}
-
-          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6 }}>
-            {roles.map((r) => {
-              const selected = editRole === r.value;
-              return (
-                <TouchableOpacity
-                  key={r.value}
-                  style={[
-                    nativeStyles.roleOptionBtn,
-                    { backgroundColor: selected ? theme.backgroundSelected : theme.background }
-                  ]}
-                  onPress={() => setEditRole(r.value)}
-                >
-                  <ThemedText style={{ fontSize: 11, fontWeight: selected ? 'bold' : 'normal' }}>
-                    {r.label}
-                  </ThemedText>
-                </TouchableOpacity>
-              );
-            })}
+        {!!editError && (
+          <View
+            style={{
+              backgroundColor: t.color.status.danger.bg,
+              borderWidth: 1,
+              borderColor: t.color.status.danger.border,
+              borderRadius: t.radius.field,
+              padding: t.space[2],
+            }}
+          >
+            <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+              {editError}
+            </Text>
           </View>
+        )}
 
-          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.two, marginTop: 4 }}>
-            <ThemedText style={{ fontSize: 12 }}>{Strings.teamList.teamAdminPrivileges}</ThemedText>
-            <Switch
-              value={editIsAdmin}
-              onValueChange={setEditIsAdmin}
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={editIsAdmin ? '#f5dd4b' : '#f4f3f4'}
-            />
-          </View>
+        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[1] + 2 }}>
+          {ROLES.map((r) => {
+            const selected = editRole === r.value;
+            return (
+              <TouchableOpacity
+                key={r.value}
+                style={{
+                  flexDirection: 'row-reverse',
+                  alignItems: 'center',
+                  gap: t.space[1],
+                  paddingHorizontal: t.space[3],
+                  paddingVertical: t.space[1] + 3,
+                  borderRadius: t.radius.pill,
+                  borderWidth: 1.5,
+                  borderColor: selected ? t.color.accent.base : t.color.border,
+                  backgroundColor: selected ? t.color.accent.subtle : t.color.surface,
+                }}
+                onPress={() => setEditRole(r.value)}
+              >
+                <Icon name={r.icon} size="sm" tone={selected ? 'accent' : 'muted'} />
+                <Text style={[rnText({ ...t.type.caption, fontWeight: selected ? 700 : 500 }), { color: selected ? t.color.accent.base : t.color.textSecondary }]}>
+                  {r.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-          <View style={{ flexDirection: 'row-reverse', gap: Spacing.two, marginTop: 6 }}>
-            <TouchableOpacity
-              style={[nativeStyles.actionSaveBtn, { backgroundColor: theme.text }]}
-              onPress={handleSaveEdit}
-              disabled={editLoading}
-            >
-              {editLoading ? (
-                <ActivityIndicator size="small" color={theme.background} />
-              ) : (
-                <ThemedText style={{ color: theme.background, fontSize: 12, fontWeight: 'bold' }}>
-                  {Strings.teamList.saveButton}
-                </ThemedText>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[nativeStyles.actionCancelBtn, { backgroundColor: theme.backgroundSelected }]}
-              onPress={() => setIsEditing(false)}
-            >
-              <ThemedText style={{ fontSize: 12 }}>{Strings.teamList.cancelButton}</ThemedText>
-            </TouchableOpacity>
-          </View>
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2] }}>
+          <Text style={[rnText(t.type.body), { color: t.color.text }]}>{Strings.teamList.teamAdminPrivileges}</Text>
+          <Switch
+            value={editIsAdmin}
+            onValueChange={setEditIsAdmin}
+            trackColor={{ false: t.color.border, true: t.color.accent.border }}
+            thumbColor={editIsAdmin ? t.color.accent.base : t.color.surface}
+          />
+        </View>
+
+        <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
+          <TouchableOpacity
+            style={{
+              backgroundColor: t.color.accent.base,
+              borderRadius: t.radius.field,
+              minHeight: t.layout.minTouchTarget,
+              paddingHorizontal: t.space[4],
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onPress={handleSaveEdit}
+            disabled={editLoading}
+          >
+            {editLoading ? (
+              <ActivityIndicator size="small" color={t.color.accent.onBase} />
+            ) : (
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+                {Strings.teamList.saveButton}
+              </Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              backgroundColor: t.color.surface,
+              borderWidth: 1,
+              borderColor: t.color.border,
+              borderRadius: t.radius.field,
+              minHeight: t.layout.minTouchTarget,
+              paddingHorizontal: t.space[4],
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onPress={() => setIsEditing(false)}
+          >
+            <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
+              {Strings.teamList.cancelButton}
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={nativeStyles.memberListItem}>
+    <View
+      style={{
+        padding: t.space[3],
+        borderRadius: t.radius.card,
+        backgroundColor: t.color.surface,
+        borderWidth: 1,
+        borderColor: t.color.border,
+        gap: t.space[2],
+      }}
+    >
       {!!removeError && (
-        <View style={nativeStyles.errorBannerInline}>
-          <ThemedText style={nativeStyles.errorTextInline}>{removeError}</ThemedText>
+        <View
+          style={{
+            backgroundColor: t.color.status.danger.bg,
+            borderWidth: 1,
+            borderColor: t.color.status.danger.border,
+            borderRadius: t.radius.field,
+            padding: t.space[2],
+          }}
+        >
+          <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+            {removeError}
+          </Text>
         </View>
       )}
-      <View style={nativeStyles.memberRowContent}>
-        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.two, flex: 1 }}>
-          <ThemedText type="default" style={{ fontWeight: '500' }}>
-            {member.user?.firstName || member.user?.username} {member.user?.lastName || ''} (@{member.user?.username})
-          </ThemedText>
-          <ThemedText type="small" style={{ opacity: 0.7 }}>
-            {Strings.teamList.roleLabel(getRoleLabel(member.role), member.isAdmin)}
-          </ThemedText>
+
+      <View
+        style={{
+          flexDirection: 'row-reverse',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: t.space[2],
+          flexWrap: 'wrap',
+        }}
+      >
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2], flexWrap: 'wrap', flexShrink: 1 }}>
+          <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
+            {fullName}
+          </Text>
           {member.status === 'PENDING' && (
-            <ThemedText type="small" style={{ opacity: 0.7, color: '#6366f1', fontWeight: 'bold' }}>
-              {Strings.teamList.pendingMemberBadge}
-            </ThemedText>
+            <View
+              style={{
+                backgroundColor: t.color.accent.subtle,
+                borderWidth: 1,
+                borderColor: t.color.accent.border,
+                borderRadius: t.radius.badge,
+                paddingHorizontal: t.space[2],
+                paddingVertical: 2,
+              }}
+            >
+              <Text style={[rnText({ ...t.type.caption, fontWeight: 600 }), { color: t.color.accent.base }]}>
+                {Strings.teamList.pendingMemberBadge}
+              </Text>
+            </View>
           )}
         </View>
 
-        {isTeamAdmin && !isMe && (
-          <View style={{ flexDirection: 'row-reverse', gap: 6 }}>
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2], flexWrap: 'wrap' }}>
+          {member.isAdmin && (
+            <View
+              style={{
+                backgroundColor: t.color.surfaceSubtle,
+                borderWidth: 1,
+                borderColor: t.color.border,
+                borderRadius: t.radius.badge,
+                paddingHorizontal: t.space[2],
+                paddingVertical: 2,
+              }}
+            >
+              <Text style={[rnText({ ...t.type.caption, fontWeight: 600 }), { color: t.color.textSecondary }]}>
+                {Strings.teamList.adminBadge}
+              </Text>
+            </View>
+          )}
+
+          <View
+            style={{
+              flexDirection: 'row-reverse',
+              alignItems: 'center',
+              gap: t.space[1],
+              backgroundColor: t.color.accent.subtle,
+              borderWidth: 1.5,
+              borderColor: t.color.accent.base,
+              borderRadius: t.radius.pill,
+              paddingHorizontal: t.space[3],
+              paddingVertical: t.space[1],
+            }}
+          >
+            {currentRoleIcon ? <Icon name={currentRoleIcon} size="sm" tone="accent" /> : null}
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base }]}>
+              {roleBadgeLabel}
+            </Text>
+          </View>
+
+          {isTeamAdmin && (
             <TouchableOpacity
-              style={[nativeStyles.editBtn, { backgroundColor: theme.backgroundSelected }]}
+              style={{
+                flexDirection: 'row-reverse',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: t.space[2],
+                paddingVertical: t.space[1],
+                borderRadius: t.radius.field,
+              }}
               onPress={startEdit}
             >
-              <ThemedText style={{ fontSize: 11, fontWeight: 'bold' }}>עריכה ✏️</ThemedText>
+              <Icon name="edit" size="sm" />
+              <Text style={[rnText({ ...t.type.caption, fontWeight: 600 }), { color: t.color.text }]}>
+                ערוך
+              </Text>
             </TouchableOpacity>
+          )}
+          {isTeamAdmin && (
             <TouchableOpacity
-              style={[nativeStyles.editBtn, { backgroundColor: '#ffebee' }]}
+              style={{
+                flexDirection: 'row-reverse',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: t.space[2],
+                paddingVertical: t.space[1],
+                borderRadius: t.radius.field,
+                backgroundColor: isMe ? t.color.surfaceSubtle : t.color.status.danger.bg,
+              }}
               onPress={handleRemove}
-              disabled={isRemoving}
+              disabled={isMe || isRemoving}
             >
               {isRemoving ? (
-                <ActivityIndicator size="small" color="#c62828" />
+                <ActivityIndicator size="small" color={t.color.status.danger.fg} />
               ) : (
-                <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: '#c62828' }}>הסר 🗑️</ThemedText>
+                <>
+                  <Icon name="trash" size="sm" tone={isMe ? 'muted' : 'danger'} />
+                  <Text style={[rnText({ ...t.type.caption, fontWeight: 600 }), { color: isMe ? t.color.textMuted : t.color.status.danger.fg }]}>
+                    הסר
+                  </Text>
+                </>
               )}
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </View>
       </View>
     </View>
   );

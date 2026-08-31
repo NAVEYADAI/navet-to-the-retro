@@ -7,22 +7,22 @@ import {
   Grid,
   Card,
   CardContent,
-  Button,
   Alert,
   Fade,
   Grow,
 } from '@mui/material';
+import { Button } from '@/components/ui';
 import { CreateTeamForm } from '@/features/teams';
-import { ProfileFormCard, AdminTeamsCard } from '@/features/settings';
+import { ProfileFormCard, AppearanceCard, AdminTeamsCard } from '@/features/settings';
 import { useProfileForm } from '@/features/settings/hooks/use-profile-form';
 import { useTeamsAdmin } from '@/features/settings/hooks/use-teams-admin';
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/design/theme-context';
 import { useAuth } from '@/context/auth-context';
 
 export default function SettingsScreen() {
-  const colorScheme = useColorScheme();
-  const themeColors = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
+  const t = useTheme();
+  const themeColors = Colors[t.mode];
   const { user, token, login } = useAuth();
 
   const {
@@ -50,7 +50,7 @@ export default function SettingsScreen() {
 
   if (!user) return null;
 
-  const isDark = colorScheme === 'dark';
+  const isDark = t.mode === 'dark';
   const accent = isDark ? '#818cf8' : '#6366f1';
 
   const cardSx = {
@@ -72,20 +72,18 @@ export default function SettingsScreen() {
   return (
     <Box sx={{
       minHeight: '100vh',
-      background: isDark
-        ? 'radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.04) 0%, transparent 50%), #0a0a0f'
-        : 'radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.04) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.03) 0%, transparent 50%), #fafbff',
-      pt: { xs: 13, md: 12 },
-      pb: 6,
+      backgroundColor: t.color.bg,
+      pt: `${t.space[6]}px`,
+      pb: `${t.space[6]}px`,
       direction: 'rtl',
     }}>
-      <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, mx: 'auto' }}>
+      <Container maxWidth={false} sx={{ maxWidth: `${t.layout.container}px`, px: { xs: 2, sm: 3 }, mx: 'auto' }}>
         {/* Header section (Responsive RTL) */}
         <Fade in={true} timeout={500}>
           <Box
             sx={{
               display: 'flex',
-              flexDirection: { xs: 'column-reverse', sm: 'row-reverse' },
+              flexDirection: { xs: 'column-reverse', sm: 'row' },
               justifyContent: 'space-between',
               alignItems: { xs: 'flex-start', sm: 'center' },
               gap: { xs: 2.5, sm: 2 },
@@ -120,33 +118,7 @@ export default function SettingsScreen() {
               </Typography>
             </Box>
 
-            <Button
-              variant="outlined"
-              onClick={() => router.push('/')}
-              sx={{
-                alignSelf: { xs: 'flex-start', sm: 'center' },
-                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
-                color: themeColors.text,
-                fontWeight: 700,
-                fontFamily: 'Rubik, sans-serif',
-                textTransform: 'none',
-                borderRadius: '14px',
-                px: 3,
-                py: 1,
-                whiteSpace: 'nowrap',
-                backdropFilter: 'blur(8px)',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                transition: 'all 0.25s ease',
-                '&:hover': {
-                  borderColor: accent,
-                  backgroundColor: `${accent}12`,
-                  color: accent,
-                  transform: 'translateY(-1px)',
-                  boxShadow: `0 4px 14px ${accent}25`,
-                },
-              }}
-            >
+            <Button variant="secondary" onPress={() => router.push('/')}>
               ← חזרה לראשי
             </Button>
           </Box>
@@ -157,20 +129,20 @@ export default function SettingsScreen() {
           
           {/* Left Column: Personal details */}
           <Grid size={{ xs: 12, md: 6 }}>
-            <ProfileFormCard
-              firstName={firstName}
-              setFirstName={setFirstName}
-              lastName={lastName}
-              setLastName={setLastName}
-              email={email}
-              setEmail={setEmail}
-              profileLoading={profileLoading}
-              profileMessage={profileMessage}
-              onUpdateProfile={handleUpdateProfile}
-              isDark={isDark}
-              accent={accent}
-              themeColors={themeColors}
-            />
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <ProfileFormCard
+                firstName={firstName}
+                setFirstName={setFirstName}
+                lastName={lastName}
+                setLastName={setLastName}
+                email={email}
+                setEmail={setEmail}
+                profileLoading={profileLoading}
+                profileMessage={profileMessage}
+                onUpdateProfile={handleUpdateProfile}
+              />
+              <AppearanceCard />
+            </Box>
           </Grid>
 
           {/* Right Column: Create Team */}
@@ -219,8 +191,6 @@ export default function SettingsScreen() {
               teamEditMessage={teamEditMessage}
               setTeamEditMessage={setTeamEditMessage}
               onSaveTeamEdit={handleSaveTeamEdit}
-              isDark={isDark}
-              themeColors={themeColors}
             />
           </Grid>
 

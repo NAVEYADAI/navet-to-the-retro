@@ -19,7 +19,6 @@ export default function InvitePage() {
   const { token: authToken } = useAuth();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
-  const isDark = colorScheme === 'dark';
 
   const [status, setStatus] = useState<Status>('loading');
   const [inviteInfo, setInviteInfo] = useState<{ teamName: string; email: string | null } | null>(null);
@@ -110,9 +109,6 @@ export default function InvitePage() {
         </ThemedText>
       </View>
       <AuthForm
-        isDark={isDark}
-        theme={theme}
-        colorScheme={colorScheme === 'unspecified' ? 'light' : colorScheme}
         initialEmail={inviteInfo?.email || undefined}
       />
     </View>

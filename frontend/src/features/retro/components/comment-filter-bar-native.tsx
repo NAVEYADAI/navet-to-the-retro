@@ -1,25 +1,27 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, Modal, FlatList, useColorScheme as useRNColorScheme } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { View, Text, TextInput, TouchableOpacity, Modal, FlatList, type TextStyle } from 'react-native';
 import { Strings } from '@/constants/strings';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
 
 interface CommentFilterBarNativeProps {
   categories: string[];
   onCategoriesChange: (values: string[]) => void;
   searchText: string;
   onSearchTextChange: (value: string) => void;
-  theme: {
-    text: string;
-    background: string;
-    backgroundElement: string;
-    backgroundSelected: string;
-    textSecondary: string;
+}
+
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
   };
 }
 
-export function CommentFilterBarNative({ categories, onCategoriesChange, searchText, onSearchTextChange, theme }: CommentFilterBarNativeProps) {
-  const colorScheme = useRNColorScheme();
+export function CommentFilterBarNative({ categories, onCategoriesChange, searchText, onSearchTextChange }: CommentFilterBarNativeProps) {
+  const t = useTheme();
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
   const isFilterActive = categories.length > 0 || !!searchText.trim();
 
@@ -30,57 +32,59 @@ export function CommentFilterBarNative({ categories, onCategoriesChange, searchT
   };
 
   return (
-    <View style={{ gap: Spacing.two }}>
-      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: Spacing.two }}>
+    <View style={{ gap: t.space[2] }}>
+      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2] }}>
         <TouchableOpacity
           onPress={() => setIsCategoryPickerOpen(true)}
           activeOpacity={0.8}
           style={{
-            paddingVertical: 8,
-            paddingHorizontal: 14,
-            borderRadius: 999,
-            borderTopRightRadius: 4,
-            backgroundColor: categories.length > 0
-              ? (colorScheme === 'dark' ? 'rgba(129,140,248,0.16)' : 'rgba(99,102,241,0.1)')
-              : theme.backgroundSelected,
+            paddingVertical: t.space[2],
+            paddingHorizontal: t.space[3] + 2,
+            borderRadius: t.radius.pill,
+            backgroundColor: categories.length > 0 ? t.color.accent.subtle : t.color.surfaceSubtle,
           }}
         >
-          <ThemedText style={{
-            fontSize: 13,
-            fontWeight: categories.length > 0 ? '700' : '400',
-            color: categories.length > 0 ? (colorScheme === 'dark' ? '#818cf8' : '#6366f1') : theme.textSecondary,
-          }}>
+          <Text style={[
+            rnText({ ...t.type.label, fontWeight: categories.length > 0 ? 700 : 400 }),
+            { color: categories.length > 0 ? t.color.accent.base : t.color.textSecondary },
+          ]}>
             {categories.length > 0
               ? Strings.retroBoard.categoriesSelectedLabel(categories.length)
               : Strings.retroBoard.filterAllCategoriesLabel}
-          </ThemedText>
+          </Text>
         </TouchableOpacity>
 
         <TextInput
-          style={{
-            flex: 1,
-            height: 40,
-            borderWidth: 1,
-            borderRadius: 8,
-            paddingHorizontal: Spacing.two,
-            fontSize: 13,
-            textAlign: 'right',
-            color: theme.text,
-            borderColor: theme.backgroundSelected,
-            backgroundColor: theme.background,
-          }}
+          style={[
+            rnText(t.type.label),
+            {
+              flex: 1,
+              height: t.layout.minTouchTarget,
+              borderWidth: 1,
+              borderRadius: t.radius.field,
+              paddingHorizontal: t.space[2],
+              textAlign: 'right',
+              color: t.color.text,
+              borderColor: t.color.border,
+              backgroundColor: t.color.surface,
+            },
+          ]}
           placeholder={Strings.retroBoard.searchPlaceholder}
-          placeholderTextColor={theme.textSecondary}
+          placeholderTextColor={t.color.textMuted}
           value={searchText}
           onChangeText={onSearchTextChange}
         />
       </View>
 
       {isFilterActive && (
-        <TouchableOpacity onPress={() => { onCategoriesChange([]); onSearchTextChange(''); }} style={{ alignSelf: 'flex-end' }}>
-          <ThemedText style={{ fontSize: 12, fontWeight: 'bold', color: theme.textSecondary }}>
+        <TouchableOpacity
+          onPress={() => { onCategoriesChange([]); onSearchTextChange(''); }}
+          style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, alignSelf: 'flex-end' }}
+        >
+          <Icon name="x" size="sm" tone="muted" />
+          <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.textSecondary }]}>
             {Strings.retroBoard.clearFiltersLabel}
-          </ThemedText>
+          </Text>
         </TouchableOpacity>
       )}
 
@@ -91,22 +95,36 @@ export function CommentFilterBarNative({ categories, onCategoriesChange, searchT
         onRequestClose={() => setIsCategoryPickerOpen(false)}
       >
         <TouchableOpacity
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+          style={{ flex: 1, backgroundColor: t.color.overlay, justifyContent: 'flex-end' }}
           activeOpacity={1}
           onPress={() => setIsCategoryPickerOpen(false)}
         >
           <TouchableOpacity
             activeOpacity={1}
-            style={{ backgroundColor: theme.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '70%', paddingVertical: 8 }}
+            style={{
+              backgroundColor: t.color.surface,
+              borderTopLeftRadius: t.radius.card + 8,
+              borderTopRightRadius: t.radius.card + 8,
+              maxHeight: '70%',
+              paddingVertical: t.space[2],
+            }}
           >
-            <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10 }}>
-              <ThemedText style={{ fontSize: 14, fontWeight: 'bold' }}>
+            <View
+              style={{
+                flexDirection: 'row-reverse',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingHorizontal: t.space[5],
+                paddingVertical: t.space[2] + 2,
+              }}
+            >
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
                 {Strings.retroBoard.filterSectionLabel}
-              </ThemedText>
+              </Text>
               <TouchableOpacity onPress={() => setIsCategoryPickerOpen(false)}>
-                <ThemedText style={{ fontSize: 13, fontWeight: 'bold', color: colorScheme === 'dark' ? '#818cf8' : '#6366f1' }}>
+                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.accent.base }]}>
                   {Strings.teamList.saveButton}
-                </ThemedText>
+                </Text>
               </TouchableOpacity>
             </View>
             <FlatList
@@ -121,17 +139,18 @@ export function CommentFilterBarNative({ categories, onCategoriesChange, searchT
                       flexDirection: 'row-reverse',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      paddingVertical: 14,
-                      paddingHorizontal: 20,
-                      backgroundColor: isSelected ? theme.backgroundSelected : 'transparent',
+                      paddingVertical: t.space[3] + 2,
+                      paddingHorizontal: t.space[5],
+                      backgroundColor: isSelected ? t.color.surfaceSubtle : 'transparent',
                     }}
                   >
-                    <ThemedText style={{ fontSize: 15, textAlign: 'right', fontWeight: isSelected ? 'bold' : 'normal' }}>
+                    <Text style={[
+                      rnText({ ...t.type.body, fontWeight: isSelected ? 700 : 400 }),
+                      { color: t.color.text, textAlign: 'right' },
+                    ]}>
                       {label}
-                    </ThemedText>
-                    {isSelected && (
-                      <ThemedText style={{ fontSize: 15, color: colorScheme === 'dark' ? '#818cf8' : '#6366f1' }}>✓</ThemedText>
-                    )}
+                    </Text>
+                    {isSelected && <Icon name="check" size="sm" tone="accent" />}
                   </TouchableOpacity>
                 );
               }}

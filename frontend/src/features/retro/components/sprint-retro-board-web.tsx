@@ -1,45 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Strings } from '@/constants/strings';
 import axios from 'axios';
+import { Box, Typography, Alert } from '@mui/material';
+import { Strings } from '@/constants/strings';
 import { getBackendUrl } from '@/api/config';
+import { useTheme } from '@/design/theme-context';
+import { Page, PageHeader, Grid, Card, Button, Field, Segmented, Icon } from '@/components/ui';
 import { CommentCardWeb } from './comment-card-web';
 import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
-import {
-  Box,
-  Container,
-  Typography,
-  Button,
-  Card,
-  CardContent,
-  TextField,
-  CircularProgress,
-  Alert,
-  Grid,
-  Grow,
-  Fade,
-  MenuItem,
-  Menu,
-} from '@mui/material';
 
-interface SprintRetroBoardProps {
+interface SprintRetroBoardWebProps {
   sprint: any;
   team: any;
   token: string;
   user: any;
-  theme: {
-    text: string;
-    background: string;
-    backgroundElement: string;
-    backgroundSelected: string;
-    textSecondary: string;
-  };
   onBack: () => void;
 }
 
-export function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }: SprintRetroBoardProps) {
+export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: SprintRetroBoardWebProps) {
+  const t = useTheme();
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -47,7 +26,6 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }
   const [content, setContent] = useState('');
   const [type, setType] = useState<'KEEP' | 'IMPROVE'>('KEEP');
   const [category, setCategory] = useState('');
-  const [categoryMenuAnchor, setCategoryMenuAnchor] = useState<HTMLElement | null>(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,424 +97,169 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, theme, onBack }
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
   const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
 
-  const isDark = useRNColorScheme() === 'dark';
-  const accent = isDark ? '#818cf8' : '#6366f1';
-  const typeColor = type === 'KEEP' ? '#00e676' : '#ff1744';
-  const boardCardSx = {
-    backgroundColor: isDark ? 'rgba(15,15,24,0.6)' : 'rgba(255,255,255,0.8)',
-    backdropFilter: 'blur(12px)',
-    border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-    borderRadius: '20px',
-    boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.3)' : '0 8px 32px rgba(0,0,0,0.04)',
-    mb: 2,
-  };
+  const categoryOptions = [
+    { value: '', label: Strings.retroBoard.categoryNone },
+    ...Object.entries(Strings.retroBoard.categories).map(([value, label]) => ({ value, label })),
+  ];
 
   return (
-    <Box sx={{
-      minHeight: '100vh',
-      background: isDark
-        ? 'radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.04) 0%, transparent 50%), #0a0a0f'
-        : 'radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.04) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.03) 0%, transparent 50%), #fafbff',
-      pt: { xs: 13, md: 12 },
-      pb: 6,
-      direction: 'rtl',
-    }}>
-      <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, mx: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
-        
-        {/* Header section (Unified Design with Settings) */}
-        <Fade in={true} timeout={500}>
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: { xs: 'column-reverse', sm: 'row-reverse' },
-              justifyContent: 'space-between',
-              alignItems: { xs: 'flex-start', sm: 'center' },
-              gap: { xs: 2.5, sm: 2 },
-              mb: 5,
-              pb: 3,
-              borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-            }}
-          >
-            <Box sx={{ textAlign: 'right', flex: 1 }}>
-              <Typography
-                variant="h4"
-                component="h1"
-                sx={{
-                  fontWeight: 800,
-                  color: theme.text,
-                  fontFamily: 'Rubik, sans-serif',
-                  letterSpacing: -0.5,
-                  fontSize: { xs: '1.5rem', sm: '2.1rem' },
-                }}
-              >
-                {sprint.name} 📋
-              </Typography>
-              <Typography
-                sx={{
-                  color: theme.textSecondary,
-                  fontFamily: 'Rubik, sans-serif',
-                  fontSize: { xs: 13, sm: 14 },
-                  mt: 0.5,
-                }}
-              >
-                {`${team.name} • ${new Date(sprint.startDate).toLocaleDateString()} - ${new Date(sprint.endDate).toLocaleDateString()}`}
-              </Typography>
-              {sprint.description && (
-                <Typography
-                  sx={{
-                    color: theme.text,
-                    fontStyle: 'italic',
-                    mt: 1.5,
-                    fontFamily: 'Rubik, sans-serif',
-                    opacity: 0.8,
-                    fontSize: { xs: 13, sm: 14 },
-                  }}
-                >
-                  {sprint.description}
-                </Typography>
-              )}
-            </Box>
+    <Page>
+      <PageHeader
+        title={sprint.name}
+        action={<Button variant="secondary" onPress={onBack}>{Strings.retroBoard.backButton}</Button>}
+      />
 
-            <Button
-              variant="outlined"
-              onClick={onBack}
+      <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
+        {team.name} •{' '}
+        <bdi>
+          {new Date(sprint.startDate).toLocaleDateString()} - {new Date(sprint.endDate).toLocaleDateString()}
+        </bdi>
+      </Typography>
+
+      {sprint.description && (
+        <Typography sx={{ ...t.type.body, color: t.color.text, fontStyle: 'italic' }}>
+          {sprint.description}
+        </Typography>
+      )}
+
+      {/* Compose form */}
+      <Card>
+        <Typography sx={{ ...t.type.cardTitle, color: t.color.text }}>
+          {Strings.retroBoard.writeNoteHeader}
+        </Typography>
+
+        {error && (
+          <Alert severity="error" sx={{ ...t.type.body }}>
+            {error}
+          </Alert>
+        )}
+
+        <RetroWheelToggle type={type} toggleType={toggleType} />
+
+        <Field
+          type="textarea"
+          label={type === 'KEEP' ? Strings.retroBoard.keepLabel : Strings.retroBoard.improveLabel}
+          value={content}
+          onChangeText={setContent}
+          placeholder={type === 'KEEP' ? Strings.retroBoard.notePlaceholderKeep : Strings.retroBoard.notePlaceholderImprove}
+          rows={3}
+        />
+
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: `${t.space[4]}px`, alignItems: { xs: 'stretch', sm: 'flex-end' } }}>
+          <Box sx={{ minWidth: 200 }}>
+            <Field
+              type="select"
+              label={Strings.retroBoard.categoryLabel}
+              value={category}
+              onChangeText={setCategory}
+              options={categoryOptions}
+            />
+          </Box>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px` }}>
+            <Typography sx={{ ...t.type.label, color: t.color.textSecondary }}>
+              {Strings.retroBoard.anonymousToggleHint}
+            </Typography>
+            <Segmented
+              value={isAnonymous ? 'anonymous' : 'identified'}
+              onChange={(v) => setIsAnonymous(v === 'anonymous')}
+              options={[
+                { value: 'identified', label: Strings.retroBoard.identifiedToggleLabel },
+                { value: 'anonymous', label: Strings.retroBoard.anonymousToggleLabel },
+              ]}
+            />
+          </Box>
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Button variant="primary" onPress={handlePostComment} disabled={isSubmitting} loading={isSubmitting}>
+            {Strings.retroBoard.postNoteButton}
+          </Button>
+        </Box>
+      </Card>
+
+      {/* Filters */}
+      {!isLoading && comments.length > 0 && (
+        <CommentFilterBarWeb
+          categories={filterCategories}
+          onCategoriesChange={setFilterCategories}
+          searchText={filterText}
+          onSearchTextChange={setFilterText}
+        />
+      )}
+
+      {/* Board columns */}
+      {isLoading ? (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBlock: `${t.space[7]}px` }}>
+          <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
+            {Strings.retroBoard.loadingBoard}
+          </Typography>
+        </Box>
+      ) : (
+        <Grid columns={2}>
+          {/* Column 1: KEEP */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
+            <Box
               sx={{
-                alignSelf: { xs: 'flex-start', sm: 'center' },
-                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)',
-                color: theme.text,
-                fontWeight: 700,
-                fontFamily: 'Rubik, sans-serif',
-                textTransform: 'none',
-                borderRadius: '14px',
-                px: 3,
-                py: 1,
-                whiteSpace: 'nowrap',
-                backdropFilter: 'blur(8px)',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                transition: 'all 0.25s ease',
-                '&:hover': {
-                  borderColor: accent,
-                  backgroundColor: `${accent}12`,
-                  color: accent,
-                  transform: 'translateY(-1px)',
-                  boxShadow: `0 4px 14px ${accent}25`,
-                },
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: `${t.space[2]}px`,
+                paddingBlock: `${t.space[2]}px`,
+                borderRadius: `${t.radius.card}px`,
+                backgroundColor: t.color.status.success.bg,
+                border: `1px solid ${t.color.status.success.border}`,
               }}
             >
-              {Strings.retroBoard.backButton}
-            </Button>
-          </Box>
-        </Fade>
-
-        {/* Input Form */}
-        <Grow in={true} timeout={500}>
-          <Card sx={{
-            ...boardCardSx,
-            position: 'relative',
-            overflow: 'hidden',
-            backgroundColor: isAnonymous ? '#161618' : boardCardSx.backgroundColor,
-            border: isAnonymous
-              ? '2.5px solid #8b5cf6'
-              : type === 'KEEP' ? '2.5px solid #00e676' : '2.5px solid #ff1744',
-            boxShadow: isAnonymous
-              ? '0 0 25px rgba(139,92,246,0.4), inset 0 0 30px rgba(0,0,0,0.5)'
-              : type === 'KEEP'
-              ? '0 0 25px rgba(0,230,118,0.35), inset 0 0 15px rgba(0,230,118,0.08)'
-              : '0 0 25px rgba(255,23,68,0.35), inset 0 0 15px rgba(255,23,68,0.08)',
-            transition: 'background-color 0.4s ease, border 0.4s ease, box-shadow 0.4s ease',
-          }}>
-            {isAnonymous && (
-              <Box aria-hidden sx={{
-                position: 'absolute',
-                top: -24,
-                left: -24,
-                fontSize: 150,
-                opacity: 0.07,
-                pointerEvents: 'none',
-                userSelect: 'none',
-                lineHeight: 1,
-              }}>
-                🥸
-              </Box>
-            )}
-            <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, textAlign: 'right', position: 'relative' }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: isAnonymous ? '#e8eaed' : theme.text, fontFamily: 'Rubik, sans-serif', transition: 'color 0.3s ease' }}>
-                {isAnonymous ? `🥸 ${Strings.retroBoard.writeNoteHeader}` : `✍️ ${Strings.retroBoard.writeNoteHeader}`}
+              <Icon name="check" tone="success" />
+              <Typography sx={{ ...t.type.cardTitle, color: t.color.status.success.fg }}>
+                {Strings.retroBoard.keepLabel}
               </Typography>
-
-              {error && (
-                <Alert severity="error" sx={{ flexDirection: 'row-reverse', textAlign: 'right', borderRadius: '12px', fontFamily: 'Rubik, sans-serif' }}>
-                  {error}
-                </Alert>
-              )}
-
-              {/* KEEP / IMPROVE toggle */}
-              <RetroWheelToggle type={type} toggleType={toggleType} theme={theme} />
-
-              <TextField
-                multiline
-                rows={3}
-                placeholder={type === 'KEEP' ? Strings.retroBoard.notePlaceholderKeep : Strings.retroBoard.notePlaceholderImprove}
-                value={content}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setContent(e.target.value)}
-                sx={{
-                  textarea: {
-                    color: isAnonymous ? '#e8eaed' : theme.text,
-                    textAlign: 'right',
-                    fontFamily: 'Rubik, sans-serif',
-                    '&::placeholder': { color: isAnonymous ? 'rgba(232,234,237,0.5)' : undefined, opacity: 1 },
-                  },
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '12px',
-                    backgroundColor: isAnonymous ? 'rgba(255,255,255,0.04)' : isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                    transition: 'all 0.2s ease',
-                    '&:hover fieldset': { borderColor: isAnonymous ? '#8b5cf6' : accent },
-                    '&.Mui-focused fieldset': { borderColor: isAnonymous ? '#8b5cf6' : accent, borderWidth: 2 },
-                    fieldset: { borderColor: isAnonymous ? 'rgba(139,92,246,0.3)' : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' },
-                  }
-                }}
-              />
-
-              <Box sx={{ alignSelf: 'flex-start' }}>
-                <Box
-                  component="button"
-                  type="button"
-                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => setCategoryMenuAnchor(e.currentTarget)}
-                  sx={{
-                    display: 'inline-flex',
-                    flexDirection: 'row-reverse',
-                    alignItems: 'center',
-                    gap: 0.9,
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: 'Rubik, sans-serif',
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    color: category ? (isAnonymous ? '#e8eaed' : accent) : theme.textSecondary,
-                    background: category
-                      ? isAnonymous ? 'rgba(139,92,246,0.18)' : `${accent}17`
-                      : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.035)',
-                    padding: '6px 10px 6px 14px',
-                    borderRadius: '10px 4px 10px 4px',
-                    transition: 'background 0.2s ease, color 0.2s ease',
-                    '&:hover': {
-                      background: category
-                        ? isAnonymous ? 'rgba(139,92,246,0.26)' : `${accent}26`
-                        : isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.06)',
-                    },
-                  }}
-                >
-                  <Box
-                    component="svg"
-                    viewBox="0 0 24 24"
-                    sx={{ width: 13, height: 13, flexShrink: 0, fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }}
-                  >
-                    <path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3H4a1 1 0 0 0-1 1v5.59a2 2 0 0 0 .59 1.41l9.58 9.58a2 2 0 0 0 2.83 0l4.59-4.59a2 2 0 0 0 0-2.83Z" />
-                    <circle cx="7.5" cy="7.5" r="1.3" fill="currentColor" stroke="none" />
-                  </Box>
-                  {category ? Strings.retroBoard.categories[category] : Strings.retroBoard.categoryLabel}
-                </Box>
-
-                <Menu
-                  anchorEl={categoryMenuAnchor}
-                  open={!!categoryMenuAnchor}
-                  onClose={() => setCategoryMenuAnchor(null)}
-                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                  slotProps={{
-                    paper: {
-                      sx: {
-                        direction: 'rtl',
-                        mt: 0.7,
-                        minWidth: 210,
-                        maxHeight: 360,
-                        borderRadius: '14px',
-                        border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
-                        boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
-                        overflowY: 'auto',
-                        scrollbarColor: `${typeColor} transparent`,
-                        scrollbarWidth: 'thin',
-                        '&::-webkit-scrollbar': { width: 6 },
-                        '&::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
-                        '&::-webkit-scrollbar-thumb': { backgroundColor: typeColor, borderRadius: 3 },
-                      },
-                    },
-                  }}
-                >
-                  <MenuItem
-                    onClick={() => { setCategory(''); setCategoryMenuAnchor(null); }}
-                    sx={{ justifyContent: 'space-between', fontFamily: 'Rubik, sans-serif', fontSize: 13, color: theme.textSecondary, fontStyle: 'italic' }}
-                  >
-                    {Strings.retroBoard.categoryNone}
-                    {category === '' && <Box component="span" sx={{ color: typeColor, fontSize: 14 }}>✓</Box>}
-                  </MenuItem>
-                  {Object.entries(Strings.retroBoard.categories).map(([key, label]) => (
-                    <MenuItem
-                      key={key}
-                      selected={category === key}
-                      onClick={() => { setCategory(key); setCategoryMenuAnchor(null); }}
-                      sx={{ justifyContent: 'space-between', fontFamily: 'Rubik, sans-serif', fontSize: 13 }}
-                    >
-                      {label}
-                      {category === key && <Box component="span" sx={{ color: typeColor, fontSize: 14 }}>✓</Box>}
-                    </MenuItem>
-                  ))}
-                </Menu>
-              </Box>
-
-              <Box sx={{ display: 'flex', flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                <motion.button
-                  type="button"
-                  aria-pressed={isAnonymous}
-                  aria-label={Strings.retroBoard.anonymousToggleHint}
-                  onClick={() => setIsAnonymous((prev) => !prev)}
-                  whileHover={{ scale: 1.08 }}
-                  whileTap={{ scale: 0.9 }}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: '50%',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: isAnonymous
-                      ? 'linear-gradient(135deg, #3c4043 0%, #161618 100%)'
-                      : isDark
-                      ? 'rgba(255,255,255,0.08)'
-                      : 'rgba(0,0,0,0.05)',
-                    border: isAnonymous ? '1.5px solid #8b5cf6' : '1.5px solid transparent',
-                    boxShadow: isAnonymous ? '0 0 14px rgba(139,92,246,0.5)' : 'none',
-                    transition: 'background 0.3s ease, box-shadow 0.3s ease, border 0.3s ease',
-                  }}
-                >
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.span
-                      key={isAnonymous ? 'anon' : 'public'}
-                      initial={{ opacity: 0, rotate: -20, scale: 0.6 }}
-                      animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                      exit={{ opacity: 0, rotate: 20, scale: 0.6 }}
-                      transition={{ duration: 0.18 }}
-                      style={{ fontSize: 18, lineHeight: 1 }}
-                    >
-                      {isAnonymous ? '🥸' : '👤'}
-                    </motion.span>
-                  </AnimatePresence>
-                </motion.button>
-
-                <Button
-                  variant="contained"
-                  onClick={handlePostComment}
-                  disabled={isSubmitting}
-                  sx={{
-                    background: `linear-gradient(135deg, ${accent} 0%, #8b5cf6 100%)`,
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontFamily: 'Rubik, sans-serif',
-                    textTransform: 'none',
-                    borderRadius: '12px',
-                    px: 3,
-                    boxShadow: '0 4px 16px rgba(99,102,241,0.25)',
-                    transition: 'all 0.25s ease',
-                    '&:hover': {
-                      transform: 'translateY(-1px)',
-                      boxShadow: '0 8px 24px rgba(99,102,241,0.35)',
-                    },
-                  }}
-                >
-                  {isSubmitting ? <CircularProgress size={20} sx={{ color: '#fff' }} /> : Strings.retroBoard.postNoteButton}
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grow>
-
-        {/* Filters */}
-        {!isLoading && comments.length > 0 && (
-          <Fade in={true} timeout={500}>
-            <Box>
-              <CommentFilterBarWeb
-                categories={filterCategories}
-                onCategoriesChange={setFilterCategories}
-                searchText={filterText}
-                onSearchTextChange={setFilterText}
-                theme={theme}
-              />
             </Box>
-          </Fade>
-        )}
 
-        {/* Board Columns */}
-        {isLoading ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 8, gap: 2 }}>
-            <CircularProgress color="inherit" sx={{ color: theme.text }} />
-            <Typography sx={{ color: theme.text, fontFamily: 'Rubik, sans-serif' }}>
-              {Strings.retroBoard.loadingBoard}
-            </Typography>
+            {keepComments.length === 0 ? (
+              <Typography sx={{ ...t.type.body, color: t.color.textSecondary, fontStyle: 'italic', textAlign: 'center' }}>
+                {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyKeepText}
+              </Typography>
+            ) : (
+              keepComments.map((comment, index) => (
+                <CommentCardWeb key={comment.id} comment={comment} index={index} />
+              ))
+            )}
           </Box>
-        ) : (
-          <Grid container spacing={4} direction={{ xs: 'column', md: 'row-reverse' } as any}>
-            
-            {/* Column 1: KEEP */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                <Box sx={{
-                  p: 1.8,
-                  borderRadius: '14px',
-                  background: 'linear-gradient(135deg, #10b981 0%, #047857 100%)',
-                  boxShadow: '0 4px 14px rgba(16,185,129,0.3)',
-                  textAlign: 'center',
-                }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#ffffff', fontFamily: 'Rubik, sans-serif', letterSpacing: -0.3 }}>
-                    👍 {Strings.retroBoard.keepColumnHeader}
-                  </Typography>
-                </Box>
 
-                {keepComments.length === 0 ? (
-                  <Typography variant="body2" sx={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic', my: 2, fontFamily: 'Rubik, sans-serif' }}>
-                    {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyKeepText}
-                  </Typography>
-                ) : (
-                  keepComments.map((comment, index) => (
-                    <CommentCardWeb key={comment.id} comment={comment} index={index} theme={theme} />
-                  ))
-                )}
-              </Box>
-            </Grid>
+          {/* Column 2: IMPROVE */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: `${t.space[2]}px`,
+                paddingBlock: `${t.space[2]}px`,
+                borderRadius: `${t.radius.card}px`,
+                backgroundColor: t.color.status.danger.bg,
+                border: `1px solid ${t.color.status.danger.border}`,
+              }}
+            >
+              <Icon name="wrench" tone="danger" />
+              <Typography sx={{ ...t.type.cardTitle, color: t.color.status.danger.fg }}>
+                {Strings.retroBoard.improveLabel}
+              </Typography>
+            </Box>
 
-            {/* Column 2: IMPROVE */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                <Box sx={{
-                  p: 1.8,
-                  borderRadius: '14px',
-                  background: 'linear-gradient(135deg, #ff1744 0%, #b71c1c 100%)',
-                  boxShadow: '0 4px 14px rgba(255,23,68,0.3)',
-                  textAlign: 'center',
-                }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#ffffff', fontFamily: 'Rubik, sans-serif', letterSpacing: -0.3 }}>
-                    🔧 {Strings.retroBoard.improveColumnHeader}
-                  </Typography>
-                </Box>
-
-                {improveComments.length === 0 ? (
-                  <Typography variant="body2" sx={{ textAlign: 'center', color: theme.textSecondary, fontStyle: 'italic', my: 2, fontFamily: 'Rubik, sans-serif' }}>
-                    {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyImproveText}
-                  </Typography>
-                ) : (
-                  improveComments.map((comment, index) => (
-                    <CommentCardWeb key={comment.id} comment={comment} index={index} theme={theme} />
-                  ))
-                )}
-              </Box>
-            </Grid>
-
-          </Grid>
-        )}
-
-      </Container>
-    </Box>
+            {improveComments.length === 0 ? (
+              <Typography sx={{ ...t.type.body, color: t.color.textSecondary, fontStyle: 'italic', textAlign: 'center' }}>
+                {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyImproveText}
+              </Typography>
+            ) : (
+              improveComments.map((comment, index) => (
+                <CommentCardWeb key={comment.id} comment={comment} index={index} />
+              ))
+            )}
+          </Box>
+        </Grid>
+      )}
+    </Page>
   );
 }

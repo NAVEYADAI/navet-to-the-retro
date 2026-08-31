@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, type TextStyle } from 'react-native';
 import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
-import { nativeStyles } from './styles';
-import { roles } from './roles';
-import type { TeamListTheme } from '@/features/teams/types';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
+import { ROLES } from '@/constants/roles';
 
 interface AddMemberFormProps {
   teamId: number;
   token: string;
   onInviteSent: () => void;
-  theme: TeamListTheme;
 }
 
-export function AddMemberForm({ teamId, token, onInviteSent, theme }: AddMemberFormProps) {
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
+}
+
+export function AddMemberForm({ teamId, token, onInviteSent }: AddMemberFormProps) {
+  const t = useTheme();
   const [username, setUsername] = useState('');
   const [role, setRole] = useState('DEVELOPER');
   const [isLoading, setIsLoading] = useState(false);
@@ -57,69 +65,112 @@ export function AddMemberForm({ teamId, token, onInviteSent, theme }: AddMemberF
   };
 
   return (
-    <View style={nativeStyles.addMemberSection}>
-      <ThemedText type="default" style={{ fontWeight: 'bold', textAlign: 'right' }}>
+    <View
+      style={{
+        gap: t.space[2],
+        marginTop: t.space[2],
+        paddingTop: t.space[2],
+        borderTopWidth: 1,
+        borderTopColor: t.color.border,
+      }}
+    >
+      <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
         הזמנת חבר צוות חדש
-      </ThemedText>
+      </Text>
 
       {!!error && (
-        <View style={nativeStyles.errorBannerInline}>
-          <ThemedText style={nativeStyles.errorTextInline}>{error}</ThemedText>
+        <View
+          style={{
+            backgroundColor: t.color.status.danger.bg,
+            borderWidth: 1,
+            borderColor: t.color.status.danger.border,
+            borderRadius: t.radius.field,
+            padding: t.space[2],
+          }}
+        >
+          <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+            {error}
+          </Text>
         </View>
       )}
       {!!successMessage && (
-        <ThemedText style={{ fontSize: 12, color: '#2e7d32', textAlign: 'right' }}>
+        <Text style={[rnText(t.type.caption), { color: t.color.status.success.fg, textAlign: 'right' }]}>
           {successMessage}
-        </ThemedText>
+        </Text>
       )}
 
       <TextInput
         style={[
-          nativeStyles.input,
+          rnText(t.type.body),
           {
-            color: theme.text,
-            borderColor: theme.backgroundSelected,
-            backgroundColor: theme.background,
+            height: t.layout.minTouchTarget,
+            borderWidth: 1,
+            borderRadius: t.radius.field,
+            paddingHorizontal: t.space[2],
+            textAlign: 'right',
+            color: t.color.text,
+            borderColor: t.color.border,
+            backgroundColor: t.color.surface,
           },
         ]}
         placeholder={Strings.teamList.addMemberPlaceholder}
-        placeholderTextColor={theme.textSecondary}
+        placeholderTextColor={t.color.textSecondary}
         value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
       />
 
-      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 6, marginVertical: 4 }}>
-        {roles.map((r) => {
+      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[1] + 2, marginVertical: t.space[1] }}>
+        {ROLES.map((r) => {
           const selected = role === r.value;
           return (
             <TouchableOpacity
               key={r.value}
-              style={[
-                nativeStyles.roleOptionBtn,
-                { backgroundColor: selected ? theme.backgroundSelected : theme.background }
-              ]}
+              style={{
+                flexDirection: 'row-reverse',
+                alignItems: 'center',
+                gap: t.space[1],
+                paddingHorizontal: t.space[3],
+                paddingVertical: t.space[1] + 3,
+                borderRadius: t.radius.pill,
+                borderWidth: 1.5,
+                borderColor: selected ? t.color.accent.base : t.color.border,
+                backgroundColor: selected ? t.color.accent.subtle : t.color.surface,
+              }}
               onPress={() => setRole(r.value)}
             >
-              <ThemedText style={{ fontSize: 11, fontWeight: selected ? 'bold' : 'normal' }}>
+              <Icon name={r.icon} size="sm" tone={selected ? 'accent' : 'muted'} />
+              <Text style={[rnText({ ...t.type.caption, fontWeight: selected ? 700 : 500 }), { color: selected ? t.color.accent.base : t.color.textSecondary }]}>
                 {r.label}
-              </ThemedText>
+              </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
       <TouchableOpacity
-        style={[nativeStyles.button, { backgroundColor: theme.text }]}
+        style={{
+          flexDirection: 'row-reverse',
+          gap: t.space[1],
+          backgroundColor: t.color.accent.base,
+          borderRadius: t.radius.field,
+          minHeight: t.layout.minTouchTarget,
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginTop: t.space[1],
+        }}
         onPress={handleAddMember}
         disabled={isLoading}
       >
         {isLoading ? (
-          <ActivityIndicator color={theme.background} />
+          <ActivityIndicator color={t.color.accent.onBase} />
         ) : (
-          <ThemedText style={[nativeStyles.buttonText, { color: theme.background }]}>
-            {Strings.teamList.addMemberButton}
-          </ThemedText>
+          <>
+            <Icon name="user-plus" size="sm" tone="inverse" />
+            <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+              {Strings.teamList.addMemberButton}
+            </Text>
+          </>
         )}
       </TouchableOpacity>
     </View>

@@ -1,31 +1,39 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, TextInput, TouchableOpacity, ActivityIndicator, Share } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Share, type TextStyle } from 'react-native';
 import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl, getFrontendUrl } from '@/api/config';
-import { nativeStyles } from './styles';
-import type { TeamListTheme } from '@/features/teams/types';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
+import type { AppTheme } from '@/design/tokens';
 
 interface InviteLinksPanelProps {
   teamId: number;
   token: string;
-  theme: TeamListTheme;
+}
+
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
 }
 
 function inviteUrl(inviteToken: string) {
   return `${getFrontendUrl()}/invite/${inviteToken}`;
 }
 
-function inviteStatus(invite: any): { label: string; color: string } {
-  if (invite.isRevoked) return { label: Strings.invites.statusRevoked, color: '#c62828' };
-  if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) return { label: Strings.invites.statusExpired, color: '#c62828' };
-  if (invite.maxUses !== null && invite.useCount >= invite.maxUses) return { label: Strings.invites.statusExhausted, color: '#c62828' };
-  return { label: Strings.invites.statusActive, color: '#2e7d32' };
+function inviteStatus(invite: any, t: AppTheme): { label: string; fg: string; bg: string; border: string } {
+  if (invite.isRevoked) return { label: Strings.invites.statusRevoked, ...t.color.status.danger };
+  if (invite.expiresAt && new Date(invite.expiresAt) < new Date()) return { label: Strings.invites.statusExpired, ...t.color.status.danger };
+  if (invite.maxUses !== null && invite.useCount >= invite.maxUses) return { label: Strings.invites.statusExhausted, ...t.color.status.danger };
+  return { label: Strings.invites.statusActive, ...t.color.status.success };
 }
 
-export function InviteLinksPanel({ teamId, token, theme }: InviteLinksPanelProps) {
+export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
+  const t = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [invites, setInvites] = useState<any[]>([]);
 
@@ -96,180 +104,280 @@ export function InviteLinksPanel({ teamId, token, theme }: InviteLinksPanelProps
   };
 
   const inputStyle = [
-    nativeStyles.input,
-    { color: theme.text, borderColor: theme.backgroundSelected, backgroundColor: theme.background },
+    rnText(t.type.body),
+    {
+      height: t.layout.minTouchTarget,
+      borderWidth: 1,
+      borderRadius: t.radius.field,
+      paddingHorizontal: t.space[2],
+      textAlign: 'right' as const,
+      color: t.color.text,
+      borderColor: t.color.border,
+      backgroundColor: t.color.surface,
+    },
   ];
 
   return (
-    <View style={{ gap: Spacing.two }}>
-      <TouchableOpacity onPress={() => setIsExpanded(v => !v)}>
-        <ThemedText style={{ fontSize: 13, fontWeight: 'bold', color: theme.textSecondary, textAlign: 'right' }}>
-          {isExpanded ? '▲ ' : '▼ '}{Strings.invites.manageLinksToggle}
-        </ThemedText>
+    <View style={{ gap: t.space[2] }}>
+      <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }} onPress={() => setIsExpanded((v) => !v)}>
+        <Icon name="chevron-down" size="sm" tone="muted" rotate={isExpanded ? 180 : 0} />
+        <Text style={[rnText(t.type.bodyStrong), { color: t.color.textSecondary, textAlign: 'right' }]}>
+          {Strings.invites.manageLinksToggle}
+        </Text>
       </TouchableOpacity>
 
       {isExpanded && (
-        <View style={{ gap: Spacing.two }}>
+        <View style={{ gap: t.space[2] }}>
           {newLinkToken && (
             <View
               style={{
-                backgroundColor: theme.background,
-                borderRightWidth: 3,
-                borderRightColor: '#2e7d32',
-                borderRadius: 8,
-                padding: Spacing.three,
-                gap: Spacing.one,
+                backgroundColor: t.color.status.success.bg,
+                borderWidth: 1,
+                borderColor: t.color.status.success.border,
+                borderRadius: t.radius.card,
+                padding: t.space[3],
+                gap: t.space[1],
               }}
             >
-              <ThemedText style={{ fontSize: 13, fontWeight: 'bold', textAlign: 'right' }}>
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
                 {Strings.invites.linkCreatedText}
-              </ThemedText>
-              <ThemedText style={{ fontSize: 12, opacity: 0.7, textAlign: 'right' }}>
+              </Text>
+              <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
                 {Strings.invites.linkCreatedSubtext}
-              </ThemedText>
-              <View style={{ backgroundColor: theme.backgroundElement, borderRadius: 6, padding: Spacing.two }}>
-                <ThemedText selectable style={{ fontSize: 12, fontFamily: 'monospace', textAlign: 'left' }}>
+              </Text>
+              <View style={{ backgroundColor: t.color.surface, borderRadius: t.radius.field, padding: t.space[2] }}>
+                <Text selectable style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'left' }]}>
                   {inviteUrl(newLinkToken)}
-                </ThemedText>
+                </Text>
               </View>
               <TouchableOpacity
-                style={[nativeStyles.actionSaveBtn, { backgroundColor: theme.text, alignSelf: 'flex-end' }]}
+                style={{
+                  flexDirection: 'row-reverse',
+                  gap: t.space[1],
+                  backgroundColor: t.color.accent.base,
+                  borderRadius: t.radius.field,
+                  minHeight: t.layout.minTouchTarget,
+                  paddingHorizontal: t.space[3],
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  alignSelf: 'flex-end',
+                }}
                 onPress={() => handleShare(newLinkToken)}
               >
-                <ThemedText style={{ color: theme.background, fontSize: 12, fontWeight: 'bold' }}>
+                <Icon name="copy" size="sm" tone="inverse" />
+                <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
                   {Strings.invites.copyLinkButton}
-                </ThemedText>
+                </Text>
               </TouchableOpacity>
             </View>
           )}
 
           {showCreateForm ? (
-            <View style={[nativeStyles.editMemberPane, { gap: Spacing.one }]}>
+            <View
+              style={{
+                gap: t.space[2],
+                padding: t.space[3],
+                borderRadius: t.radius.card,
+                backgroundColor: t.color.surfaceSubtle,
+              }}
+            >
               {!!createError && (
-                <View style={nativeStyles.errorBannerInline}>
-                  <ThemedText style={nativeStyles.errorTextInline}>{createError}</ThemedText>
+                <View
+                  style={{
+                    backgroundColor: t.color.status.danger.bg,
+                    borderWidth: 1,
+                    borderColor: t.color.status.danger.border,
+                    borderRadius: t.radius.field,
+                    padding: t.space[2],
+                  }}
+                >
+                  <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+                    {createError}
+                  </Text>
                 </View>
               )}
-              <ThemedText style={{ fontSize: 12, textAlign: 'right' }}>{Strings.invites.nameLabel}</ThemedText>
+              <Text style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'right' }]}>
+                {Strings.invites.nameLabel}
+              </Text>
               <TextInput
                 style={inputStyle}
                 placeholder={Strings.invites.namePlaceholder}
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={t.color.textSecondary}
                 value={name}
                 onChangeText={setName}
               />
-              <ThemedText style={{ fontSize: 12, textAlign: 'right' }}>{Strings.invites.expiresAtLabel}</ThemedText>
+              <Text style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'right' }]}>
+                {Strings.invites.expiresAtLabel}
+              </Text>
               <TextInput
                 style={inputStyle}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={t.color.textSecondary}
                 value={expiresAt}
                 onChangeText={setExpiresAt}
               />
-              <ThemedText style={{ fontSize: 12, textAlign: 'right' }}>{Strings.invites.maxUsesLabel}</ThemedText>
+              <Text style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'right' }]}>
+                {Strings.invites.maxUsesLabel}
+              </Text>
               <TextInput
                 style={inputStyle}
                 placeholder="5"
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={t.color.textSecondary}
                 value={maxUses}
                 onChangeText={setMaxUses}
                 keyboardType="number-pad"
               />
-              <View style={{ flexDirection: 'row-reverse', gap: Spacing.two }}>
+              <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
                 <TouchableOpacity
-                  style={[nativeStyles.actionSaveBtn, { backgroundColor: theme.text }]}
+                  style={{
+                    flexDirection: 'row-reverse',
+                    gap: t.space[1],
+                    backgroundColor: t.color.accent.base,
+                    borderRadius: t.radius.field,
+                    minHeight: t.layout.minTouchTarget,
+                    paddingHorizontal: t.space[4],
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
                   onPress={handleCreateLink}
                   disabled={isCreating}
                 >
                   {isCreating ? (
-                    <ActivityIndicator size="small" color={theme.background} />
+                    <ActivityIndicator size="small" color={t.color.accent.onBase} />
                   ) : (
-                    <ThemedText style={{ color: theme.background, fontSize: 12, fontWeight: 'bold' }}>
-                      {Strings.invites.createLinkButton}
-                    </ThemedText>
+                    <>
+                      <Icon name="plus" size="sm" tone="inverse" />
+                      <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+                        {Strings.invites.createLinkButton}
+                      </Text>
+                    </>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[nativeStyles.actionCancelBtn, { backgroundColor: theme.backgroundSelected }]}
+                  style={{
+                    backgroundColor: t.color.surface,
+                    borderWidth: 1,
+                    borderColor: t.color.border,
+                    borderRadius: t.radius.field,
+                    minHeight: t.layout.minTouchTarget,
+                    paddingHorizontal: t.space[4],
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
                   onPress={() => setShowCreateForm(false)}
                 >
-                  <ThemedText style={{ fontSize: 12 }}>{Strings.teamList.cancelButton}</ThemedText>
+                  <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
+                    {Strings.teamList.cancelButton}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <TouchableOpacity
-              style={[nativeStyles.button, { backgroundColor: theme.backgroundSelected, alignSelf: 'flex-end', paddingHorizontal: Spacing.three }]}
+              style={{
+                flexDirection: 'row-reverse',
+                gap: t.space[1],
+                backgroundColor: t.color.surfaceSubtle,
+                borderRadius: t.radius.field,
+                minHeight: t.layout.minTouchTarget,
+                paddingHorizontal: t.space[3],
+                justifyContent: 'center',
+                alignItems: 'center',
+                alignSelf: 'flex-end',
+              }}
               onPress={() => setShowCreateForm(true)}
             >
-              <ThemedText style={{ fontSize: 12, fontWeight: 'bold', color: theme.text }}>
+              <Icon name="plus" size="sm" />
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
                 {Strings.invites.createLinkButton}
-              </ThemedText>
+              </Text>
             </TouchableOpacity>
           )}
 
           {invites.length === 0 ? (
-            <ThemedText style={{ fontSize: 12, opacity: 0.6, textAlign: 'right' }}>
+            <Text style={[rnText(t.type.caption), { color: t.color.textMuted, textAlign: 'right' }]}>
               {Strings.invites.noLinksText}
-            </ThemedText>
+            </Text>
           ) : (
             invites.map((invite) => {
-              const status = inviteStatus(invite);
+              const status = inviteStatus(invite, t);
               const isActive = status.label === Strings.invites.statusActive;
               return (
                 <View
                   key={invite.id}
                   style={{
-                    backgroundColor: theme.background,
-                    borderRadius: 8,
+                    backgroundColor: t.color.surfaceSubtle,
+                    borderRadius: t.radius.card,
                     borderWidth: 1,
-                    borderColor: 'rgba(0,0,0,0.06)',
-                    paddingHorizontal: Spacing.three,
-                    paddingVertical: Spacing.two,
-                    gap: 6,
+                    borderColor: t.color.border,
+                    paddingHorizontal: t.space[3],
+                    paddingVertical: t.space[2],
+                    gap: t.space[1],
                   }}
                 >
-                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <ThemedText style={{ fontSize: 13, fontWeight: 'bold', textAlign: 'right', flex: 1 }} numberOfLines={1}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
+                    <Text
+                      style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right', flex: 1 }]}
+                      numberOfLines={1}
+                    >
                       {invite.name || invite.email || Strings.invites.unnamedLinkLabel}
-                    </ThemedText>
-                    <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: status.color }}>
-                      {status.label}
-                    </ThemedText>
+                    </Text>
+                    <View
+                      style={{
+                        backgroundColor: status.bg,
+                        borderWidth: 1,
+                        borderColor: status.border,
+                        borderRadius: t.radius.badge,
+                        paddingHorizontal: t.space[2],
+                        paddingVertical: 2,
+                      }}
+                    >
+                      <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: status.fg }]}>
+                        {status.label}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <ThemedText style={{ fontSize: 11, opacity: 0.7 }}>
+                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
+                    <Text style={[rnText(t.type.caption), { color: t.color.textSecondary }]}>
                       {Strings.invites.usesLabel(invite.useCount, invite.maxUses)}
-                    </ThemedText>
+                    </Text>
                     {isActive && (
-                      <View style={{ flexDirection: 'row-reverse', gap: 6 }}>
+                      <View style={{ flexDirection: 'row-reverse', gap: t.space[1] + 2 }}>
                         <TouchableOpacity
                           style={{
-                            paddingHorizontal: 10,
-                            paddingVertical: 5,
-                            borderRadius: 4,
+                            flexDirection: 'row-reverse',
+                            alignItems: 'center',
+                            gap: 4,
+                            paddingHorizontal: t.space[2],
+                            paddingVertical: t.space[1],
+                            borderRadius: t.radius.badge,
                             borderWidth: 1,
-                            borderColor: theme.backgroundSelected,
+                            borderColor: t.color.border,
                           }}
                           onPress={() => handleShare(invite.token)}
                         >
-                          <ThemedText style={{ fontSize: 11, fontWeight: 'bold' }}>
+                          <Icon name="copy" size="sm" />
+                          <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.text }]}>
                             {Strings.invites.copyLinkButton}
-                          </ThemedText>
+                          </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={{
-                            paddingHorizontal: 10,
-                            paddingVertical: 5,
-                            borderRadius: 4,
+                            flexDirection: 'row-reverse',
+                            alignItems: 'center',
+                            gap: 4,
+                            paddingHorizontal: t.space[2],
+                            paddingVertical: t.space[1],
+                            borderRadius: t.radius.badge,
                             borderWidth: 1,
-                            borderColor: '#c62828',
+                            borderColor: t.color.status.danger.border,
                           }}
                           onPress={() => handleRevoke(invite.id)}
                         >
-                          <ThemedText style={{ fontSize: 11, fontWeight: 'bold', color: '#c62828' }}>
+                          <Icon name="trash" size="sm" tone="danger" />
+                          <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.status.danger.fg }]}>
                             {Strings.invites.revokeButton}
-                          </ThemedText>
+                          </Text>
                         </TouchableOpacity>
                       </View>
                     )}

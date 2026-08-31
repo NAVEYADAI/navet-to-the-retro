@@ -31,14 +31,6 @@ jest.mock('@/hooks/use-color-scheme', () => ({
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-const mockTheme = {
-  text: '#000',
-  background: '#fff',
-  backgroundElement: '#fff',
-  backgroundSelected: '#ccc',
-  textSecondary: '#666',
-};
-
 describe('AuthForm Component', () => {
   afterEach(() => {
     jest.clearAllMocks();
@@ -46,7 +38,7 @@ describe('AuthForm Component', () => {
 
   it('renders Login fields by default', async () => {
     const { getByPlaceholderText, queryByPlaceholderText } = await render(
-      <AuthForm theme={mockTheme} colorScheme="light" />
+      <AuthForm />
     );
 
     // Login screen should have username and password
@@ -60,7 +52,7 @@ describe('AuthForm Component', () => {
 
   it('switches to Sign Up fields when toggle is clicked', async () => {
     const { getByText, findByPlaceholderText, findByText } = await render(
-      <AuthForm theme={mockTheme} colorScheme="light" />
+      <AuthForm />
     );
 
     // Click on toggle link
@@ -83,7 +75,7 @@ describe('AuthForm Component', () => {
 
   describe('Login submit flow', () => {
     it('blocks submit and shows an error when required fields are missing', async () => {
-      const { getByText, findByText } = await render(<AuthForm theme={mockTheme} colorScheme="light" />);
+      const { getByText, findByText } = await render(<AuthForm />);
 
       await fireEvent.press(getByText(Strings.auth.loginButton));
 
@@ -97,7 +89,7 @@ describe('AuthForm Component', () => {
       });
 
       const { getByPlaceholderText, getByText } = await render(
-        <AuthForm theme={mockTheme} colorScheme="light" />
+        <AuthForm />
       );
 
       const usernameInput = getByPlaceholderText(Strings.auth.usernamePlaceholder);
@@ -123,7 +115,7 @@ describe('AuthForm Component', () => {
       );
 
       const { getByPlaceholderText, getByText, findByText } = await render(
-        <AuthForm theme={mockTheme} colorScheme="light" />
+        <AuthForm />
       );
 
       await fireEvent.changeText(getByPlaceholderText(Strings.auth.usernamePlaceholder), 'nave');
@@ -138,7 +130,7 @@ describe('AuthForm Component', () => {
 
   describe('Register submit flow', () => {
     async function renderInSignUpMode() {
-      const utils = await render(<AuthForm theme={mockTheme} colorScheme="light" />);
+      const utils = await render(<AuthForm />);
       await fireEvent.press(utils.getByText(Strings.auth.toggleToSignUp));
       await utils.findByPlaceholderText(Strings.auth.emailPlaceholder);
       return utils;

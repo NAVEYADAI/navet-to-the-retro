@@ -13,14 +13,6 @@ jest.mock('@/features/sprints', () => ({
   TeamSprintsManager: () => null,
 }));
 
-const mockTheme = {
-  text: '#000',
-  background: '#fff',
-  backgroundElement: '#eee',
-  backgroundSelected: '#ddd',
-  textSecondary: '#666',
-};
-
 const currentUserId = 42;
 const token = 'mock-token';
 
@@ -93,7 +85,6 @@ async function renderList(teams: any[]) {
       userId={currentUserId}
       onAddMemberSuccess={onAddMemberSuccess}
       onSelectSprint={jest.fn()}
-      theme={mockTheme}
     />
   );
   return { ...utils, onAddMemberSuccess };
@@ -227,18 +218,18 @@ describe('TeamListNative — dual-approval UI', () => {
     expect(onAddMemberSuccess).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a remove control for other members (not for myself) when I am a team admin', async () => {
+  it('shows a remove control for every member (including myself) when I am a team admin', async () => {
     const { getAllByText } = await renderList([activeTeamAsAdmin]);
 
-    // Only one member other than myself, so exactly one remove control should render.
-    expect(getAllByText('הסר 🗑️')).toHaveLength(1);
+    expect(getAllByText('הסר')).toHaveLength(2);
   });
 
   it('removing a member sends DELETE /teams/:id/members/:memberId with the bearer token', async () => {
     mockedAxios.delete.mockResolvedValueOnce({ data: { success: true } });
-    const { getByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+    const { getAllByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
 
-    await fireEvent.press(getByText('הסר 🗑️'));
+    // members[0] is myself (remove disabled), members[1] is the other member.
+    await fireEvent.press(getAllByText('הסר')[1]);
 
     expect(mockedAxios.delete).toHaveBeenCalledWith(
       expect.stringContaining(`/teams/${activeTeamAsAdmin.id}/members/51`),
@@ -247,13 +238,21 @@ describe('TeamListNative — dual-approval UI', () => {
     expect(onAddMemberSuccess).toHaveBeenCalledTimes(1);
   });
 
+  it('does not remove myself when pressing my own (disabled) remove control', async () => {
+    const { getAllByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getAllByText('הסר')[0]);
+
+    expect(mockedAxios.delete).not.toHaveBeenCalled();
+  });
+
   it('shows the server error when removing a member fails', async () => {
     mockedAxios.delete.mockRejectedValueOnce(
       Object.assign(new Error('failed'), { response: { data: { message: 'לא ניתן להסיר את המנהל/ת האחרון/ה' } } })
     );
-    const { getByText, findByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+    const { getAllByText, findByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
 
-    await fireEvent.press(getByText('הסר 🗑️'));
+    await fireEvent.press(getAllByText('הסר')[1]);
 
     expect(await findByText('לא ניתן להסיר את המנהל/ת האחרון/ה')).toBeTruthy();
     expect(onAddMemberSuccess).not.toHaveBeenCalled();

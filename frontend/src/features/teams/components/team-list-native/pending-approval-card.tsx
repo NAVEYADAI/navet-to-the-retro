@@ -1,23 +1,30 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { View, Text, TouchableOpacity, ActivityIndicator, type TextStyle } from 'react-native';
 import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
-import { nativeStyles } from './styles';
-import type { TeamListTheme } from '@/features/teams/types';
+import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
 
 interface PendingApprovalCardProps {
   team: any;
   token: string;
   onResolved: () => void;
-  theme: TeamListTheme;
+}
+
+/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
+function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
+  return {
+    fontSize: entry.fontSize,
+    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
+    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
+  };
 }
 
 // Shown to the designated approver while the team they were asked to approve is still
 // PENDING_APPROVAL — approve/decline the team's creation itself.
-export function PendingApprovalCard({ team, token, onResolved, theme }: PendingApprovalCardProps) {
+export function PendingApprovalCard({ team, token, onResolved }: PendingApprovalCardProps) {
+  const t = useTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,38 +49,97 @@ export function PendingApprovalCard({ team, token, onResolved, theme }: PendingA
     : `@${creatorMember?.user?.username || ''}`;
 
   return (
-    <View style={[nativeStyles.infoSection, { backgroundColor: theme.backgroundElement, borderWidth: 2, borderColor: '#6366f1' }]}>
-      <ThemedText type="subtitle" style={{ fontWeight: 'bold', textAlign: 'right' }}>
-        {team.name}
-      </ThemedText>
-      <ThemedText type="default" style={{ textAlign: 'right', opacity: 0.8 }}>
+    <View
+      style={{
+        backgroundColor: t.color.surface,
+        borderWidth: 1,
+        borderColor: t.color.border,
+        borderRadius: t.radius.card,
+        padding: t.space[5],
+        gap: t.space[4],
+      }}
+    >
+      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: t.space[3] }}>
+        <Text style={[rnText(t.type.cardTitle), { color: t.color.text }]}>
+          {team.name}
+        </Text>
+        <View
+          style={{
+            backgroundColor: t.color.accent.subtle,
+            borderWidth: 1,
+            borderColor: t.color.accent.border,
+            borderRadius: t.radius.badge,
+            paddingHorizontal: t.space[2] + 1,
+            paddingVertical: 3,
+          }}
+        >
+          <Text style={[rnText({ ...t.type.caption, fontWeight: 600 }), { color: t.color.accent.base }]}>
+            ממתין לאישורך
+          </Text>
+        </View>
+      </View>
+      <Text style={[rnText(t.type.body), { color: t.color.textSecondary, textAlign: 'right' }]}>
         {Strings.dashboard.approvalInviteText(creatorName)}
-      </ThemedText>
+      </Text>
       {!!error && (
-        <View style={nativeStyles.errorBannerInline}>
-          <ThemedText style={nativeStyles.errorTextInline}>{error}</ThemedText>
+        <View
+          style={{
+            backgroundColor: t.color.status.danger.bg,
+            borderWidth: 1,
+            borderColor: t.color.status.danger.border,
+            borderRadius: t.radius.field,
+            padding: t.space[2],
+          }}
+        >
+          <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+            {error}
+          </Text>
         </View>
       )}
-      <View style={{ flexDirection: 'row-reverse', gap: Spacing.two }}>
+      <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
         <TouchableOpacity
-          style={[nativeStyles.actionSaveBtn, { backgroundColor: '#6366f1' }]}
+          style={{
+            flexDirection: 'row-reverse',
+            gap: t.space[1],
+            backgroundColor: t.color.accent.base,
+            borderRadius: t.radius.field,
+            minHeight: t.layout.minTouchTarget,
+            paddingHorizontal: t.space[4],
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
           onPress={() => respond('approve')}
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={t.color.accent.onBase} />
           ) : (
-            <ThemedText style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>
-              {Strings.dashboard.approveTeamButton}
-            </ThemedText>
+            <>
+              <Icon name="check" size="sm" tone="inverse" />
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+                {Strings.dashboard.approveTeamButton}
+              </Text>
+            </>
           )}
         </TouchableOpacity>
         <TouchableOpacity
-          style={[nativeStyles.actionCancelBtn, { backgroundColor: theme.backgroundSelected }]}
+          style={{
+            flexDirection: 'row-reverse',
+            gap: t.space[1],
+            backgroundColor: t.color.surfaceSubtle,
+            borderRadius: t.radius.field,
+            minHeight: t.layout.minTouchTarget,
+            paddingHorizontal: t.space[4],
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}
           onPress={() => respond('decline')}
           disabled={loading}
         >
-          <ThemedText style={{ fontSize: 13 }}>{Strings.dashboard.declineTeamButton}</ThemedText>
+          <Icon name="x" size="sm" />
+          <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
+            {Strings.dashboard.declineTeamButton}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

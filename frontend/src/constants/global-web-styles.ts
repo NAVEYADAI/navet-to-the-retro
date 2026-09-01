@@ -132,6 +132,17 @@ export function injectGlobalWebStyles() {
       }
     }
 
+    /* מתחת לזה גם לוגו+שני טאבים+אווטאר+כפתור יציאה טקסטואלי כבר לא נכנסים בשורה אחת ברוחב טלפון —
+       מצמצמים את כפתור היציאה לאייקון בלבד. */
+    @media (max-width: 460px) {
+      .nav-logout-text {
+        display: none !important;
+      }
+      .nav-logout-icon {
+        display: flex !important;
+      }
+    }
+
     /* Global smooth scrollbar */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }

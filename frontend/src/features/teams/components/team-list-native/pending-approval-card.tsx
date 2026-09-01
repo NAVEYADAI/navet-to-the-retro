@@ -59,8 +59,8 @@ export function PendingApprovalCard({ team, token, onResolved }: PendingApproval
         gap: t.space[4],
       }}
     >
-      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: t.space[3] }}>
-        <Text style={[rnText(t.type.cardTitle), { color: t.color.text }]}>
+      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[3] }}>
+        <Text style={[rnText(t.type.cardTitle), { color: t.color.text, flexShrink: 1 }]}>
           {team.name}
         </Text>
         <View
@@ -96,7 +96,7 @@ export function PendingApprovalCard({ team, token, onResolved }: PendingApproval
           </Text>
         </View>
       )}
-      <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
+      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
         <TouchableOpacity
           style={{
             flexDirection: 'row-reverse',

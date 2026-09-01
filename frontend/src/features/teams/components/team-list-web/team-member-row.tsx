@@ -157,7 +157,7 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
             sx={{ margin: 0, gap: `${t.space[2]}px`, '& .MuiFormControlLabel-label': { ...t.type.body, color: t.color.text } }}
           />
 
-          <Box sx={{ display: 'flex', flexDirection: 'row', gap: `${t.space[2]}px` }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', gap: `${t.space[2]}px` }}>
             <Button size="sm" variant="primary" onPress={handleSaveEdit} disabled={editLoading} loading={editLoading}>
               {Strings.teamList.saveButton}
             </Button>
@@ -173,15 +173,21 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
               {removeError}
             </Alert>
           )}
-          <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[2]}px` }}>
-            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${t.space[2]}px`, flexWrap: 'wrap' }}>
+          {/*
+            שני clusters נפרדים בטור, לא שורה אחת עם justify-content:space-between+flexWrap.
+            עם 4-5 badge/כפתור בצד השני, ה-wrap-כשצריך היה נשבר בנקודה לא-עקבית (תלוי אורך שם/גלגול
+            טקסט) ותמיד היה נראה "מלא מדי" גם כשטכנית נכנס בשורה — ראה UI-GUIDELINES §11 "שורת מידע +
+            אשכול פעולות".
+          */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
+            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${t.space[2]}px`, flexWrap: 'wrap', minWidth: 0 }}>
               <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
                 <bdi>{fullName}</bdi>
               </Typography>
               {member.status === 'PENDING' && <Badge tone="accent">{Strings.teamList.pendingMemberBadge}</Badge>}
             </Box>
 
-            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${t.space[2]}px`, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: `${t.space[2]}px`, flexWrap: 'wrap' }}>
               {member.isAdmin && <Badge tone="neutral">{Strings.teamList.adminBadge}</Badge>}
               <Box
                 sx={{

@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
 import { useAuth } from '@/context/auth-context';
+import { useTheme } from '@/design/theme-context';
 import { getBackendUrl } from '@/api/config';
 
 interface Approver {
@@ -17,16 +18,17 @@ interface CreateTeamFormProps {
   isLoading: boolean;
   isFirstTeam?: boolean;
   onCancel?: () => void;
-  theme: {
-    text: string;
-    background: string;
-    backgroundElement: string;
-    backgroundSelected: string;
-    textSecondary: string;
-  };
 }
 
-export function CreateTeamForm({ onSubmit, isLoading, isFirstTeam = false, onCancel, theme }: CreateTeamFormProps) {
+export function CreateTeamForm({ onSubmit, isLoading, isFirstTeam = false, onCancel }: CreateTeamFormProps) {
+  const t = useTheme();
+  const theme = {
+    text: t.color.text,
+    background: t.color.bg,
+    backgroundElement: t.color.surface,
+    backgroundSelected: t.color.surfaceSubtle,
+    textSecondary: t.color.textSecondary,
+  };
   const { user, token } = useAuth();
   const [newTeamName, setNewTeamName] = useState('');
   const [newMainOffice, setNewMainOffice] = useState('');
@@ -102,8 +104,8 @@ export function CreateTeamForm({ onSubmit, isLoading, isFirstTeam = false, onCan
       )}
 
       {!!localError && (
-        <View style={styles.errorBanner}>
-          <ThemedText style={styles.errorText}>{localError}</ThemedText>
+        <View style={[styles.errorBanner, { backgroundColor: t.color.status.danger.bg, borderColor: t.color.status.danger.border }]}>
+          <ThemedText style={[styles.errorText, { color: t.color.status.danger.fg }]}>{localError}</ThemedText>
         </View>
       )}
 
@@ -153,7 +155,7 @@ export function CreateTeamForm({ onSubmit, isLoading, isFirstTeam = false, onCan
             {Strings.dashboard.approverListLoading}
           </ThemedText>
         ) : approversError ? (
-          <ThemedText style={{ fontSize: 12, color: '#c62828' }}>
+          <ThemedText style={{ fontSize: 12, color: t.color.status.danger.fg }}>
             {approversError}
           </ThemedText>
         ) : (
@@ -263,15 +265,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   errorBanner: {
-    backgroundColor: '#ffebee',
     padding: Spacing.two,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ffcdd2',
     marginBottom: Spacing.one,
   },
   errorText: {
-    color: '#c62828',
     fontSize: 14,
     textAlign: 'center',
   },

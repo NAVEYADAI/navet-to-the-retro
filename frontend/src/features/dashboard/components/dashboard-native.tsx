@@ -42,17 +42,6 @@ export function DashboardNative() {
 
   const { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams } = useTeamsData(token);
 
-  // CreateTeamForm still declares the old theme-shaped prop (not yet on the migration
-  // backlog) — kept here only to forward until it's converted too. SprintRetroBoard's
-  // dispatcher still accepts this prop optionally but no longer reads it.
-  const legacyTheme = {
-    text: t.color.text,
-    background: t.color.bg,
-    backgroundElement: t.color.surface,
-    backgroundSelected: t.color.surfaceSubtle,
-    textSecondary: t.color.textSecondary,
-  };
-
   const handleCreateTeamSubmit = async (name: string, mainOffice: string, approverEmail: string) => {
     setErrorMessage(null);
     setTeamCreateLoading(true);
@@ -90,7 +79,6 @@ export function DashboardNative() {
             team={selectedTeam}
             token={token || ''}
             user={user}
-            theme={legacyTheme}
             onBack={() => {
               setActiveView('dashboard');
               if (token) {
@@ -166,7 +154,6 @@ export function DashboardNative() {
                   onSubmit={handleCreateTeamSubmit}
                   isLoading={teamCreateLoading}
                   isFirstTeam={true}
-                  theme={legacyTheme}
                 />
               </View>
             ) : (
@@ -187,7 +174,6 @@ export function DashboardNative() {
                       isLoading={teamCreateLoading}
                       isFirstTeam={false}
                       onCancel={() => setShowCreateTeam(false)}
-                      theme={legacyTheme}
                     />
                   </View>
                 ) : (

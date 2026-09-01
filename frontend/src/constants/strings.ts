@@ -140,5 +140,11 @@ export const Strings = {
     searchPlaceholder: 'חיפוש בתוך ההערות...',
     clearFiltersLabel: 'נקה סינון',
     noMatchingCommentsText: 'אין הערות התואמות לסינון',
-  }
+  },
+  settings: {
+    pageTitle: 'הגדרות מערכת',
+    pageSubtitle: 'ניהול פרטים אישיים, צוותים ואפשרויות מערכת נוספות.',
+    backToHomeButton: '← חזרה לראשי',
+    createTeamSectionTitle: 'יצירת צוות חדש',
+  },
 };

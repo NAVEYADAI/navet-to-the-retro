@@ -135,8 +135,8 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
           opacity: muted ? 0.8 : 1,
         }}
       >
-        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>{sprint.name}</Text>
+        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[1] }}>
+          <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, flexShrink: 1 }]}>{sprint.name}</Text>
           <View
             style={{
               backgroundColor: statusColor.bg,
@@ -191,7 +191,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
         borderTopColor: t.color.border,
       }}
     >
-      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
+      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
         {isAdmin && (
           <TouchableOpacity
             style={{
@@ -208,7 +208,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
             </Text>
           </TouchableOpacity>
         )}
-        <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
+        <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right', flexShrink: 1 }]}>
           {Strings.sprints.header}
         </Text>
       </View>

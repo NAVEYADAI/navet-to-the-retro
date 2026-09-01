@@ -66,7 +66,7 @@ export function CommentCardWeb({ comment }: CommentCardWebProps) {
           {comment.content}
         </Typography>
 
-        <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[1]}px` }}>
           <Typography sx={{ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 600, color: t.color.textSecondary }}>
             <bdi>{authorName}</bdi>
           </Typography>

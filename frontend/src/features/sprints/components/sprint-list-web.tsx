@@ -99,6 +99,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
 
   const rowSx = {
     display: 'flex',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: `${t.space[5]}px`,
@@ -122,9 +123,15 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
         gap: `${t.space[4]}px`,
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[3]}px` }}>
-        <Typography sx={{ ...t.type.cardTitle, color: t.color.text }}>{Strings.sprints.header}</Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[2] + 2}px` }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[3]}px` }}>
+        <Typography sx={{ ...t.type.cardTitle, color: t.color.text, minWidth: 0 }}>{Strings.sprints.header}</Typography>
+        {/*
+          `marginInlineStart: 'auto'` (לא רק ה-`justifyContent:'space-between'` של ההורה) — כי
+          כש-flexWrap שובר לשתי שורות במובייל, האשכול הזה נופל לשורה משלו לבד, וב-justify-content
+          עם פריט יחיד בשורה אין "בין מה למה" לפזר, אז הוא נדבק לתחילת הכיוון (ימין ב-RTL) במקום
+          להישאר בצד שמאל כמו בדסקטופ. margin אוטומטי בצד ההתחלה דוחף אותו לקצה הנגדי בכל מצב.
+        */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[2] + 2}px`, marginInlineStart: 'auto' }}>
           <Segmented
             value={filter}
             onChange={setFilter}
@@ -167,7 +174,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
           <Field label="שם הספרינט" value={name} onChangeText={setName} placeholder={Strings.sprints.sprintNamePlaceholder} required />
           <Field label="תיאור" value={description} onChangeText={setDescription} placeholder={Strings.sprints.descriptionPlaceholder} />
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: `${t.space[4]}px` }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: `${t.space[4]}px` }}>
             <Field label={Strings.sprints.startDateLabel} value={startDate} onChangeText={setStartDate} type="date" required />
             <Field label={Strings.sprints.endDateLabel} value={endDate} onChangeText={setEndDate} type="date" required />
           </Box>
@@ -228,6 +235,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
                 onClick={() => setIsExpiredExpanded(!isExpiredExpanded)}
                 sx={{
                   display: 'flex',
+                  flexWrap: 'wrap',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   paddingBlock: `${t.space[3]}px`,
@@ -238,7 +246,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
                   userSelect: 'none',
                 }}
               >
-                <Typography sx={{ ...t.type.label, fontFamily: t.type.overline.fontFamily, color: t.color.textSecondary }}>
+                <Typography sx={{ ...t.type.label, fontFamily: t.type.overline.fontFamily, color: t.color.textSecondary, minWidth: 0 }}>
                   ספרינטים קודמים שנסגרו (<bdi>{closed.length}</bdi>)
                 </Typography>
                 <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
@@ -249,7 +257,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
               {isExpiredExpanded
                 ? closed.map(({ sprint, state }) => (
                     <Box key={sprint.id} onClick={() => onSelectSprint(sprint, team)} sx={rowSx}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[3]}px` }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[3]}px`, minWidth: 0 }}>
                         <StatusDot tone={STATE_TONE[state]} />
                         <Typography sx={{ ...t.type.rowTitle, color: t.color.text }}>{sprint.name}</Typography>
                       </Box>

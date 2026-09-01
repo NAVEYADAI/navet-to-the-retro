@@ -48,7 +48,7 @@ export function PendingMembershipCard({ team, token, onResolved }: PendingMember
           {error}
         </Alert>
       )}
-      <Box sx={{ display: 'flex', flexDirection: 'row', gap: `${t.space[3]}px` }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', gap: `${t.space[3]}px` }}>
         <Button variant="primary" icon="check" disabled={loading} loading={loading} onPress={() => respond('accept')}>
           {Strings.dashboard.approveTeamButton}
         </Button>

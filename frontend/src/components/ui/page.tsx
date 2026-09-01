@@ -15,8 +15,8 @@ export function Page({ children }: { children: React.ReactNode }) {
         sx={{
           maxWidth: t.layout.container,
           marginInline: 'auto',
-          paddingInline: `${t.layout.pagePaddingInline}px`,
-          paddingBlock: `${t.space[6]}px`,
+          paddingInline: { xs: `${t.space[4]}px`, sm: `${t.layout.pagePaddingInline}px` },
+          paddingBlock: { xs: `${t.space[5]}px`, sm: `${t.space[6]}px` },
           display: 'flex',
           flexDirection: 'column',
           gap: `${t.space[5]}px`,
@@ -39,8 +39,16 @@ export function PageHeader({
 }) {
   const t = useTheme();
   return (
-    <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: `${t.space[5]}px` }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px` }}>
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: { xs: 'flex-start', sm: 'flex-end' },
+        justifyContent: 'space-between',
+        gap: `${t.space[3]}px`,
+      }}
+    >
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px`, minWidth: 0 }}>
         <Typography component="h1" sx={{ ...t.type.pageTitle, color: t.color.text, margin: 0 }}>
           {title}
         </Typography>
@@ -53,11 +61,20 @@ export function PageHeader({
   );
 }
 
-/** רשת עם מספר טורים קבוע — פיצ׳ר חדש נכנס כתא, לא מזיז את השאר. */
+/**
+ * רשת עם מספר טורים קבוע — פיצ׳ר חדש נכנס כתא, לא מזיז את השאר.
+ * מתחת ל-`sm` יורדת תמיד לטור יחיד — אין רוחב מסך שבו `columns` נשאר קבוע ומצטמצם עד לבלתי-קריא.
+ */
 export function Grid({ columns = 3, children }: { columns?: 2 | 3 | 4; children: React.ReactNode }) {
   const t = useTheme();
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: `${t.layout.gridGap}px` }}>
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', sm: `repeat(${columns}, 1fr)` },
+        gap: `${t.layout.gridGap}px`,
+      }}
+    >
       {children}
     </Box>
   );

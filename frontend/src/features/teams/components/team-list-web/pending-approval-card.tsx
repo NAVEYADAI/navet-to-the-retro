@@ -41,8 +41,8 @@ export function PendingApprovalCard({ team, token, onResolved }: PendingApproval
 
   return (
     <Card padding={5}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[3]}px` }}>
-        <Typography component="h3" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[3]}px` }}>
+        <Typography component="h3" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0, minWidth: 0 }}>
           {team.name}
         </Typography>
         <Badge tone="accent">ממתין לאישורך</Badge>
@@ -55,7 +55,7 @@ export function PendingApprovalCard({ team, token, onResolved }: PendingApproval
           {error}
         </Alert>
       )}
-      <Box sx={{ display: 'flex', flexDirection: 'row', gap: `${t.space[3]}px` }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', gap: `${t.space[3]}px` }}>
         <Button variant="primary" icon="check" disabled={loading} loading={loading} onPress={() => respond('approve')}>
           {Strings.dashboard.approveTeamButton}
         </Button>

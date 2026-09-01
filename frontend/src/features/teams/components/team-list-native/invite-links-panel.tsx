@@ -227,7 +227,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
                 onChangeText={setMaxUses}
                 keyboardType="number-pad"
               />
-              <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
+              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
                 <TouchableOpacity
                   style={{
                     flexDirection: 'row-reverse',
@@ -337,12 +337,12 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
                       </Text>
                     </View>
                   </View>
-                  <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
-                    <Text style={[rnText(t.type.caption), { color: t.color.textSecondary }]}>
+                  <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
+                    <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, flexShrink: 1 }]}>
                       {Strings.invites.usesLabel(invite.useCount, invite.maxUses)}
                     </Text>
                     {isActive && (
-                      <View style={{ flexDirection: 'row-reverse', gap: t.space[1] + 2 }}>
+                      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[1] + 2 }}>
                         <TouchableOpacity
                           style={{
                             flexDirection: 'row-reverse',

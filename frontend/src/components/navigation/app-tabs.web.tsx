@@ -171,7 +171,10 @@ export function CustomTabList(props: TabListProps) {
               activeOpacity={0.6}
             >
               <div
+                className="nav-logout-btn"
                 style={{
+                  display: 'flex',
+                  alignItems: 'center',
                   paddingBlock: t.space[1],
                   paddingInline: t.space[3],
                   borderRadius: t.radius.field,
@@ -184,19 +187,22 @@ export function CustomTabList(props: TabListProps) {
                   fontFamily: t.type.bodyStrong.fontFamily,
                 }}
                 onMouseEnter={(e) => {
-                  const el = e.target as HTMLElement;
+                  const el = e.currentTarget as HTMLElement;
                   el.style.borderColor = t.color.status.danger.fg;
                   el.style.color = t.color.status.danger.fg;
                   el.style.background = t.color.status.danger.bg;
                 }}
                 onMouseLeave={(e) => {
-                  const el = e.target as HTMLElement;
+                  const el = e.currentTarget as HTMLElement;
                   el.style.borderColor = t.color.border;
                   el.style.color = t.color.textSecondary;
                   el.style.background = 'transparent';
                 }}
               >
-                יציאה
+                <span className="nav-logout-icon" style={{ display: 'none' }}>
+                  <Icon name="log-out" size="sm" tone="muted" />
+                </span>
+                <span className="nav-logout-text">יציאה</span>
               </div>
             </TouchableOpacity>
           </View>

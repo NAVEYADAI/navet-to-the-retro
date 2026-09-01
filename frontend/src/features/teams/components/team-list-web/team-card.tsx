@@ -54,6 +54,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
       <Box
         sx={{
           display: 'flex',
+          flexWrap: 'wrap',
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -61,7 +62,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
           borderBlockEnd: `1px solid ${t.color.border}`,
         }}
       >
-        <Typography sx={{ ...t.type.cardTitle, color: t.color.text }}>
+        <Typography sx={{ ...t.type.cardTitle, color: t.color.text, minWidth: 0 }}>
           {team.name}
         </Typography>
         {!!team.mainOffice && (
@@ -75,7 +76,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
       </Box>
 
       {isMyPendingTeam && (
-        <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[3]}px` }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[3]}px` }}>
           <Badge tone="accent">{Strings.dashboard.pendingApprovalFromLabel(team.pendingApprover?.email || '')}</Badge>
           <Button size="sm" variant="danger" disabled={cancelLoading} loading={cancelLoading} onPress={handleCancelPendingTeam}>
             {Strings.dashboard.cancelPendingTeamButton}
@@ -89,8 +90,8 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
       )}
 
       <Box>
-        <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBlockEnd: `${t.space[4]}px` }}>
-          <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBlockEnd: `${t.space[4]}px`, gap: `${t.space[2]}px` }}>
+          <Typography sx={{ ...t.type.bodyStrong, color: t.color.text, minWidth: 0 }}>
             {Strings.teamList.membersHeader(team.members?.length || 0)}
           </Typography>
           {isTeamAdmin && !isPending && (

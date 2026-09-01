@@ -170,8 +170,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
         <Text style={[rnText(t.type.body), { color: t.color.text, textAlign: 'right' }]}>
           {comment.content}
         </Text>
-        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={[rnText({ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 700 }), { color: t.color.textSecondary }]}>
+        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[1] }}>
+          <Text style={[rnText({ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 700 }), { color: t.color.textSecondary, flexShrink: 1 }]}>
             {authorName}
           </Text>
           <Text style={[rnText(t.type.caption), { color: t.color.textMuted }]}>
@@ -193,8 +193,10 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
         <View
           style={{
             flexDirection: 'row-reverse',
+            flexWrap: 'wrap',
             alignItems: 'flex-start',
             justifyContent: 'space-between',
+            gap: t.space[2],
             paddingBottom: t.space[3],
             borderBottomWidth: 1,
             borderBottomColor: t.color.border,
@@ -209,7 +211,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             </Text>
           </TouchableOpacity>
 
-          <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={{ alignItems: 'flex-end', gap: 4, flexShrink: 1 }}>
             <Text style={[rnText(t.type.sectionTitle), { color: t.color.text, textAlign: 'right' }]}>
               {sprint.name}
             </Text>
@@ -375,7 +377,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             </TouchableOpacity>
           </Modal>
 
-          <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: t.space[1] }}>
+          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2], marginTop: t.space[1] }}>
             <TouchableOpacity
               onPress={() => setIsAnonymous(prev => !prev)}
               activeOpacity={0.8}

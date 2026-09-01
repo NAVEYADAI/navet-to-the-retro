@@ -76,7 +76,7 @@ export function PendingMembershipCard({ team, token, onResolved }: PendingMember
           </Text>
         </View>
       )}
-      <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
+      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
         <TouchableOpacity
           style={{
             flexDirection: 'row-reverse',

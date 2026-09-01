@@ -38,13 +38,6 @@ describe('SprintRetroBoard Component', () => {
   };
   const mockToken = 'mock-token';
   const mockUser = { id: 12, username: 'adminuser' };
-  const mockTheme = {
-    text: '#000',
-    background: '#fff',
-    backgroundElement: '#eee',
-    backgroundSelected: '#ddd',
-    textSecondary: '#666',
-  };
 
   const mockComments = [
     {
@@ -112,7 +105,6 @@ describe('SprintRetroBoard Component', () => {
         team={mockTeam}
         token={mockToken}
         user={mockUser}
-        theme={mockTheme}
         onBack={mockBack}
       />
     );
@@ -131,7 +123,6 @@ describe('SprintRetroBoard Component', () => {
         team={mockTeam}
         token={mockToken}
         user={mockUser}
-        theme={mockTheme}
         onBack={mockBack}
       />
     );
@@ -150,7 +141,6 @@ describe('SprintRetroBoard Component', () => {
         team={mockTeam}
         token={mockToken}
         user={mockUser}
-        theme={mockTheme}
         onBack={mockBack}
       />
     );
@@ -179,7 +169,6 @@ describe('SprintRetroBoard Component', () => {
         team={mockTeam}
         token={mockToken}
         user={mockUser}
-        theme={mockTheme}
         onBack={mockBack}
       />
     );
@@ -221,7 +210,6 @@ describe('SprintRetroBoard Component', () => {
           team={mockTeam}
           token={mockToken}
           user={mockUser}
-          theme={mockTheme}
           onBack={jest.fn()}
         />
       );

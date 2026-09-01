@@ -7,8 +7,7 @@ import { ThemedView } from '@/components/themed-view';
 import { AuthForm } from '@/components/auth-form';
 import { Spacing } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/design/theme-context';
 import { useAuth } from '@/context/auth-context';
 import { getBackendUrl } from '@/api/config';
 
@@ -17,8 +16,7 @@ type Status = 'loading' | 'invalid' | 'ready' | 'joining' | 'done' | 'error';
 export default function InvitePage() {
   const { token: inviteToken } = useLocalSearchParams<{ token: string }>();
   const { token: authToken } = useAuth();
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme === 'unspecified' ? 'light' : colorScheme];
+  const t = useTheme();
 
   const [status, setStatus] = useState<Status>('loading');
   const [inviteInfo, setInviteInfo] = useState<{ teamName: string; email: string | null } | null>(null);
@@ -76,7 +74,7 @@ export default function InvitePage() {
   if (status === 'loading') {
     return (
       <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.two }}>
-        <ActivityIndicator size="large" color={theme.text} />
+        <ActivityIndicator size="large" color={t.color.text} />
         <ThemedText>{Strings.invites.loadingInviteText}</ThemedText>
       </ThemedView>
     );
@@ -94,7 +92,7 @@ export default function InvitePage() {
   if (status === 'joining' || status === 'done') {
     return (
       <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.two }}>
-        <ActivityIndicator size="large" color={theme.text} />
+        <ActivityIndicator size="large" color={t.color.text} />
         <ThemedText>{status === 'done' ? Strings.invites.joinedTeamText : Strings.invites.joiningTeamText}</ThemedText>
       </ThemedView>
     );

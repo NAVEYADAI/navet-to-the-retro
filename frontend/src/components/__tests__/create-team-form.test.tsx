@@ -17,13 +17,6 @@ const mockApprovers = [
 ];
 
 describe('CreateTeamForm Component', () => {
-  const mockTheme = {
-    text: '#000',
-    background: '#fff',
-    backgroundElement: '#eee',
-    backgroundSelected: '#ddd',
-    textSecondary: '#666',
-  };
 
   beforeEach(() => {
     mockedAxios.get.mockResolvedValue({ data: mockApprovers });
@@ -36,7 +29,7 @@ describe('CreateTeamForm Component', () => {
   it('renders standard create team form by default', async () => {
     const mockSubmit = jest.fn();
     const { getByText, queryByText } = await render(
-      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} theme={mockTheme} />
+      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} />
     );
 
     expect(getByText(Strings.dashboard.createTeamTitle)).toBeTruthy();
@@ -46,7 +39,7 @@ describe('CreateTeamForm Component', () => {
   it('renders onboarding message when isFirstTeam is true', async () => {
     const mockSubmit = jest.fn();
     const { getByText } = await render(
-      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} isFirstTeam={true} theme={mockTheme} />
+      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} isFirstTeam={true} />
     );
 
     expect(getByText(Strings.dashboard.createFirstTeamTitle)).toBeTruthy();
@@ -57,7 +50,7 @@ describe('CreateTeamForm Component', () => {
     const mockSubmit = jest.fn();
     const mockCancel = jest.fn();
     const { getByText } = await render(
-      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} onCancel={mockCancel} theme={mockTheme} />
+      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} onCancel={mockCancel} />
     );
 
     const closeBtn = getByText(Strings.dashboard.closeButton);
@@ -69,7 +62,7 @@ describe('CreateTeamForm Component', () => {
   it('validates required name field before submitting', async () => {
     const mockSubmit = jest.fn();
     const { getByText, findByText } = await render(
-      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} theme={mockTheme} />
+      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} />
     );
 
     const submitBtn = getByText('צור צוות (ראש צוות)');
@@ -82,7 +75,7 @@ describe('CreateTeamForm Component', () => {
   it('validates required approver selection before submitting', async () => {
     const mockSubmit = jest.fn();
     const { getByPlaceholderText, getByText, findByText } = await render(
-      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} theme={mockTheme} />
+      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} />
     );
 
     const nameInput = getByPlaceholderText('שם הצוות (למשל R&D Core)');
@@ -104,7 +97,7 @@ describe('CreateTeamForm Component', () => {
   it('fetches the allowed-approvers list and calls onSubmit with the selected approver on submit', async () => {
     const mockSubmit = jest.fn().mockResolvedValue(undefined);
     const { getByPlaceholderText, getByText, findByText } = await render(
-      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} theme={mockTheme} />
+      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} />
     );
 
     // Let the allowed-approvers fetch resolve fully before driving any further interaction,
@@ -141,7 +134,7 @@ describe('CreateTeamForm Component', () => {
     mockedAxios.get.mockRejectedValueOnce(new Error('network down'));
     const mockSubmit = jest.fn();
     const { findByText } = await render(
-      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} theme={mockTheme} />
+      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} />
     );
 
     expect(await findByText(Strings.dashboard.approverListLoadError)).toBeTruthy();

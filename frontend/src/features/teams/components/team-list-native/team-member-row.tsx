@@ -142,8 +142,8 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
           })}
         </View>
 
-        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2] }}>
-          <Text style={[rnText(t.type.body), { color: t.color.text }]}>{Strings.teamList.teamAdminPrivileges}</Text>
+        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', gap: t.space[2] }}>
+          <Text style={[rnText(t.type.body), { color: t.color.text, flexShrink: 1 }]}>{Strings.teamList.teamAdminPrivileges}</Text>
           <Switch
             value={editIsAdmin}
             onValueChange={setEditIsAdmin}
@@ -152,7 +152,7 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
           />
         </View>
 
-        <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
+        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
           <TouchableOpacity
             style={{
               backgroundColor: t.color.accent.base,
@@ -222,15 +222,12 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
         </View>
       )}
 
-      <View
-        style={{
-          flexDirection: 'row-reverse',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: t.space[2],
-          flexWrap: 'wrap',
-        }}
-      >
+      {/*
+        שני View נפרדים בטור, לא שורה אחת עם justify-content:space-between+flexWrap — עם 4-5
+        badge/כפתור בצד השני, ה-wrap-כשצריך נשבר בנקודה לא-עקבית ותמיד נראה "מלא מדי" גם כשטכנית
+        נכנס. ראה UI-GUIDELINES §11 "שורת מידע + אשכול פעולות" (אותו תיקון בגרסת ה-web).
+      */}
+      <View style={{ gap: t.space[2] }}>
         <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2], flexWrap: 'wrap', flexShrink: 1 }}>
           <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
             {fullName}

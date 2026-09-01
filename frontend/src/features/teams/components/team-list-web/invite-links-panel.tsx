@@ -189,7 +189,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
                 value={maxUses}
                 onChangeText={setMaxUses}
               />
-              <Box sx={{ display: 'flex', flexDirection: 'row', gap: `${t.space[3]}px` }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', gap: `${t.space[3]}px` }}>
                 <Button variant="primary" icon="plus" onPress={handleCreateLink} disabled={isCreating} loading={isCreating}>
                   {Strings.invites.createLinkButton}
                 </Button>
@@ -226,18 +226,18 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
                     border: `1px solid ${t.color.border}`,
                   }}
                 >
-                  <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[2]}px` }}>
-                    <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[2]}px` }}>
+                    <Typography sx={{ ...t.type.bodyStrong, color: t.color.text, minWidth: 0 }}>
                       {invite.name || invite.email || Strings.invites.unnamedLinkLabel}
                     </Typography>
                     <Badge tone={status.tone}>{status.label}</Badge>
                   </Box>
-                  <Box sx={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[2]}px` }}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[2]}px` }}>
                     <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>
                       {Strings.invites.usesLabel(invite.useCount, invite.maxUses)}
                     </Typography>
                     {isActive && (
-                      <Box sx={{ display: 'flex', flexDirection: 'row', gap: `${t.space[2]}px` }}>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', gap: `${t.space[2]}px` }}>
                         <Button size="sm" variant="secondary" icon={copiedRowId === invite.id ? 'check' : 'copy'} onPress={() => handleCopyRow(invite)}>
                           {copiedRowId === invite.id ? Strings.invites.linkCopiedText : Strings.invites.copyLinkButton}
                         </Button>

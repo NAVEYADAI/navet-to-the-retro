@@ -68,7 +68,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
         gap: t.space[3],
       }}
     >
-      <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
+      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
         <View style={{ flex: 1 }}>
           <Text style={[rnText(t.type.cardTitle), { color: t.color.text, textAlign: 'right' }]}>
             {team.name}
@@ -89,7 +89,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
       </View>
 
       {isMyPendingTeam && (
-        <View style={{ flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
+        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
           <View
             style={{
               backgroundColor: t.color.accent.subtle,
@@ -98,6 +98,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
               borderRadius: t.radius.badge,
               paddingHorizontal: t.space[2],
               paddingVertical: t.space[1],
+              flexShrink: 1,
             }}
           >
             <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base }]}>
@@ -128,12 +129,12 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
       )}
 
       {!!team.mainOffice && (
-        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1] }}>
+        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', gap: t.space[1] }}>
           <Icon name="map-pin" size="sm" tone="muted" />
           <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
             {Strings.teamList.officeLocationLabel}
           </Text>
-          <Text style={[rnText(t.type.body), { color: t.color.text, textAlign: 'right' }]}>
+          <Text style={[rnText(t.type.body), { color: t.color.text, textAlign: 'right', flexShrink: 1 }]}>
             {team.mainOffice}
           </Text>
         </View>

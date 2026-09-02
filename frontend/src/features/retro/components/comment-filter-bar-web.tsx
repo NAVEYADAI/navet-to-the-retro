@@ -9,11 +9,20 @@ interface CommentFilterBarWebProps {
   onCategoriesChange: (values: string[]) => void;
   searchText: string;
   onSearchTextChange: (value: string) => void;
+  highlightedOnly: boolean;
+  onHighlightedOnlyChange: (value: boolean) => void;
 }
 
-export function CommentFilterBarWeb({ categories, onCategoriesChange, searchText, onSearchTextChange }: CommentFilterBarWebProps) {
+export function CommentFilterBarWeb({
+  categories,
+  onCategoriesChange,
+  searchText,
+  onSearchTextChange,
+  highlightedOnly,
+  onHighlightedOnlyChange,
+}: CommentFilterBarWebProps) {
   const t = useTheme();
-  const isFilterActive = categories.length > 0 || !!searchText.trim();
+  const isFilterActive = categories.length > 0 || !!searchText.trim() || highlightedOnly;
 
   const handleChange = (e: SelectChangeEvent<string[]>) => {
     const value = e.target.value;
@@ -71,8 +80,22 @@ export function CommentFilterBarWeb({ categories, onCategoriesChange, searchText
         />
       </Box>
 
+      <Button
+        variant={highlightedOnly ? 'primary' : 'secondary'}
+        size="sm"
+        icon="star"
+        onPress={() => onHighlightedOnlyChange(!highlightedOnly)}
+      >
+        {Strings.retroBoard.highlightedOnlyFilterLabel}
+      </Button>
+
       {isFilterActive && (
-        <Button variant="ghost" size="sm" icon="x" onPress={() => { onCategoriesChange([]); onSearchTextChange(''); }}>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="x"
+          onPress={() => { onCategoriesChange([]); onSearchTextChange(''); onHighlightedOnlyChange(false); }}
+        >
           {Strings.retroBoard.clearFiltersLabel}
         </Button>
       )}

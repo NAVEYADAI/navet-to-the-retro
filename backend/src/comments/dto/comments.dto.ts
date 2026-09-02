@@ -6,3 +6,7 @@ export class CreateCommentDto {
   category?: CommentCategory;
   isAnonymous?: boolean;
 }
+
+export class UpdateHighlightDto {
+  isHighlighted!: boolean;
+}

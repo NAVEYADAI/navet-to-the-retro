@@ -19,6 +19,7 @@ import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
+import { SprintSummary } from '@/features/sprint-summary';
 
 interface SprintRetroBoardProps {
   sprint: any;
@@ -44,6 +45,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
 
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showSummary, setShowSummary] = useState(false);
 
   // New comment state
   const [content, setContent] = useState('');
@@ -57,6 +59,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   // Comment list filters (distinct from the compose-form state above)
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [filterText, setFilterText] = useState('');
+  const [highlightedOnly, setHighlightedOnly] = useState(false);
 
   // Press-triggered scale feedback for the KEEP/IMPROVE toggle (no animation on mount/type-change).
   const [wheelScale] = useState(new Animated.Value(1));
@@ -126,17 +129,35 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
 
   const matchesFilters = (c: any) =>
     (filterCategories.length === 0 || filterCategories.includes(c.category)) &&
-    (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase()));
+    (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase())) &&
+    (!highlightedOnly || c.isHighlighted);
 
   const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
   const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
+
+  // Only team admins and team leads may highlight — see PRODUCT-BACKLOG.md §2.0.
+  const myMembership = team.members?.find((m: any) => m.userId === user.id);
+  const canHighlight = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
+
+  const handleToggleHighlight = async (commentId: number, nextValue: boolean) => {
+    setComments(prev => prev.map(c => (c.id === commentId ? { ...c, isHighlighted: nextValue } : c)));
+    try {
+      await axios.patch(`${getBackendUrl()}/comments/${commentId}/highlight`, { isHighlighted: nextValue }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch (err) {
+      console.error('Failed to update highlight:', err);
+      setComments(prev => prev.map(c => (c.id === commentId ? { ...c, isHighlighted: !nextValue } : c)));
+    }
+  };
 
   const isKeep = type === 'KEEP';
   const wheelTone = isKeep ? t.color.status.success : t.color.status.danger;
 
   const renderCommentCard = (comment: any, accent: { fg: string; bg: string; border: string }) => {
     const categoryLabel = comment.category ? Strings.retroBoard.categories[comment.category] : null;
+    const isHighlighted = !!comment.isHighlighted;
     const authorName = comment.isAnonymous
       ? Strings.retroBoard.anonymousAuthor
       : `${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || comment.author.username;
@@ -145,7 +166,9 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
       <View
         key={comment.id}
         style={{
-          backgroundColor: t.color.surface,
+          backgroundColor: isHighlighted ? t.color.accent.subtle : t.color.surface,
+          borderWidth: isHighlighted ? 1 : 0,
+          borderColor: t.color.accent.border,
           borderRightWidth: 3,
           borderRightColor: accent.fg,
           borderRadius: t.radius.card,
@@ -153,18 +176,34 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
           gap: t.space[2],
         }}
       >
-        {!!categoryLabel && (
-          <View
-            style={{
-              alignSelf: 'flex-end',
-              backgroundColor: accent.bg,
-              borderRadius: t.radius.pill,
-              borderTopRightRadius: t.radius.badge,
-              paddingHorizontal: t.space[2],
-              paddingVertical: 3,
-            }}
-          >
-            <Text style={[rnText(t.type.overline), { color: accent.fg }]}>{categoryLabel}</Text>
+        {(!!categoryLabel || canHighlight || isHighlighted) && (
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: t.space[2] }}>
+            {!!categoryLabel ? (
+              <View
+                style={{
+                  backgroundColor: accent.bg,
+                  borderRadius: t.radius.pill,
+                  borderTopRightRadius: t.radius.badge,
+                  paddingHorizontal: t.space[2],
+                  paddingVertical: 3,
+                }}
+              >
+                <Text style={[rnText(t.type.overline), { color: accent.fg }]}>{categoryLabel}</Text>
+              </View>
+            ) : (
+              <View />
+            )}
+
+            {canHighlight ? (
+              <TouchableOpacity
+                onPress={() => handleToggleHighlight(comment.id, !isHighlighted)}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+              >
+                <Icon name="star" size="sm" tone={isHighlighted ? 'accent' : 'muted'} />
+              </TouchableOpacity>
+            ) : isHighlighted ? (
+              <Icon name="star" size="sm" tone="accent" />
+            ) : null}
           </View>
         )}
         <Text style={[rnText(t.type.body), { color: t.color.text, textAlign: 'right' }]}>
@@ -181,6 +220,13 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
       </View>
     );
   };
+
+  // The team's creator OR any team admin can export a sprint summary — see PRODUCT-BACKLOG.md §1.0.
+  const canExportSummary = team.creatorId === user.id || !!myMembership?.isAdmin;
+
+  if (showSummary) {
+    return <SprintSummary sprint={sprint} team={team} token={token} onBack={() => setShowSummary(false)} />;
+  }
 
   return (
     <ScrollView
@@ -202,14 +248,26 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             borderBottomColor: t.color.border,
           }}
         >
-          <TouchableOpacity
-            style={{ paddingHorizontal: t.space[3], paddingVertical: t.space[1] + 2, borderRadius: t.radius.field, backgroundColor: t.color.surfaceSubtle }}
-            onPress={onBack}
-          >
-            <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-              {Strings.retroBoard.backButton}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
+            <TouchableOpacity
+              style={{ paddingHorizontal: t.space[3], paddingVertical: t.space[1] + 2, borderRadius: t.radius.field, backgroundColor: t.color.surfaceSubtle }}
+              onPress={onBack}
+            >
+              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                {Strings.retroBoard.backButton}
+              </Text>
+            </TouchableOpacity>
+            {canExportSummary && (
+              <TouchableOpacity
+                style={{ paddingHorizontal: t.space[3], paddingVertical: t.space[1] + 2, borderRadius: t.radius.field, backgroundColor: t.color.surfaceSubtle }}
+                onPress={() => setShowSummary(true)}
+              >
+                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                  {Strings.sprintSummary.openButton}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           <View style={{ alignItems: 'flex-end', gap: 4, flexShrink: 1 }}>
             <Text style={[rnText(t.type.sectionTitle), { color: t.color.text, textAlign: 'right' }]}>
@@ -431,6 +489,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
               onCategoriesChange={setFilterCategories}
               searchText={filterText}
               onSearchTextChange={setFilterText}
+              highlightedOnly={highlightedOnly}
+              onHighlightedOnlyChange={setHighlightedOnly}
             />
           </View>
         )}

@@ -8,6 +8,7 @@ import { Page, PageHeader, Grid, Card, Button, Field, Segmented, Icon } from '@/
 import { CommentCardWeb } from './comment-card-web';
 import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
+import { SprintSummary } from '@/features/sprint-summary';
 
 interface SprintRetroBoardWebProps {
   sprint: any;
@@ -21,6 +22,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   const t = useTheme();
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showSummary, setShowSummary] = useState(false);
 
   // New comment state
   const [content, setContent] = useState('');
@@ -33,6 +35,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   // Comment list filters (distinct from the compose-form state above)
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
   const [filterText, setFilterText] = useState('');
+  const [highlightedOnly, setHighlightedOnly] = useState(false);
 
   const fetchComments = async () => {
     setIsLoading(true);
@@ -91,7 +94,24 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
 
   const matchesFilters = (c: any) =>
     (filterCategories.length === 0 || filterCategories.includes(c.category)) &&
-    (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase()));
+    (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase())) &&
+    (!highlightedOnly || c.isHighlighted);
+
+  // Only team admins and team leads may highlight — see PRODUCT-BACKLOG.md §2.0.
+  const myMembership = team.members?.find((m: any) => m.userId === user.id);
+  const canHighlight = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
+
+  const handleToggleHighlight = async (commentId: number, nextValue: boolean) => {
+    setComments(prev => prev.map(c => c.id === commentId ? { ...c, isHighlighted: nextValue } : c));
+    try {
+      await axios.patch(`${getBackendUrl()}/comments/${commentId}/highlight`, { isHighlighted: nextValue }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch (err) {
+      console.error('Failed to update highlight:', err);
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, isHighlighted: !nextValue } : c));
+    }
+  };
 
   const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
@@ -102,11 +122,27 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
     ...Object.entries(Strings.retroBoard.categories).map(([value, label]) => ({ value, label })),
   ];
 
+  // The team's creator OR any team admin can export a sprint summary — see PRODUCT-BACKLOG.md §1.0.
+  const canExportSummary = team.creatorId === user.id || !!myMembership?.isAdmin;
+
+  if (showSummary) {
+    return <SprintSummary sprint={sprint} team={team} token={token} onBack={() => setShowSummary(false)} />;
+  }
+
   return (
     <Page>
       <PageHeader
         title={sprint.name}
-        action={<Button variant="secondary" onPress={onBack}>{Strings.retroBoard.backButton}</Button>}
+        action={
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
+            {canExportSummary ? (
+              <Button variant="secondary" icon="presentation" onPress={() => setShowSummary(true)}>
+                {Strings.sprintSummary.openButton}
+              </Button>
+            ) : null}
+            <Button variant="secondary" onPress={onBack}>{Strings.retroBoard.backButton}</Button>
+          </Box>
+        }
       />
 
       <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
@@ -185,6 +221,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
           onCategoriesChange={setFilterCategories}
           searchText={filterText}
           onSearchTextChange={setFilterText}
+          highlightedOnly={highlightedOnly}
+          onHighlightedOnlyChange={setHighlightedOnly}
         />
       )}
 
@@ -223,7 +261,13 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
               </Typography>
             ) : (
               keepComments.map((comment, index) => (
-                <CommentCardWeb key={comment.id} comment={comment} index={index} />
+                <CommentCardWeb
+                  key={comment.id}
+                  comment={comment}
+                  index={index}
+                  canHighlight={canHighlight}
+                  onToggleHighlight={handleToggleHighlight}
+                />
               ))
             )}
           </Box>
@@ -254,7 +298,13 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
               </Typography>
             ) : (
               improveComments.map((comment, index) => (
-                <CommentCardWeb key={comment.id} comment={comment} index={index} />
+                <CommentCardWeb
+                  key={comment.id}
+                  comment={comment}
+                  index={index}
+                  canHighlight={canHighlight}
+                  onToggleHighlight={handleToggleHighlight}
+                />
               ))
             )}
           </Box>

@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Body, Param, Headers, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Headers, ParseIntPipe, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { SprintsService } from './sprints.service';
 import { AuthService } from '../auth/auth.service';
 import { CreateSprintDto } from './dto/sprints.dto';
@@ -27,5 +28,26 @@ export class SprintsController {
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.sprintsService.findAll(teamId, user.id);
+  }
+
+  @Get(':sprintId/summary/export')
+  async exportSummary(
+    @Headers('authorization') authHeader: string,
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
+    @Query('template') template: string | undefined,
+    @Res() res: Response
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    const { buffer, fileName } = await this.sprintsService.exportSummaryPptx(teamId, sprintId, user.id, template);
+    // @Res() without passthrough opts us out of Nest's default JSON serialization, which would
+    // otherwise wrap this Buffer as `{"type":"Buffer","data":[...]}` instead of sending raw bytes.
+    // `filename*` (RFC 5987) carries the real Hebrew name; the plain `filename` is an ASCII
+    // fallback for any client that doesn't understand the extended form.
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'Content-Disposition': `attachment; filename="sprint-summary.pptx"; filename*=UTF-8''${encodeURIComponent(fileName)}`
+    });
+    res.send(buffer);
   }
 }

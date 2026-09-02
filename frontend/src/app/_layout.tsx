@@ -7,6 +7,7 @@ import { AuthForm } from '@/components/auth-form';
 import AppTabs from '@/components/navigation/app-tabs';
 import { injectGlobalWebStyles } from '@/constants/global-web-styles';
 import { AppProviders } from '@/design/app-providers';
+import { useTheme } from '@/design/theme-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -16,7 +17,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
 
 function LayoutContent() {
   const { token, loading } = useAuth();
-  const colorScheme = useColorScheme();
+  const t = useTheme();
   const pathname = usePathname();
   const isInviteRoute = pathname?.startsWith('/invite/');
 
@@ -27,9 +28,9 @@ function LayoutContent() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20, backgroundColor: colorScheme === 'dark' ? '#0a0a0f' : '#fafbff' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 20, backgroundColor: t.color.bg }}>
         <Image source={require('../../assets/images/app-logo.png')} style={{ width: 96, height: 96 }} resizeMode="contain" />
-        <ActivityIndicator size="large" color={colorScheme === 'dark' ? '#818cf8' : '#6366f1'} />
+        <ActivityIndicator size="large" color={t.color.accent.base} />
       </View>
     );
   }

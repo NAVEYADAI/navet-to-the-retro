@@ -76,13 +76,13 @@ model TeamInvite {
 }
 
 model TeamMember {
-  id        Int               @id @default(autoincrement())
+  id        Int              @id @default(autoincrement())
   userId    Int
   teamId    Int
-  role      TeamRole          @default(DEVELOPER)
-  isAdmin   Boolean           @default(false)
-  status    TeamMemberStatus  @default(ACTIVE)
-  createdAt DateTime          @default(now())
+  role      TeamRole         @default(DEVELOPER)
+  isAdmin   Boolean          @default(false)
+  status    TeamMemberStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
@@ -125,15 +125,16 @@ model Sprint {
 }
 
 model Comment {
-  id          Int              @id @default(autoincrement())
-  content     String
-  type        CommentType
-  category    CommentCategory?
-  isAnonymous Boolean          @default(false)
-  createdAt   DateTime         @default(now())
-  authorId    Int
-  teamId      Int
-  sprintId    Int
+  id            Int              @id @default(autoincrement())
+  content       String
+  type          CommentType
+  category      CommentCategory?
+  isAnonymous   Boolean          @default(false)
+  isHighlighted Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  authorId      Int
+  teamId        Int
+  sprintId      Int
 
   author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
   team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)

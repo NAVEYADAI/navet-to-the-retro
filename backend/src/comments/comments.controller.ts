@@ -1,16 +1,16 @@
-import { Controller, Post, Get, Body, Param, Headers, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Headers, ParseIntPipe } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { AuthService } from '../auth/auth.service';
-import { CreateCommentDto } from './dto/comments.dto';
+import { CreateCommentDto, UpdateHighlightDto } from './dto/comments.dto';
 
-@Controller('sprints/:sprintId/comments')
+@Controller()
 export class CommentsController {
   constructor(
     private readonly commentsService: CommentsService,
     private readonly authService: AuthService
   ) {}
 
-  @Post()
+  @Post('sprints/:sprintId/comments')
   async create(
     @Headers('authorization') authHeader: string,
     @Param('sprintId', ParseIntPipe) sprintId: number,
@@ -20,12 +20,22 @@ export class CommentsController {
     return this.commentsService.create(sprintId, dto, user.id);
   }
 
-  @Get()
+  @Get('sprints/:sprintId/comments')
   async getCommentsForSprint(
     @Headers('authorization') authHeader: string,
     @Param('sprintId', ParseIntPipe) sprintId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.commentsService.getCommentsForSprint(sprintId, user.id);
+  }
+
+  @Patch('comments/:commentId/highlight')
+  async setHighlighted(
+    @Headers('authorization') authHeader: string,
+    @Param('commentId', ParseIntPipe) commentId: number,
+    @Body() dto: UpdateHighlightDto
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.commentsService.setHighlighted(commentId, dto, user.id);
   }
 }

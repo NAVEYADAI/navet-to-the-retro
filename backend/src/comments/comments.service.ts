@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { CreateCommentDto } from './dto/comments.dto';
+import { CreateCommentDto, UpdateHighlightDto } from './dto/comments.dto';
+import { assertCanManageTeamContent } from '../teams/team-permissions.util';
 
 @Injectable()
 export class CommentsService {
@@ -104,6 +105,21 @@ export class CommentsService {
         };
       }
       return c;
+    });
+  }
+
+  async setHighlighted(commentId: number, dto: UpdateHighlightDto, requesterId: number) {
+    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    // Only team admins and team leads may highlight — see PRODUCT-BACKLOG.md §2.0.
+    await assertCanManageTeamContent(this.prisma, comment.teamId, requesterId);
+
+    return this.prisma.comment.update({
+      where: { id: commentId },
+      data: { isHighlighted: dto.isHighlighted }
     });
   }
 }

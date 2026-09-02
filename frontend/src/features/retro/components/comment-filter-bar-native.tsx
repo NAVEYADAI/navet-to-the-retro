@@ -9,6 +9,8 @@ interface CommentFilterBarNativeProps {
   onCategoriesChange: (values: string[]) => void;
   searchText: string;
   onSearchTextChange: (value: string) => void;
+  highlightedOnly: boolean;
+  onHighlightedOnlyChange: (value: boolean) => void;
 }
 
 /** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
@@ -20,10 +22,17 @@ function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: numbe
   };
 }
 
-export function CommentFilterBarNative({ categories, onCategoriesChange, searchText, onSearchTextChange }: CommentFilterBarNativeProps) {
+export function CommentFilterBarNative({
+  categories,
+  onCategoriesChange,
+  searchText,
+  onSearchTextChange,
+  highlightedOnly,
+  onHighlightedOnlyChange,
+}: CommentFilterBarNativeProps) {
   const t = useTheme();
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
-  const isFilterActive = categories.length > 0 || !!searchText.trim();
+  const isFilterActive = categories.length > 0 || !!searchText.trim() || highlightedOnly;
 
   const toggleCategory = (key: string) => {
     onCategoriesChange(
@@ -76,17 +85,41 @@ export function CommentFilterBarNative({ categories, onCategoriesChange, searchT
         />
       </View>
 
-      {isFilterActive && (
+      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', flexWrap: 'wrap', gap: t.space[2] }}>
         <TouchableOpacity
-          onPress={() => { onCategoriesChange([]); onSearchTextChange(''); }}
-          style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, alignSelf: 'flex-end' }}
+          onPress={() => onHighlightedOnlyChange(!highlightedOnly)}
+          activeOpacity={0.8}
+          style={{
+            flexDirection: 'row-reverse',
+            alignItems: 'center',
+            gap: 4,
+            paddingVertical: t.space[1] + 2,
+            paddingHorizontal: t.space[3],
+            borderRadius: t.radius.pill,
+            backgroundColor: highlightedOnly ? t.color.accent.subtle : t.color.surfaceSubtle,
+          }}
         >
-          <Icon name="x" size="sm" tone="muted" />
-          <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.textSecondary }]}>
-            {Strings.retroBoard.clearFiltersLabel}
+          <Icon name="star" size="sm" tone={highlightedOnly ? 'accent' : 'muted'} />
+          <Text style={[
+            rnText({ ...t.type.label, fontWeight: highlightedOnly ? 700 : 400 }),
+            { color: highlightedOnly ? t.color.accent.base : t.color.textSecondary },
+          ]}>
+            {Strings.retroBoard.highlightedOnlyFilterLabel}
           </Text>
         </TouchableOpacity>
-      )}
+
+        {isFilterActive && (
+          <TouchableOpacity
+            onPress={() => { onCategoriesChange([]); onSearchTextChange(''); onHighlightedOnlyChange(false); }}
+            style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}
+          >
+            <Icon name="x" size="sm" tone="muted" />
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.textSecondary }]}>
+              {Strings.retroBoard.clearFiltersLabel}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       <Modal
         visible={isCategoryPickerOpen}

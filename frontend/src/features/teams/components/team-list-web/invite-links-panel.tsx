@@ -6,6 +6,7 @@ import { Box, Typography, Alert, Collapse } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
 import { Button, Field, Badge, Icon } from '@/components/ui';
 import type { Tone } from '@/components/ui';
+import { trackEvent } from '@/lib/analytics';
 
 interface InviteLinksPanelProps {
   teamId: number;
@@ -70,6 +71,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       setExpiresAt('');
       setMaxUses('');
       setShowCreateForm(false);
+      trackEvent('invite_link_created');
       fetchInvites();
     } catch (err: any) {
       setCreateError(err.response?.data?.message || err.message || 'יצירת הקישור נכשלה.');

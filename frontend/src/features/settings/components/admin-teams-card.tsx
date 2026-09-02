@@ -3,6 +3,7 @@ import { Box, Typography, Alert, CircularProgress } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
 import { Card, Button, Field, Icon } from '@/components/ui';
 import { Strings } from '@/constants/strings';
+import { trackEvent } from '@/lib/analytics';
 
 interface AdminTeamsCardProps {
   adminTeams: any[];
@@ -43,7 +44,13 @@ export function AdminTeamsCard({
         <Typography component="h2" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
           ניהול ועריכת צוותים בניהולך
         </Typography>
-        <Button variant="ghost" size="sm" icon="refresh" onPress={onRefresh} disabled={loadingTeams}>
+        <Button
+          variant="ghost"
+          size="sm"
+          icon="refresh"
+          onPress={() => { trackEvent('refresh_clicked', { screen: 'admin_teams' }); onRefresh(); }}
+          disabled={loadingTeams}
+        >
           {Strings.common.refreshButton}
         </Button>
       </Box>

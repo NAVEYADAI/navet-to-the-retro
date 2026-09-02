@@ -6,6 +6,7 @@ import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { sprintTone } from '@/design/tokens';
 import { Icon } from '@/components/ui';
+import { trackEvent } from '@/lib/analytics';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -95,6 +96,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
       setStartDate('');
       setEndDate('');
       setShowCreateForm(false);
+      trackEvent('sprint_created');
       await fetchSprints();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'שגיאה בפתיחת ספרינט רטרו.');
@@ -211,7 +213,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
           )}
           <TouchableOpacity
             style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[1], paddingVertical: t.space[1] }}
-            onPress={fetchSprints}
+            onPress={() => { trackEvent('refresh_clicked', { screen: 'sprint_list' }); fetchSprints(); }}
             disabled={isLoading}
           >
             <Icon name="refresh" size="sm" tone="muted" />

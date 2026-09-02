@@ -2,12 +2,21 @@ import { DarkTheme, DefaultTheme, ThemeProvider, Slot, usePathname } from 'expo-
 import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme, View, ActivityIndicator, Platform, Image } from 'react-native';
+import { useEffect, type ComponentType, type PropsWithChildren } from 'react';
+import { PostHogProvider, PostHogErrorBoundary as RawPostHogErrorBoundary, type PostHogErrorBoundaryProps } from 'posthog-react-native';
+
+// posthog-react-native's class component ships typed against a React version whose `Component`
+// shape TS 6 sees as structurally incompatible with this project's React 19 types (missing
+// props/state/setState/forceUpdate) — a types-only mismatch, not a runtime one. Cast once here.
+const PostHogErrorBoundary = RawPostHogErrorBoundary as unknown as ComponentType<PropsWithChildren<PostHogErrorBoundaryProps>>;
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { AuthForm } from '@/components/auth-form';
+import { AppCrashFallback } from '@/components/app-crash-fallback';
 import AppTabs from '@/components/navigation/app-tabs';
 import { injectGlobalWebStyles } from '@/constants/global-web-styles';
 import { AppProviders } from '@/design/app-providers';
 import { useTheme } from '@/design/theme-context';
+import { getAnalyticsClient, trackEvent } from '@/lib/analytics';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -20,6 +29,12 @@ function LayoutContent() {
   const t = useTheme();
   const pathname = usePathname();
   const isInviteRoute = pathname?.startsWith('/invite/');
+
+  useEffect(() => {
+    if (pathname) {
+      trackEvent('$pageview', { path: pathname });
+    }
+  }, [pathname]);
 
   // Hide splash screen when session loading completes
   if (!loading) {
@@ -55,16 +70,31 @@ function LayoutContent() {
 export default function TabLayout() {
   const colorScheme = useColorScheme();
 
-  return (
+  const content = (
     <AuthProvider>
       <AppProviders>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Head>
             <title>נווט לרט</title>
           </Head>
-          <LayoutContent />
+          <PostHogErrorBoundary fallback={AppCrashFallback}>
+            <LayoutContent />
+          </PostHogErrorBoundary>
         </ThemeProvider>
       </AppProviders>
     </AuthProvider>
+  );
+
+  const analyticsClient = getAnalyticsClient();
+  if (!analyticsClient) {
+    // No EXPO_PUBLIC_POSTHOG_KEY configured (e.g. local dev without it set) — skip the provider
+    // entirely rather than let it spin up a client with an empty key.
+    return content;
+  }
+
+  return (
+    <PostHogProvider client={analyticsClient} autocapture={{ captureScreens: false }}>
+      {content}
+    </PostHogProvider>
   );
 }

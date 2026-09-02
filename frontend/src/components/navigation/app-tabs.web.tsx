@@ -14,6 +14,7 @@ import { useTheme } from '@/design/theme-context';
 import { Icon, type IconName } from '@/components/ui';
 import { MaxContentWidth } from '@/constants/theme';
 import { triggerGoHome } from '@/features/dashboard/home-signal';
+import { trackEvent } from '@/lib/analytics';
 
 /** מיקום וגובה סרגל הניווט הצף (CustomTabList) — משמשים גם לחישוב ה-padding שמפנה לו מקום בתוכן המסך. */
 const NAV_TOP = 14;
@@ -49,11 +50,16 @@ export default function AppTabs() {
   );
 }
 
-export function TabButton({ children, isFocused, icon, onDoubleClick, ...props }: TabTriggerSlotProps & { icon?: IconName; onDoubleClick?: () => void }) {
+export function TabButton({ children, isFocused, icon, onDoubleClick, onPress, ...props }: TabTriggerSlotProps & { icon?: IconName; onDoubleClick?: () => void }) {
   const t = useTheme();
 
+  const handlePress = (e: any) => {
+    trackEvent('nav_tab_pressed', { tab: icon ?? 'unknown' });
+    onPress?.(e);
+  };
+
   return (
-    <Pressable {...props} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
+    <Pressable {...props} onPress={handlePress} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
       <div
         onDoubleClick={onDoubleClick}
         style={{

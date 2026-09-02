@@ -2,6 +2,11 @@ export const Strings = {
   common: {
     refreshButton: 'רענן',
   },
+  errors: {
+    appCrashTitle: 'משהו השתבש',
+    appCrashMessage: 'קרתה שגיאה בלתי צפויה. ננסה לתקן את זה בהקדם.',
+    reloadButton: 'רענן את הדף',
+  },
   auth: {
     welcomeBack: 'ברוך הבא',
     getStarted: 'להרשמה',

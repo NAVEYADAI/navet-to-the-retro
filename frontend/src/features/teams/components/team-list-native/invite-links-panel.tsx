@@ -6,6 +6,7 @@ import { getBackendUrl, getFrontendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import type { AppTheme } from '@/design/tokens';
+import { trackEvent } from '@/lib/analytics';
 
 interface InviteLinksPanelProps {
   teamId: number;
@@ -80,6 +81,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       setExpiresAt('');
       setMaxUses('');
       setShowCreateForm(false);
+      trackEvent('invite_link_created');
       fetchInvites();
     } catch (err: any) {
       setCreateError(err.response?.data?.message || err.message || 'יצירת הקישור נכשלה.');

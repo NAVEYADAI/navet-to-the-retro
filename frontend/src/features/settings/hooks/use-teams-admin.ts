@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
+import { trackEvent } from '@/lib/analytics';
 
 // Teams this user administers, plus the create/edit-team flows that mutate them.
 // Fetches on mount only — no longer refetches on every focus (see
@@ -60,6 +61,7 @@ export function useTeamsAdmin(token: string | null | undefined, user: any) {
       );
 
       setTeamMessage({ text: `הצוות "${name}" ממתין לאישור של ${approverEmail}.`, isError: false });
+      trackEvent('team_created');
       fetchAdminTeams();
     } catch (err: any) {
       setTeamMessage({

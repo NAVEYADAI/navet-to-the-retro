@@ -9,6 +9,7 @@ import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import { computeSprintSummaryStats } from '../stats';
 import { SPRINT_SUMMARY_TEMPLATES, type SprintSummaryTemplateId } from '../templates';
+import { trackEvent } from '@/lib/analytics';
 
 interface SprintSummaryNativeProps {
   sprint: any;
@@ -106,7 +107,7 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
             </TouchableOpacity>
             <TouchableOpacity
               style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-              onPress={fetchComments}
+              onPress={() => { trackEvent('refresh_clicked', { screen: 'sprint_summary' }); fetchComments(); }}
               disabled={isLoading}
             >
               <Icon name="refresh" size="sm" tone="muted" />

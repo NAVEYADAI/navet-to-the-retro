@@ -19,6 +19,7 @@ import { useAuth } from '@/context/auth-context';
 import { getBackendUrl } from '@/api/config';
 import { Icon } from '@/components/ui';
 import { useTeamsData } from '../hooks/use-teams-data';
+import { trackEvent } from '@/lib/analytics';
 
 /** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
 function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
@@ -114,7 +115,7 @@ export function DashboardNative() {
               </Text>
               <TouchableOpacity
                 style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                onPress={refresh}
+                onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
                 disabled={isLoadingTeams}
               >
                 <Icon name="refresh" size="sm" tone="muted" />

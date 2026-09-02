@@ -27,6 +27,7 @@
     "framer-motion": "^13.0.0",
     "lucide-react": "^1.35.0",
     "lucide-react-native": "^1.35.0",
+    "posthog-react-native": "^4.66.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",

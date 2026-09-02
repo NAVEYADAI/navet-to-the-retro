@@ -9,6 +9,7 @@ import { useTheme } from '@/design/theme-context';
 import { Button, Card, Page, PageHeader } from '@/components/ui';
 import { useTeamsData } from '../hooks/use-teams-data';
 import { subscribeGoHome } from '../home-signal';
+import { trackEvent } from '@/lib/analytics';
 
 export function DashboardWeb() {
   const t = useTheme();
@@ -53,7 +54,13 @@ export function DashboardWeb() {
       <PageHeader
         title={Strings.dashboard.welcomeTitle(user.firstName || user.username)}
         action={
-          <Button variant="ghost" size="sm" icon="refresh" onPress={refresh} disabled={isLoadingTeams}>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="refresh"
+            onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
+            disabled={isLoadingTeams}
+          >
             {Strings.common.refreshButton}
           </Button>
         }

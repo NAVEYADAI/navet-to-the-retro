@@ -7,6 +7,7 @@ import { useTheme } from '@/design/theme-context';
 import { Page, PageHeader, Card, Button } from '@/components/ui';
 import { computeSprintSummaryStats } from '../stats';
 import { SPRINT_SUMMARY_TEMPLATES, type SprintSummaryTemplateId } from '../templates';
+import { trackEvent } from '@/lib/analytics';
 
 // Prefers the RFC 5987 `filename*=UTF-8''...` form the backend sends (carries the real Hebrew
 // name) over the plain ASCII-only `filename="..."` fallback.
@@ -84,7 +85,13 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
         subtitle={Strings.sprintSummary.pageSubtitle}
         action={
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[2]}px` }}>
-            <Button variant="ghost" size="sm" icon="refresh" onPress={fetchComments} disabled={isLoading}>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="refresh"
+              onPress={() => { trackEvent('refresh_clicked', { screen: 'sprint_summary' }); fetchComments(); }}
+              disabled={isLoading}
+            >
               {Strings.common.refreshButton}
             </Button>
             <Button variant="secondary" onPress={onBack}>{Strings.sprintSummary.backButton}</Button>

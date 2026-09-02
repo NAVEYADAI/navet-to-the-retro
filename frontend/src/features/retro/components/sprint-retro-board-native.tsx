@@ -20,6 +20,7 @@ import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
 import { SprintSummary } from '@/features/sprint-summary';
+import { trackEvent } from '@/lib/analytics';
 
 interface SprintRetroBoardProps {
   sprint: any;
@@ -138,6 +139,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
       setContent('');
       setCategory('');
       setIsAnonymous(false);
+      trackEvent('retro_comment_added', { type });
       await fetchComments();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'שגיאה בשליחת ההערה.');
@@ -147,7 +149,9 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   };
 
   const toggleType = () => {
-    setType(prev => (prev === 'KEEP' ? 'IMPROVE' : 'KEEP'));
+    const next = type === 'KEEP' ? 'IMPROVE' : 'KEEP';
+    setType(next);
+    trackEvent('retro_wheel_toggled', { type: next });
   };
 
   const handleWheelPressIn = () => {
@@ -177,6 +181,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
       await axios.patch(`${getBackendUrl()}/comments/${commentId}/highlight`, { isHighlighted: nextValue }, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      trackEvent('retro_comment_highlighted', { isHighlighted: nextValue });
     } catch (err) {
       console.error('Failed to update highlight:', err);
       setComments(prev => prev.map(c => (c.id === commentId ? { ...c, isHighlighted: !nextValue } : c)));
@@ -348,7 +353,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
               )}
               <TouchableOpacity
                 style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                onPress={fetchComments}
+                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); }}
                 disabled={isLoading}
               >
                 <Icon name="refresh" size="sm" tone="muted" />
@@ -666,7 +671,10 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
               searchText={filterText}
               onSearchTextChange={setFilterText}
               highlightedOnly={highlightedOnly}
-              onHighlightedOnlyChange={setHighlightedOnly}
+              onHighlightedOnlyChange={(value: boolean) => {
+                setHighlightedOnly(value);
+                trackEvent('retro_highlighted_filter_toggled', { value });
+              }}
             />
           </View>
         )}

@@ -9,6 +9,7 @@ import { CommentCardWeb } from './comment-card-web';
 import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
 import { SprintSummary } from '@/features/sprint-summary';
+import { trackEvent } from '@/lib/analytics';
 
 interface SprintRetroBoardWebProps {
   sprint: any;
@@ -97,6 +98,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
       setContent('');
       setCategory('');
       setIsAnonymous(false);
+      trackEvent('retro_comment_added', { type });
       await fetchComments();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'שגיאה בשליחת ההערה.');
@@ -106,7 +108,9 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   };
 
   const toggleType = () => {
-    setType(prev => prev === 'KEEP' ? 'IMPROVE' : 'KEEP');
+    const next = type === 'KEEP' ? 'IMPROVE' : 'KEEP';
+    setType(next);
+    trackEvent('retro_wheel_toggled', { type: next });
   };
 
   const matchesFilters = (c: any) =>
@@ -124,6 +128,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
       await axios.patch(`${getBackendUrl()}/comments/${commentId}/highlight`, { isHighlighted: nextValue }, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      trackEvent('retro_comment_highlighted', { isHighlighted: nextValue });
     } catch (err) {
       console.error('Failed to update highlight:', err);
       setComments(prev => prev.map(c => c.id === commentId ? { ...c, isHighlighted: !nextValue } : c));
@@ -197,7 +202,13 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
                   {Strings.sprintSummary.openButton}
                 </Button>
               ) : null}
-              <Button variant="ghost" size="sm" icon="refresh" onPress={fetchComments} disabled={isLoading}>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="refresh"
+                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); }}
+                disabled={isLoading}
+              >
                 {Strings.common.refreshButton}
               </Button>
             </Box>
@@ -316,7 +327,10 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
           searchText={filterText}
           onSearchTextChange={setFilterText}
           highlightedOnly={highlightedOnly}
-          onHighlightedOnlyChange={setHighlightedOnly}
+          onHighlightedOnlyChange={(value) => {
+            setHighlightedOnly(value);
+            trackEvent('retro_highlighted_filter_toggled', { value });
+          }}
         />
       )}
 

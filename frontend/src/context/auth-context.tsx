@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { getAuthHeaders } from '@/api/client';
+import { identifyUser, resetAnalytics } from '@/lib/analytics';
 
 const storage = {
   getItem: async (key: string) => {
@@ -65,6 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const response = await axios.get(`${getBackendUrl()}/auth/me`, getAuthHeaders(savedToken));
         setToken(savedToken);
         setUser(response.data);
+        identifyUser(response.data);
         setLoading(false);
       } catch (e) {
         if (axios.isAxiosError(e) && e.response?.status === 401) {
@@ -93,12 +95,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await storage.setItem('userToken', newToken);
     setToken(newToken);
     setUser(newUser);
+    identifyUser(newUser);
   };
 
   const logout = async () => {
     await storage.removeItem('userToken');
     setToken(null);
     setUser(null);
+    resetAnalytics();
   };
 
   return (

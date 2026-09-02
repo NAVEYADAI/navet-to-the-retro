@@ -5,6 +5,7 @@ import { Strings } from '@/constants/strings';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Badge, Button, Field, Segmented, StatusDot, type Tone } from '@/components/ui';
+import { trackEvent } from '@/lib/analytics';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -83,6 +84,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
       setStartDate('');
       setEndDate('');
       setShowCreateForm(false);
+      trackEvent('sprint_created');
       await fetchSprints();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'שגיאה בפתיחת ספרינט רטרו.');
@@ -134,14 +136,23 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[2] + 2}px`, marginInlineStart: 'auto' }}>
           <Segmented
             value={filter}
-            onChange={setFilter}
+            onChange={(value) => {
+              setFilter(value);
+              trackEvent('sprint_filter_changed', { filter: value });
+            }}
             options={[
               { value: 'all', label: 'הכל' },
               { value: 'active', label: 'פעילים' },
               { value: 'closed', label: 'סגורים' },
             ]}
           />
-          <Button variant="ghost" size="sm" icon="refresh" onPress={fetchSprints} disabled={isLoading}>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="refresh"
+            onPress={() => { trackEvent('refresh_clicked', { screen: 'sprint_list' }); fetchSprints(); }}
+            disabled={isLoading}
+          >
             {Strings.common.refreshButton}
           </Button>
           {isAdmin ? (

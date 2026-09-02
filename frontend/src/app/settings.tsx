@@ -26,6 +26,7 @@ export default function SettingsScreen() {
   const {
     adminTeams,
     loadingTeams,
+    fetchAdminTeams,
     teamCreateLoading,
     teamMessage,
     handleCreateTeamSubmit,
@@ -85,6 +86,7 @@ export default function SettingsScreen() {
       <AdminTeamsCard
         adminTeams={adminTeams}
         loadingTeams={loadingTeams}
+        onRefresh={fetchAdminTeams}
         editTeamId={editTeamId}
         setEditTeamId={setEditTeamId}
         editTeamName={editTeamName}

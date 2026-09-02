@@ -44,23 +44,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadSession = async () => {
+    // Wake-up ping: both frontend and backend scale to zero on Fly.io (min_machines_running=0,
+    // auto_stop_machines='suspend' in fly.toml). A cold backend's first real request can fail
+    // outright rather than just being slow, so fire this harmless, response-ignored request the
+    // instant the app boots — it gives the machine (and its DB connection, since `GET /` also
+    // runs a query) a head start before the user finishes typing a login, or before the
+    // /auth/me check below runs. Runs in parallel with loadSession(), not awaited by it.
+    axios.get(getBackendUrl()).catch(() => {});
+
+    const RETRY_DELAY_MS = 3000;
+    const MAX_RETRIES = 2;
+
+    const loadSession = async (attempt = 0) => {
       try {
         const savedToken = await storage.getItem('userToken');
-        if (savedToken) {
-          const response = await axios.get(`${getBackendUrl()}/auth/me`, getAuthHeaders(savedToken));
-          setToken(savedToken);
-          setUser(response.data);
+        if (!savedToken) {
+          setLoading(false);
+          return;
         }
-      } catch (e) {
-        await storage.removeItem('userToken');
-        if (axios.isAxiosError(e) && e.response?.status === 401) {
-          console.warn('Session expired, please log in again');
-        } else {
-          console.error('Failed to restore session', e);
-        }
-      } finally {
+        const response = await axios.get(`${getBackendUrl()}/auth/me`, getAuthHeaders(savedToken));
+        setToken(savedToken);
+        setUser(response.data);
         setLoading(false);
+      } catch (e) {
+        if (axios.isAxiosError(e) && e.response?.status === 401) {
+          // The token itself was rejected — it's genuinely invalid, not a cold-start hiccup.
+          await storage.removeItem('userToken');
+          console.warn('Session expired, please log in again');
+          setLoading(false);
+          return;
+        }
+
+        // Any other failure (no response, timeout, 5xx) is more likely the Fly.io backend
+        // still cold-starting than a real auth problem — retry instead of wiping a perfectly
+        // valid saved token just because of bad timing.
+        console.error('Failed to restore session (will retry if attempts remain)', e);
+        if (attempt < MAX_RETRIES) {
+          setTimeout(() => loadSession(attempt + 1), RETRY_DELAY_MS);
+        } else {
+          setLoading(false);
+        }
       }
     };
     loadSession();

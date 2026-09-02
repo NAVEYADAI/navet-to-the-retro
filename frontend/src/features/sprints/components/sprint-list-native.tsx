@@ -192,22 +192,34 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
       }}
     >
       <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
-        {isAdmin && (
+        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2] }}>
+          {isAdmin && (
+            <TouchableOpacity
+              style={{
+                borderWidth: 1,
+                borderColor: t.color.border,
+                borderRadius: t.radius.badge,
+                paddingHorizontal: t.space[2],
+                paddingVertical: t.space[1],
+              }}
+              onPress={() => setShowCreateForm(!showCreateForm)}
+            >
+              <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base }]}>
+                {showCreateForm ? Strings.sprints.cancelButton : Strings.sprints.newSprintButton}
+              </Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={{
-              borderWidth: 1,
-              borderColor: t.color.border,
-              borderRadius: t.radius.badge,
-              paddingHorizontal: t.space[2],
-              paddingVertical: t.space[1],
-            }}
-            onPress={() => setShowCreateForm(!showCreateForm)}
+            style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[1], paddingVertical: t.space[1] }}
+            onPress={fetchSprints}
+            disabled={isLoading}
           >
-            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base }]}>
-              {showCreateForm ? Strings.sprints.cancelButton : Strings.sprints.newSprintButton}
+            <Icon name="refresh" size="sm" tone="muted" />
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.textSecondary }]}>
+              {Strings.common.refreshButton}
             </Text>
           </TouchableOpacity>
-        )}
+        </View>
         <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right', flexShrink: 1 }]}>
           {Strings.sprints.header}
         </Text>

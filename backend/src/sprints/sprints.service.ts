@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { CreateSprintDto } from './dto/sprints.dto';
+import { CreateSprintDto, UpdateSprintDto } from './dto/sprints.dto';
 import { buildSprintSummaryPptx, buildExportFileName, resolveTemplateId } from './sprint-summary.builder';
 
 @Injectable()
@@ -40,6 +40,40 @@ export class SprintsService {
         startDate: new Date(dto.startDate),
         endDate: new Date(dto.endDate),
         teamId: teamId
+      }
+    });
+  }
+
+  async update(teamId: number, sprintId: number, dto: UpdateSprintDto, requesterId: number) {
+    // 1. Verify team exists
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
+    // 2. Verify requester is a team admin — same permission as creating a sprint, so no one
+    // can edit a sprint they couldn't have created in the first place.
+    const requesterMembership = await this.prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: requesterId, teamId } }
+    });
+    if (!requesterMembership || !requesterMembership.isAdmin) {
+      throw new ForbiddenException('Only team admins can edit sprints');
+    }
+
+    // 3. Verify the sprint exists and belongs to this team
+    const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId } });
+    if (!sprint) {
+      throw new NotFoundException('Sprint not found');
+    }
+
+    // 4. Update only the fields actually provided
+    return this.prisma.sprint.update({
+      where: { id: sprintId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.startDate !== undefined && { startDate: new Date(dto.startDate) }),
+        ...(dto.endDate !== undefined && { endDate: new Date(dto.endDate) })
       }
     });
   }

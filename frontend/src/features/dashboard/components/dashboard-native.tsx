@@ -17,6 +17,7 @@ import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
 import { useAuth } from '@/context/auth-context';
 import { getBackendUrl } from '@/api/config';
+import { Icon } from '@/components/ui';
 import { useTeamsData } from '../hooks/use-teams-data';
 
 /** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
@@ -40,7 +41,7 @@ export function DashboardNative() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
 
-  const { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams } = useTeamsData(token);
+  const { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams, refresh } = useTeamsData(token);
 
   const handleCreateTeamSubmit = async (name: string, mainOffice: string, approverEmail: string) => {
     setErrorMessage(null);
@@ -111,6 +112,16 @@ export function DashboardNative() {
               <Text style={[rnText(t.type.body), { color: t.color.textSecondary, textAlign: 'center' }]}>
                 {Strings.dashboard.welcomeSubtitle}
               </Text>
+              <TouchableOpacity
+                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
+                onPress={refresh}
+                disabled={isLoadingTeams}
+              >
+                <Icon name="refresh" size="sm" tone="muted" />
+                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.textSecondary }]}>
+                  {Strings.common.refreshButton}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {!!errorMessage && (

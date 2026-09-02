@@ -38,6 +38,20 @@ function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: numbe
   };
 }
 
+function editFieldStyle(t: ReturnType<typeof useTheme>): TextStyle {
+  return {
+    ...rnText(t.type.body),
+    height: t.layout.minTouchTarget,
+    borderWidth: 1,
+    borderRadius: t.radius.field,
+    paddingHorizontal: t.space[2],
+    textAlign: 'right',
+    color: t.color.text,
+    borderColor: t.color.border,
+    backgroundColor: t.color.surface,
+  };
+}
+
 export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: SprintRetroBoardProps) {
   const t = useTheme();
   const { width } = useWindowDimensions();
@@ -46,6 +60,23 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
+
+  // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
+  // successful edit reflects immediately without waiting for the parent to refetch and pass a
+  // new prop down. Resynced whenever a genuinely different sprint is selected (see effect below).
+  const [sprintData, setSprintData] = useState(sprint);
+  const [isEditingSprint, setIsEditingSprint] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSprintData(sprint);
+    setIsEditingSprint(false);
+  }, [sprint.id]);
 
   // New comment state
   const [content, setContent] = useState('');
@@ -223,9 +254,43 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
 
   // The team's creator OR any team admin can export a sprint summary — see PRODUCT-BACKLOG.md §1.0.
   const canExportSummary = team.creatorId === user.id || !!myMembership?.isAdmin;
+  // Only team admins may edit a sprint's own settings — same guard as sprint creation.
+  const canEditSprint = !!myMembership?.isAdmin;
+
+  const startEditingSprint = () => {
+    setEditError(null);
+    setEditName(sprintData.name || '');
+    setEditDescription(sprintData.description || '');
+    setEditStartDate(new Date(sprintData.startDate).toISOString().slice(0, 10));
+    setEditEndDate(new Date(sprintData.endDate).toISOString().slice(0, 10));
+    setIsEditingSprint(true);
+  };
+
+  const handleSaveSprintEdit = async () => {
+    setEditError(null);
+    setIsSavingEdit(true);
+    try {
+      const response = await axios.patch(
+        `${getBackendUrl()}/teams/${team.id}/sprints/${sprintData.id}`,
+        {
+          name: editName.trim(),
+          description: editDescription.trim(),
+          startDate: editStartDate,
+          endDate: editEndDate,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSprintData(response.data);
+      setIsEditingSprint(false);
+    } catch (err: any) {
+      setEditError(err.response?.data?.message || Strings.retroBoard.editSprintErrorText);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   if (showSummary) {
-    return <SprintSummary sprint={sprint} team={team} token={token} onBack={() => setShowSummary(false)} />;
+    return <SprintSummary sprint={sprintData} team={team} token={token} onBack={() => setShowSummary(false)} />;
   }
 
   return (
@@ -248,40 +313,151 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             borderBottomColor: t.color.border,
           }}
         >
-          <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
+          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
+            {/* Sprint-level actions (edit + summary) grouped together, visually distinct from navigation. */}
+            <View
+              style={{
+                flexDirection: 'row-reverse',
+                gap: t.space[1],
+                backgroundColor: t.color.surfaceSubtle,
+                borderRadius: t.radius.field,
+                padding: 2,
+              }}
+            >
+              {canEditSprint && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
+                  onPress={startEditingSprint}
+                >
+                  <Icon name="edit" size="sm" tone="muted" />
+                  <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                    {Strings.retroBoard.editSprintButton}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {canExportSummary && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
+                  onPress={() => setShowSummary(true)}
+                >
+                  <Icon name="presentation" size="sm" tone="muted" />
+                  <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                    {Strings.sprintSummary.openButton}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
+                onPress={fetchComments}
+                disabled={isLoading}
+              >
+                <Icon name="refresh" size="sm" tone="muted" />
+                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                  {Strings.common.refreshButton}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity
-              style={{ paddingHorizontal: t.space[3], paddingVertical: t.space[1] + 2, borderRadius: t.radius.field, backgroundColor: t.color.surfaceSubtle }}
+              style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
               onPress={onBack}
             >
               <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
                 {Strings.retroBoard.backButton}
               </Text>
             </TouchableOpacity>
-            {canExportSummary && (
-              <TouchableOpacity
-                style={{ paddingHorizontal: t.space[3], paddingVertical: t.space[1] + 2, borderRadius: t.radius.field, backgroundColor: t.color.surfaceSubtle }}
-                onPress={() => setShowSummary(true)}
-              >
-                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-                  {Strings.sprintSummary.openButton}
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
 
-          <View style={{ alignItems: 'flex-end', gap: 4, flexShrink: 1 }}>
-            <Text style={[rnText(t.type.sectionTitle), { color: t.color.text, textAlign: 'right' }]}>
-              {sprint.name}
-            </Text>
-            <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
-              {`${team.name} • ${new Date(sprint.startDate).toLocaleDateString()} - ${new Date(sprint.endDate).toLocaleDateString()}`}
-            </Text>
-            {!!sprint.description && (
-              <Text style={[rnText(t.type.caption), { color: t.color.textMuted, textAlign: 'right' }]}>
-                {sprint.description}
+          {isEditingSprint ? (
+            <View
+              style={{
+                gap: t.space[2],
+                width: '100%',
+                backgroundColor: t.color.surface,
+                borderRadius: t.radius.card,
+                borderWidth: 1,
+                borderColor: t.color.border,
+                padding: t.space[3],
+              }}
+            >
+              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text, textAlign: 'right' }]}>
+                {Strings.retroBoard.editSprintHeader}
               </Text>
-            )}
-          </View>
+              <TextInput
+                style={editFieldStyle(t)}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder={Strings.sprints.sprintNamePlaceholder}
+                placeholderTextColor={t.color.textSecondary}
+              />
+              <TextInput
+                style={editFieldStyle(t)}
+                value={editDescription}
+                onChangeText={setEditDescription}
+                placeholder={Strings.sprints.descriptionPlaceholder}
+                placeholderTextColor={t.color.textSecondary}
+              />
+              <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
+                <TextInput
+                  style={[editFieldStyle(t), { flex: 1 }]}
+                  value={editStartDate}
+                  onChangeText={setEditStartDate}
+                  placeholder={Strings.sprints.startDateLabel}
+                  placeholderTextColor={t.color.textSecondary}
+                />
+                <TextInput
+                  style={[editFieldStyle(t), { flex: 1 }]}
+                  value={editEndDate}
+                  onChangeText={setEditEndDate}
+                  placeholder={Strings.sprints.endDateLabel}
+                  placeholderTextColor={t.color.textSecondary}
+                />
+              </View>
+              {!!editError && (
+                <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+                  {editError}
+                </Text>
+              )}
+              <View style={{ flexDirection: 'row-reverse', gap: t.space[2] }}>
+                <TouchableOpacity
+                  style={{ flex: 1, alignItems: 'center', paddingVertical: t.space[2], borderRadius: t.radius.field, backgroundColor: t.color.accent.base, opacity: isSavingEdit ? 0.6 : 1 }}
+                  onPress={handleSaveSprintEdit}
+                  disabled={isSavingEdit}
+                >
+                  {isSavingEdit ? (
+                    <ActivityIndicator color={t.color.accent.onBase} size="small" />
+                  ) : (
+                    <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.accent.onBase }]}>
+                      {Strings.teamList.saveButton}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, alignItems: 'center', paddingVertical: t.space[2], borderRadius: t.radius.field, borderWidth: 1, borderColor: t.color.border }}
+                  onPress={() => setIsEditingSprint(false)}
+                  disabled={isSavingEdit}
+                >
+                  <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                    {Strings.teamList.cancelButton}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={{ alignItems: 'flex-end', gap: 4, flexShrink: 1 }}>
+              <Text style={[rnText(t.type.sectionTitle), { color: t.color.text, textAlign: 'right' }]}>
+                {sprintData.name}
+              </Text>
+              <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
+                {`${team.name} • ${new Date(sprintData.startDate).toLocaleDateString()} - ${new Date(sprintData.endDate).toLocaleDateString()}`}
+              </Text>
+              {!!sprintData.description && (
+                <Text style={[rnText(t.type.caption), { color: t.color.textMuted, textAlign: 'right' }]}>
+                  {sprintData.description}
+                </Text>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Main form for posting (RTL formatted) */}

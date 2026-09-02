@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { useFocusEffect } from 'expo-router';
 import { getBackendUrl } from '@/api/config';
 
 // Teams this user administers, plus the create/edit-team flows that mutate them.
-// Refetches on focus (see [[feedback-frontend-data-freshness]] memory) so changes made
-// elsewhere (e.g. accepting a member invite on the Dashboard) show up here too.
+// Fetches on mount only — no longer refetches on every focus (see
+// [[feedback-frontend-data-freshness]]); `fetchAdminTeams` is returned so the screen can wire
+// up an explicit refresh button for changes made elsewhere (e.g. accepting a member invite).
 export function useTeamsAdmin(token: string | null | undefined, user: any) {
   const [adminTeams, setAdminTeams] = useState<any[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(false);
@@ -40,12 +40,6 @@ export function useTeamsAdmin(token: string | null | undefined, user: any) {
   useEffect(() => {
     fetchAdminTeams();
   }, [fetchAdminTeams]);
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchAdminTeams();
-    }, [fetchAdminTeams])
-  );
 
   const handleCreateTeamSubmit = async (name: string, mainOffice: string, approverEmail: string) => {
     setTeamMessage(null);
@@ -114,6 +108,7 @@ export function useTeamsAdmin(token: string | null | undefined, user: any) {
   return {
     adminTeams,
     loadingTeams,
+    fetchAdminTeams,
     teamCreateLoading,
     teamMessage,
     handleCreateTeamSubmit,

@@ -37,6 +37,7 @@ describe('SprintsService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       findFirst: jest.fn(),
+      update: jest.fn(),
     },
     comment: {
       findMany: jest.fn(),
@@ -107,6 +108,69 @@ describe('SprintsService', () => {
       const result = await service.findAll(activeTeam.id, nonAdmin.userId);
 
       expect(result).toEqual([{ id: 1, name: 'Sprint 1' }]);
+    });
+  });
+
+  describe('update', () => {
+    const existingSprint = { id: 5, teamId: activeTeam.id, name: 'Old name' };
+    const updateDto = { name: 'New name' };
+
+    it('throws NotFoundException when the team does not exist', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(null);
+
+      await expect(service.update(activeTeam.id, existingSprint.id, updateDto, admin.userId)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when the requester is not a team admin', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(nonAdmin);
+
+      await expect(service.update(activeTeam.id, existingSprint.id, updateDto, nonAdmin.userId)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.sprint.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when the requester has no membership at all', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+
+      await expect(service.update(activeTeam.id, existingSprint.id, updateDto, 999)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when the sprint does not belong to the team', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(null);
+
+      await expect(service.update(activeTeam.id, 999, updateDto, admin.userId)).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.sprint.update).not.toHaveBeenCalled();
+    });
+
+    it('updates only the fields provided, leaving the rest untouched', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(existingSprint);
+      mockPrismaService.sprint.update.mockResolvedValue({ ...existingSprint, name: 'New name' });
+
+      await service.update(activeTeam.id, existingSprint.id, { name: 'New name' }, admin.userId);
+
+      expect(mockPrismaService.sprint.update).toHaveBeenCalledWith({
+        where: { id: existingSprint.id },
+        data: { name: 'New name' },
+      });
+    });
+
+    it('converts provided date strings to Date objects and skips fields entirely omitted from the dto', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(existingSprint);
+      mockPrismaService.sprint.update.mockResolvedValue(existingSprint);
+
+      await service.update(activeTeam.id, existingSprint.id, { startDate: '2026-02-01', endDate: '2026-02-14' }, admin.userId);
+
+      expect(mockPrismaService.sprint.update).toHaveBeenCalledWith({
+        where: { id: existingSprint.id },
+        data: { startDate: new Date('2026-02-01'), endDate: new Date('2026-02-14') },
+      });
     });
   });
 

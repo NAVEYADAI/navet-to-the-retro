@@ -1,4 +1,7 @@
 export const Strings = {
+  common: {
+    refreshButton: 'רענן',
+  },
   auth: {
     welcomeBack: 'ברוך הבא',
     getStarted: 'להרשמה',
@@ -100,6 +103,9 @@ export const Strings = {
   },
   retroBoard: {
     backButton: '← חזרה לדשבורד',
+    editSprintButton: 'ערוך ספרינט',
+    editSprintHeader: 'עריכת פרטי ספרינט',
+    editSprintErrorText: 'שמירת השינויים נכשלה. נסו שוב.',
     writeNoteHeader: 'כתוב הערת רטרו',
     keepLabel: 'שימור',
     improveLabel: 'שיפור',

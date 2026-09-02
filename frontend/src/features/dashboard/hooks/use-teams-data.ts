@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { useFocusEffect } from 'expo-router';
 import { getBackendUrl } from '@/api/config';
 
-// Shared between the web and native Dashboard variants: fetches the current user's teams,
-// refetching on mount and whenever the screen regains focus (see [[feedback-frontend-data-freshness]]
-// memory — other screens like Settings can mutate this same data).
+// Shared between the web and native Dashboard variants: fetches the current user's teams on
+// mount only — no longer refetches on every focus (that caused a full loading-flash on every
+// return to the Dashboard, even from an unrelated screen; see [[feedback-frontend-data-freshness]]).
+// `fetchMyTeams` is returned so the screen can wire up an explicit refresh button instead.
 export function useTeamsData(token: string | null | undefined) {
   const [teams, setTeams] = useState<any[]>([]);
   const [isLoadingTeams, setIsLoadingTeams] = useState(true);
@@ -40,13 +40,11 @@ export function useTeamsData(token: string | null | undefined) {
     }
   }, [token, fetchMyTeams]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (token) {
-        fetchMyTeams(token);
-      }
-    }, [token, fetchMyTeams])
-  );
+  const refresh = useCallback(() => {
+    if (token) {
+      fetchMyTeams(token);
+    }
+  }, [token, fetchMyTeams]);
 
-  return { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams };
+  return { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams, refresh };
 }

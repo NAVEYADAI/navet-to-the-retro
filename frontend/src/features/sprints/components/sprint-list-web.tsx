@@ -141,6 +141,9 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
               { value: 'closed', label: 'סגורים' },
             ]}
           />
+          <Button variant="ghost" size="sm" icon="refresh" onPress={fetchSprints} disabled={isLoading}>
+            {Strings.common.refreshButton}
+          </Button>
           {isAdmin ? (
             <Button
               variant={showCreateForm ? 'ghost' : 'primary'}

@@ -2,10 +2,12 @@ import React from 'react';
 import { Box, Typography, Alert, CircularProgress } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
 import { Card, Button, Field, Icon } from '@/components/ui';
+import { Strings } from '@/constants/strings';
 
 interface AdminTeamsCardProps {
   adminTeams: any[];
   loadingTeams: boolean;
+  onRefresh: () => void;
   editTeamId: number | null;
   setEditTeamId: (id: number | null) => void;
   editTeamName: string;
@@ -21,6 +23,7 @@ interface AdminTeamsCardProps {
 export function AdminTeamsCard({
   adminTeams,
   loadingTeams,
+  onRefresh,
   editTeamId,
   setEditTeamId,
   editTeamName,
@@ -36,9 +39,14 @@ export function AdminTeamsCard({
 
   return (
     <Card padding={5}>
-      <Typography component="h2" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
-        ניהול ועריכת צוותים בניהולך
-      </Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[2]}px` }}>
+        <Typography component="h2" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
+          ניהול ועריכת צוותים בניהולך
+        </Typography>
+        <Button variant="ghost" size="sm" icon="refresh" onPress={onRefresh} disabled={loadingTeams}>
+          {Strings.common.refreshButton}
+        </Button>
+      </Box>
 
       {teamEditMessage && (
         <Alert severity={teamEditMessage.isError ? 'error' : 'success'} sx={{ ...t.type.body }}>

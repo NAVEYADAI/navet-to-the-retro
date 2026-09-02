@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, type TextStyle } from 'react-native';
 import axios from 'axios';
 import { File, Directory, Paths } from 'expo-file-system';
@@ -6,6 +6,7 @@ import * as Sharing from 'expo-sharing';
 import { Strings } from '@/constants/strings';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
+import { Icon } from '@/components/ui';
 import { computeSprintSummaryStats } from '../stats';
 import { SPRINT_SUMMARY_TEMPLATES, type SprintSummaryTemplateId } from '../templates';
 
@@ -34,23 +35,23 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<SprintSummaryTemplateId>('classic');
 
+  const fetchComments = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setComments(response.data);
+    } catch (err) {
+      console.error('Failed to fetch comments for summary:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sprint.id, token]);
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setIsLoading(true);
-      try {
-        const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!cancelled) setComments(response.data);
-      } catch (err) {
-        console.error('Failed to fetch comments for summary:', err);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [sprint.id]);
+    fetchComments();
+  }, [fetchComments]);
 
   const handleDownload = async () => {
     setError(null);
@@ -94,14 +95,26 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
             borderBottomColor: t.color.border,
           }}
         >
-          <TouchableOpacity
-            style={{ paddingHorizontal: t.space[3], paddingVertical: t.space[1] + 2, borderRadius: t.radius.field, backgroundColor: t.color.surfaceSubtle }}
-            onPress={onBack}
-          >
-            <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-              {Strings.sprintSummary.backButton}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2] }}>
+            <TouchableOpacity
+              style={{ paddingHorizontal: t.space[3], paddingVertical: t.space[1] + 2, borderRadius: t.radius.field, backgroundColor: t.color.surfaceSubtle }}
+              onPress={onBack}
+            >
+              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                {Strings.sprintSummary.backButton}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
+              onPress={fetchComments}
+              disabled={isLoading}
+            >
+              <Icon name="refresh" size="sm" tone="muted" />
+              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.textSecondary }]}>
+                {Strings.common.refreshButton}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <Text style={[rnText(t.type.sectionTitle), { color: t.color.text, textAlign: 'right' }]}>
             {Strings.sprintSummary.pageTitle}
           </Text>

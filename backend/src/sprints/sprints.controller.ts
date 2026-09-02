@@ -1,8 +1,8 @@
-import { Controller, Post, Get, Body, Param, Query, Headers, ParseIntPipe, Res } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, Headers, ParseIntPipe, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { SprintsService } from './sprints.service';
 import { AuthService } from '../auth/auth.service';
-import { CreateSprintDto } from './dto/sprints.dto';
+import { CreateSprintDto, UpdateSprintDto } from './dto/sprints.dto';
 
 @Controller('teams/:teamId/sprints')
 export class SprintsController {
@@ -28,6 +28,17 @@ export class SprintsController {
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.sprintsService.findAll(teamId, user.id);
+  }
+
+  @Patch(':sprintId')
+  async update(
+    @Headers('authorization') authHeader: string,
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number,
+    @Body() dto: UpdateSprintDto
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.sprintsService.update(teamId, sprintId, dto, user.id);
   }
 
   @Get(':sprintId/summary/export')

@@ -24,6 +24,23 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   const [isLoading, setIsLoading] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
 
+  // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
+  // successful edit reflects immediately without waiting for the parent to refetch and pass a
+  // new prop down. Resynced whenever a genuinely different sprint is selected (see effect below).
+  const [sprintData, setSprintData] = useState(sprint);
+  const [isEditingSprint, setIsEditingSprint] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSprintData(sprint);
+    setIsEditingSprint(false);
+  }, [sprint.id]);
+
   // New comment state
   const [content, setContent] = useState('');
   const [type, setType] = useState<'KEEP' | 'IMPROVE'>('KEEP');
@@ -124,38 +141,115 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
 
   // The team's creator OR any team admin can export a sprint summary — see PRODUCT-BACKLOG.md §1.0.
   const canExportSummary = team.creatorId === user.id || !!myMembership?.isAdmin;
+  // Same permission as creating a sprint in the first place (sprints.service.ts::create) — no
+  // one should be able to edit a sprint they couldn't have created.
+  const canEditSprint = !!myMembership?.isAdmin;
+
+  const startEditingSprint = () => {
+    setEditName(sprintData.name);
+    setEditDescription(sprintData.description || '');
+    setEditStartDate(new Date(sprintData.startDate).toISOString().slice(0, 10));
+    setEditEndDate(new Date(sprintData.endDate).toISOString().slice(0, 10));
+    setEditError(null);
+    setIsEditingSprint(true);
+  };
+
+  const handleSaveSprintEdit = async () => {
+    setEditError(null);
+    if (!editName.trim() || !editStartDate.trim() || !editEndDate.trim()) {
+      setEditError('שם, תאריך התחלה ותאריך סיום הם שדות חובה.');
+      return;
+    }
+    setIsSavingEdit(true);
+    try {
+      const response = await axios.patch(
+        `${getBackendUrl()}/teams/${team.id}/sprints/${sprintData.id}`,
+        { name: editName.trim(), description: editDescription || undefined, startDate: editStartDate, endDate: editEndDate },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSprintData(response.data);
+      setIsEditingSprint(false);
+    } catch (err: any) {
+      setEditError(err.response?.data?.message || err.message || Strings.retroBoard.editSprintErrorText);
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
 
   if (showSummary) {
-    return <SprintSummary sprint={sprint} team={team} token={token} onBack={() => setShowSummary(false)} />;
+    return <SprintSummary sprint={sprintData} team={team} token={token} onBack={() => setShowSummary(false)} />;
   }
 
   return (
     <Page>
       <PageHeader
-        title={sprint.name}
+        title={sprintData.name}
         action={
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
-            {canExportSummary ? (
-              <Button variant="secondary" icon="presentation" onPress={() => setShowSummary(true)}>
-                {Strings.sprintSummary.openButton}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[3]}px` }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
+              {canEditSprint ? (
+                <Button variant="ghost" size="sm" icon="edit" onPress={startEditingSprint}>
+                  {Strings.retroBoard.editSprintButton}
+                </Button>
+              ) : null}
+              {canExportSummary ? (
+                <Button variant="ghost" size="sm" icon="presentation" onPress={() => setShowSummary(true)}>
+                  {Strings.sprintSummary.openButton}
+                </Button>
+              ) : null}
+              <Button variant="ghost" size="sm" icon="refresh" onPress={fetchComments} disabled={isLoading}>
+                {Strings.common.refreshButton}
               </Button>
-            ) : null}
-            <Button variant="secondary" onPress={onBack}>{Strings.retroBoard.backButton}</Button>
+            </Box>
+            <Button variant="ghost" size="sm" onPress={onBack}>{Strings.retroBoard.backButton}</Button>
           </Box>
         }
       />
 
-      <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
-        {team.name} •{' '}
-        <bdi>
-          {new Date(sprint.startDate).toLocaleDateString()} - {new Date(sprint.endDate).toLocaleDateString()}
-        </bdi>
-      </Typography>
+      {isEditingSprint ? (
+        <Card>
+          <Typography sx={{ ...t.type.cardTitle, color: t.color.text }}>
+            {Strings.retroBoard.editSprintHeader}
+          </Typography>
 
-      {sprint.description && (
-        <Typography sx={{ ...t.type.body, color: t.color.text, fontStyle: 'italic' }}>
-          {sprint.description}
-        </Typography>
+          {editError && (
+            <Alert severity="error" sx={{ ...t.type.body }}>
+              {editError}
+            </Alert>
+          )}
+
+          <Field label={Strings.sprints.sprintNamePlaceholder} placeholder={Strings.sprints.sprintNamePlaceholder} value={editName} onChangeText={setEditName} required />
+          <Field label={Strings.sprints.descriptionPlaceholder} placeholder={Strings.sprints.descriptionPlaceholder} value={editDescription} onChangeText={setEditDescription} />
+
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: `${t.space[4]}px` }}>
+            <Field label={Strings.sprints.startDateLabel} placeholder={Strings.sprints.startDateLabel} value={editStartDate} onChangeText={setEditStartDate} type="date" required />
+            <Field label={Strings.sprints.endDateLabel} placeholder={Strings.sprints.endDateLabel} value={editEndDate} onChangeText={setEditEndDate} type="date" required />
+          </Box>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px`, justifyContent: 'flex-end' }}>
+            <Button variant="primary" onPress={handleSaveSprintEdit} disabled={isSavingEdit} loading={isSavingEdit}>
+              {Strings.teamList.saveButton}
+            </Button>
+            <Button variant="secondary" onPress={() => setIsEditingSprint(false)}>
+              {Strings.teamList.cancelButton}
+            </Button>
+          </Box>
+        </Card>
+      ) : (
+        <>
+          <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
+            {team.name} •{' '}
+            <bdi>
+              {new Date(sprintData.startDate).toLocaleDateString()} - {new Date(sprintData.endDate).toLocaleDateString()}
+            </bdi>
+          </Typography>
+
+          {sprintData.description && (
+            <Typography sx={{ ...t.type.body, color: t.color.text, fontStyle: 'italic' }}>
+              {sprintData.description}
+            </Typography>
+          )}
+        </>
       )}
 
       {/* Compose form */}

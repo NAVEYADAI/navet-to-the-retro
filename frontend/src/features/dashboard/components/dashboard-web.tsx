@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { router } from 'expo-router';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
 import { TeamList } from '@/features/teams';
@@ -8,6 +8,7 @@ import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
 import { Button, Card, Page, PageHeader } from '@/components/ui';
 import { useTeamsData } from '../hooks/use-teams-data';
+import { subscribeGoHome } from '../home-signal';
 
 export function DashboardWeb() {
   const t = useTheme();
@@ -17,7 +18,14 @@ export function DashboardWeb() {
   const [selectedSprint, setSelectedSprint] = useState<any>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams } = useTeamsData(token);
+  const { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams, refresh } = useTeamsData(token);
+
+  useEffect(() => subscribeGoHome(() => {
+    setActiveView('dashboard');
+    setSelectedSprint(null);
+    setSelectedTeam(null);
+    if (token) fetchMyTeams(token);
+  }), [token, fetchMyTeams, setSelectedTeam]);
 
   if (!user) return null;
 
@@ -42,7 +50,14 @@ export function DashboardWeb() {
 
   return (
     <Page>
-      <PageHeader title={Strings.dashboard.welcomeTitle(user.firstName || user.username)} />
+      <PageHeader
+        title={Strings.dashboard.welcomeTitle(user.firstName || user.username)}
+        action={
+          <Button variant="ghost" size="sm" icon="refresh" onPress={refresh} disabled={isLoadingTeams}>
+            {Strings.common.refreshButton}
+          </Button>
+        }
+      />
 
       {errorMessage ? (
         <Alert severity="error" sx={{ ...t.type.body }}>

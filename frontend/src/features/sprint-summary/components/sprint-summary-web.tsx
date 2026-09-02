@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Box, Typography, CircularProgress, Alert } from '@mui/material';
 import { Strings } from '@/constants/strings';
@@ -33,23 +33,23 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
   const [error, setError] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<SprintSummaryTemplateId>('classic');
 
+  const fetchComments = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setComments(response.data);
+    } catch (err) {
+      console.error('Failed to fetch comments for summary:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [sprint.id, token]);
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setIsLoading(true);
-      try {
-        const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (!cancelled) setComments(response.data);
-      } catch (err) {
-        console.error('Failed to fetch comments for summary:', err);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [sprint.id]);
+    fetchComments();
+  }, [fetchComments]);
 
   const handleDownload = async () => {
     setError(null);
@@ -82,7 +82,14 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
       <PageHeader
         title={Strings.sprintSummary.pageTitle}
         subtitle={Strings.sprintSummary.pageSubtitle}
-        action={<Button variant="secondary" onPress={onBack}>{Strings.sprintSummary.backButton}</Button>}
+        action={
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[2]}px` }}>
+            <Button variant="ghost" size="sm" icon="refresh" onPress={fetchComments} disabled={isLoading}>
+              {Strings.common.refreshButton}
+            </Button>
+            <Button variant="secondary" onPress={onBack}>{Strings.sprintSummary.backButton}</Button>
+          </Box>
+        }
       />
 
       {error ? (

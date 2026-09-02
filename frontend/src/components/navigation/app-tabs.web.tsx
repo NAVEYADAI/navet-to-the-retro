@@ -13,6 +13,7 @@ import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
 import { Icon, type IconName } from '@/components/ui';
 import { MaxContentWidth } from '@/constants/theme';
+import { triggerGoHome } from '@/features/dashboard/home-signal';
 
 /** מיקום וגובה סרגל הניווט הצף (CustomTabList) — משמשים גם לחישוב ה-padding שמפנה לו מקום בתוכן המסך. */
 const NAV_TOP = 14;
@@ -35,7 +36,9 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton icon="home">ראשי</TabButton>
+            {/* Double-click drops straight back to the team list even from inside a sprint's
+                retro board (local state, not a route) — see HIDDEN-DETAILS.md. */}
+            <TabButton icon="home" onDoubleClick={triggerGoHome}>ראשי</TabButton>
           </TabTrigger>
           <TabTrigger name="settings" href="/settings" asChild>
             <TabButton icon="settings">הגדרות</TabButton>
@@ -46,12 +49,13 @@ export default function AppTabs() {
   );
 }
 
-export function TabButton({ children, isFocused, icon, ...props }: TabTriggerSlotProps & { icon?: IconName }) {
+export function TabButton({ children, isFocused, icon, onDoubleClick, ...props }: TabTriggerSlotProps & { icon?: IconName; onDoubleClick?: () => void }) {
   const t = useTheme();
 
   return (
     <Pressable {...props} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
       <div
+        onDoubleClick={onDoubleClick}
         style={{
           display: 'flex',
           alignItems: 'center',

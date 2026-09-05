@@ -40,3 +40,6 @@ package-lock.json
 *results [0-9]*.json
 .test-results/
 
+
+# Claude Code runtime lock files (not shareable config)
+.claude/*.lock

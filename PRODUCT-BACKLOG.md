@@ -10,6 +10,8 @@
 
 **שום פריט בקובץ הזה לא מומש**, אלא אם צוין אחרת בפירוש בתוך סעיף ספציפי.
 
+**הקובץ הזה עבר לשורש הריפו (היה קודם ב-`frontend/`)** כי הוא חוצה backend+frontend. מונע על ידי שלושה subagents תחת `.claude/agents/`: `backend-feature` (מסעיף "Backend" של הפיצ'ר הבא), `frontend-feature` (מסעיף "Frontend", רק אחרי שה-Backend שלו סגור), ו-`feature-orchestrator` (מריץ את שניהם ברצף לפיצ'ר הבא). כדי שהם יזהו נכון מה בוצע — כל תת-סעיף (`### X.1 Backend` / `### X.2 Frontend` / `### X.3 בדיקות`) צריך checklist עם `- [ ]`/`- [x]`, לא רק פרוזה חופשית.
+
 ---
 
 ## פיצ'ר 1: ייצוא ספרינט למצגת (Sprint Summary)

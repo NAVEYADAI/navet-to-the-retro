@@ -21,7 +21,9 @@
 - **`ui-migration`** — ממיר קובץ frontend אחד בכל הפעלה למערכת העיצוב שב-`frontend/UI-GUIDELINES.md`, לפי הסדר ב-`frontend/UI-MIGRATION-BACKLOG.md`. הבאקלוג הנוכחי **סגור (69/69)** — הפעל שוב רק אחרי שמוסיפים פריטים חדשים אליו. **לא קשור** ל-`PRODUCT-BACKLOG.md`.
 - **`backend-feature`** — מממש את תת-הסעיף "Backend" של הפיצ'ר הבא ב-`PRODUCT-BACKLOG.md` שעדיין לא סגור.
 - **`frontend-feature`** — מממש את תת-הסעיף "Frontend" של אותו פיצ'ר, רק אחרי שה-Backend שלו סגור.
-- **`feature-orchestrator`** — הסוכן הראשי: מוצא את הפיצ'ר הבא ב-`PRODUCT-BACKLOG.md`, מפעיל `backend-feature` ואז `frontend-feature` בסדר הנכון (דרך `Task`), ומדווח מה נשאר (בד"כ תת-הסעיף "בדיקות"/e2e, שאף אחד מהשניים לא כותב). זו נקודת הכניסה הרגילה לקידום הבאקלוג — קרא `.claude/agents/feature-orchestrator.md` אם צריך לדעת בדיוק איך הוא מחליט.
+- **`feature-tests`** — כותב את תת-הסעיף "בדיקות" (Playwright e2e + Jest) של אותו פיצ'ר, רק אחרי ש-Backend+Frontend שלו סגורים.
+- **`feature-orchestrator`** — הסוכן הראשי: מוצא את הפיצ'ר הבא ב-`PRODUCT-BACKLOG.md`, מפעיל `backend-feature` → `frontend-feature` → `feature-tests` בסדר הנכון (דרך `Task`), ומדווח אם הפיצ'ר סגור לגמרי או מה עוד נשאר. זו נקודת הכניסה הרגילה לקידום הבאקלוג — קרא `.claude/agents/feature-orchestrator.md` אם צריך לדעת בדיוק איך הוא מחליט.
+- **`product-manager`** — **לא חלק מהשרשרת האוטומטית של ה-orchestrator.** מופעל ישירות ע"י המשתמש עם רעיון לפיצ'ר בפרומפט; חוקר את הקוד וכותב סעיף חדש ב-`PRODUCT-BACKLOG.md` לפי התבנית הקיימת, אבל **לא ממציא החלטות מוצריות** — מסמן אותן כ"שאלות פתוחות" ומשאיר את הפיצ'ר מסומן כטיוטה עד שהמשתמש עונה עליהן.
 
 ## עיצוב/מוקאפים — הערת סנכרון
 

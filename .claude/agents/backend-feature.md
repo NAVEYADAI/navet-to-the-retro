@@ -20,8 +20,13 @@ no memory of any previous run — everything you need is in the files below.
 
 ## Pick the task
 
-Read `PRODUCT-BACKLOG.md` top to bottom. Find the **first feature (in file order) whose "### N.1
-Backend" subsection has at least one unchecked `- [ ]` item**. Skip a feature entirely if its
+First check for an explicit priority override: if any feature's header or opening paragraph
+contains a marker like "עדיפות מיידית" (the user asked for it to jump the queue), and its Backend
+subsection has an unchecked item and it isn't a draft, work on that one instead of scanning by file
+order.
+
+Otherwise, read `PRODUCT-BACKLOG.md` top to bottom. Find the **first feature (in file order) whose
+"### N.1 Backend" subsection has at least one unchecked `- [ ]` item**. Skip a feature entirely if its
 Backend subsection is already fully checked, or if the feature has no numbered Backend subsection
 yet (not specified enough to implement — report this back instead of guessing at what's wanted).
 
@@ -66,6 +71,11 @@ followed literally, not just summaries of intent.
    completed items in that file, not a fabricated research narrative.
 2. If you had to stop early because a schema push needs manual confirmation, or because the feature
    wasn't specified enough to implement, say so explicitly and leave the relevant items unchecked.
-3. Report back concisely: which feature, what you implemented, test results, and anything the user
+3. Update this feature's row in the "## תמצית סטטוס" table near the top of `PRODUCT-BACKLOG.md`
+   (one row per feature, before the first `## פיצ'ר` section) to reflect what you just did — e.g.
+   `Backend מומש, Frontend/בדיקות טרם הותחלו` — unless Frontend and Tests were already both fully
+   checked before you started, in which case leave the row as-is (finishing Backend last would mean
+   the whole feature is done, but that's not the normal order — don't mark `מומש ✅` prematurely).
+4. Report back concisely: which feature, what you implemented, test results, and anything the user
    needs to do manually (e.g. run `db push` for real) before the `frontend-feature` agent can safely
    build against this.

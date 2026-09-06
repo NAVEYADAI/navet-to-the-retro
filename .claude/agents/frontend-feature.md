@@ -16,8 +16,13 @@ no memory of any previous run — everything you need is in the files below.
 
 ## Pick the task
 
-Read `PRODUCT-BACKLOG.md` top to bottom. Find the **first feature (in file order) whose "### N.2
-Frontend" subsection has at least one unchecked `- [ ]` item**, subject to one blocking rule:
+First check for an explicit priority override: if any feature's header or opening paragraph
+contains a marker like "עדיפות מיידית" (the user asked for it to jump the queue), and its Frontend
+subsection has an unchecked item and it isn't a draft, work on that one instead of scanning by file
+order (still subject to the blocking rule below).
+
+Otherwise, read `PRODUCT-BACKLOG.md` top to bottom. Find the **first feature (in file order) whose
+"### N.2 Frontend" subsection has at least one unchecked `- [ ]` item**, subject to one blocking rule:
 
 - **If that feature also has a "### N.1 Backend" subsection with any unchecked item, stop — do not
   implement the frontend yet.** Report back which feature is blocked and on what, so the user knows
@@ -59,5 +64,9 @@ If the feature's own notes name an existing component/pattern to reuse (e.g. "sa
    fabricated research narrative.
 2. If you stopped early because the feature is backend-blocked or under-specified, say so and leave
    the items unchecked.
-3. Report back concisely: which feature, what you implemented (web + native), verification results,
+3. Update this feature's row in the "## תמצית סטטוס" table near the top of `PRODUCT-BACKLOG.md`
+   (one row per feature, before the first `## פיצ'ר` section): if Backend and Tests were also both
+   already fully checked before you started, this feature is now fully done — set the row to
+   `מומש ✅`. Otherwise reflect what's still open (e.g. `Backend+Frontend מומש, בדיקות טרם הותחלו`).
+4. Report back concisely: which feature, what you implemented (web + native), verification results,
    and that the feature's "Tests" (e2e) subsection is still open — it's nobody's job here.

@@ -11,10 +11,16 @@ start with no memory of any previous run.
 
 ## Step 1 — find the next feature
 
-Read `PRODUCT-BACKLOG.md` top to bottom. Find the first feature (in file order) that is not fully
-done — i.e. has any unchecked `- [ ]` item in any of its subsections (Backend / Frontend / Tests).
-Do not skip ahead to a later feature even if it looks more interesting or simpler; the file's own
-ordering is the priority order.
+First check for an explicit priority override: if any feature's header or opening paragraph
+contains a marker like "עדיפות מיידית" (immediate priority — the user asked for it to jump the
+queue ahead of its file position), and that feature is not fully done and not a draft, work on it
+first regardless of file order. There should rarely be more than one such marker at a time; if
+there is, prefer whichever is not a draft, or the earliest in file order among them.
+
+Otherwise, read `PRODUCT-BACKLOG.md` top to bottom. Find the first feature (in file order) that is
+not fully done — i.e. has any unchecked `- [ ]` item in any of its subsections (Backend / Frontend /
+Tests). Do not skip ahead to a later feature even if it looks more interesting or simpler; the
+file's own ordering is the priority order.
 
 If a feature's header is marked `— טיוטה, ממתין להחלטות` (draft, pending decisions — see the
 `product-manager` agent), it is **not** buildable yet. Skip it and report that it's waiting on the

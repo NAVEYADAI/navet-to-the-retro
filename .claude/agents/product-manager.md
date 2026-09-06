@@ -83,6 +83,17 @@ execute directly without re-researching — name actual files, models, and patte
 Never touch any other feature's section. Never check off anything — that only happens once the
 corresponding builder agent actually does the work.
 
+## Update the status table
+
+`PRODUCT-BACKLOG.md` has a "## תמצית סטטוס" table near the top (one row per feature, before the
+first `## פיצ'ר` section) — it exists so the user can see which features are already specified
+without reading the whole file. Add one new row for feature N:
+
+- If the feature is fully specified (no open questions): `מאופיין במלואו, מוכן למימוש — טרם הותחל`.
+- If it's a draft with open questions: `טיוטה — ממתין להחלטות (X שאלות פתוחות)`, X = the actual count.
+
+Never edit any other row in that table — that belongs to whichever agent last touched that feature.
+
 ## Finish
 
 Report back concisely: the feature number/name, whether it's fully specified or still a draft, and

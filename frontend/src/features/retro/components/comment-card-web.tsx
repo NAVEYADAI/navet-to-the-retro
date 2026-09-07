@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
+import { getCommentCategoryLabel, getCommentAuthorName } from '../comment-display';
 
 interface CommentCardWebProps {
   comment: {
@@ -26,10 +27,8 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight }: Com
   const isKeep = comment.type === 'KEEP';
   const accent = isKeep ? t.color.status.success : t.color.status.danger;
   const isHighlighted = !!comment.isHighlighted;
-  const categoryLabel = comment.category ? (Strings.retroBoard.categories as Record<string, string>)[comment.category] : null;
-  const authorName = comment.isAnonymous
-    ? Strings.retroBoard.anonymousAuthor
-    : `${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || comment.author.username;
+  const categoryLabel = getCommentCategoryLabel(comment);
+  const authorName = getCommentAuthorName(comment);
 
   return (
     <Box

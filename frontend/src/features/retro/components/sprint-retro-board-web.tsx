@@ -9,6 +9,7 @@ import { CommentCardWeb } from './comment-card-web';
 import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
 import { SprintSummary } from '@/features/sprint-summary';
+import { MemoryBoard } from './memory-board';
 import { trackEvent } from '@/lib/analytics';
 
 interface SprintRetroBoardWebProps {
@@ -24,6 +25,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
+  const [showMemoryBoard, setShowMemoryBoard] = useState(false);
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -185,6 +187,10 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
     return <SprintSummary sprint={sprintData} team={team} token={token} onBack={() => setShowSummary(false)} />;
   }
 
+  if (showMemoryBoard) {
+    return <MemoryBoard sprint={sprintData} team={team} token={token} onBack={() => setShowMemoryBoard(false)} />;
+  }
+
   return (
     <Page>
       <PageHeader
@@ -202,6 +208,15 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
                   {Strings.sprintSummary.openButton}
                 </Button>
               ) : null}
+              {/* Any team member can open — no isAdmin/role gate, see PRODUCT-BACKLOG.md §8.0 decision #7. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="eye"
+                onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); setShowMemoryBoard(true); }}
+              >
+                {Strings.memoryBoard.openButton}
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

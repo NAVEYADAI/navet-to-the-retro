@@ -161,6 +161,18 @@ export const Strings = {
     backToHomeButton: '← חזרה לראשי',
     createTeamSectionTitle: 'יצירת צוות חדש',
   },
+  memoryBoard: {
+    openButton: 'משחק זיכרון',
+    backButton: '← חזרה ללוח',
+    pageTitle: 'משחק זיכרון',
+    pageSubtitle: 'לחיצה הופכת קלף וחושפת מה כתוב בו. לחיצה כפולה גם מגדילה אותו.',
+    keepCanvasHeader: 'שימור',
+    improveCanvasHeader: 'שיפור',
+    emptyKeepText: 'אין קלפי שימור להצגה.',
+    emptyImproveText: 'אין קלפי שיפור להצגה.',
+    loadingBoard: 'טוען קלפים...',
+    flipCardHint: 'קלף הפוך, לחצו כדי לחשוף',
+  },
   sprintSummary: {
     openButton: 'סיכום ספרינט',
     backButton: '← חזרה ללוח',

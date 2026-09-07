@@ -126,7 +126,12 @@ test.describe('Team invites — email invites for unregistered users + shareable
     await page.getByPlaceholder('הכנס כתובת אימייל').fill(invitedEmail);
     await page.getByText(Strings.teamList.addMemberButton).click();
 
-    await expect(page.getByText(Strings.teamList.emailInviteSentText(invitedEmail))).toBeVisible();
+    // `.waitFor()`, not `expect(...).toBeVisible()` — the latter defaults to a 5000ms budget
+    // (Playwright's `expect.timeout`), too tight for a real network round-trip (add member +
+    // send invite email) once this test lands late in a long sequential (workers: 1) run; every
+    // other confirmation-wait in this file already uses `.waitFor()`, whose effective budget is
+    // the much larger overall test timeout — this was the one outlier and the one that flaked.
+    await page.getByText(Strings.teamList.emailInviteSentText(invitedEmail)).waitFor();
   });
 
   test('an admin can re-copy an already-created link from the list after a page refresh', async ({ page, request, context }) => {

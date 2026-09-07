@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useColorScheme, View, ActivityIndicator, Platform, Image } from 'react-native';
 import { useEffect, type ComponentType, type PropsWithChildren } from 'react';
 import { PostHogProvider, PostHogErrorBoundary as RawPostHogErrorBoundary, type PostHogErrorBoundaryProps } from 'posthog-react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // posthog-react-native's class component ships typed against a React version whose `Component`
 // shape TS 6 sees as structurally incompatible with this project's React 19 types (missing
@@ -71,18 +72,23 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
 
   const content = (
-    <AuthProvider>
-      <AppProviders>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Head>
-            <title>נווט לרט</title>
-          </Head>
-          <PostHogErrorBoundary fallback={AppCrashFallback}>
-            <LayoutContent />
-          </PostHogErrorBoundary>
-        </ThemeProvider>
-      </AppProviders>
-    </AuthProvider>
+    // Required root wrapper for react-native-gesture-handler's Gesture API (used by the memory
+    // board's card double-tap/single-tap detection, memory-card-native.tsx) — without it,
+    // GestureDetector is unreliable on native, especially Android.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <AppProviders>
+          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+            <Head>
+              <title>נווט לרט</title>
+            </Head>
+            <PostHogErrorBoundary fallback={AppCrashFallback}>
+              <LayoutContent />
+            </PostHogErrorBoundary>
+          </ThemeProvider>
+        </AppProviders>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 
   const analyticsClient = getAnalyticsClient();

@@ -16,6 +16,8 @@ const motion = new Proxy(
           exit,
           transition,
           variants,
+          layout,
+          layoutId,
           ...validProps
         } = props;
         return React.createElement(prop, { ...validProps, ref }, children);

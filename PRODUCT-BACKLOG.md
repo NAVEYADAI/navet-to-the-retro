@@ -30,7 +30,7 @@
 | 5 | תיעוד היסטוריית שינויי אורך ספרינט (Audit Log) | מאופיין במלואו, מוכן למימוש — טרם הותחל |
 | 6 | שילוב עם יומן Google — שלב א' | מאופיין במלואו, **חסום** עד שנוה ייצור Google Cloud OAuth client (ר' §6.0.1) |
 | 7 | אימות כתובת דואר אלקטרוני (Email Verification) | מאופיין במלואו, מוכן למימוש — טרם הותחל |
-| 8 | תצוגת "משחק זיכרון" ללוח הרטרו — **עדיפות מיידית** | מאופיין במלואו, מוכן למימוש — טרם הותחל |
+| 8 | תצוגת "משחק זיכרון" ללוח הרטרו — **עדיפות מיידית** | מומש ✅ |
 
 ---
 
@@ -1493,17 +1493,20 @@ auth.service.ts:13-52`) יוצר את המשתמש ומנפיק JWT (`expiresIn:
 
 ### 8.1 Backend
 
-- [ ] **אין נדרש שינוי Backend עבור ה-MVP** — הוכרע ע"י החלטה מוצרית #4 (מצב הפוך/גלוי הוא
-      local-בלבד, לא persisted, לא synced) וע"י החלטה מוצרית #7 (הרשאת פתיחה = כל חבר
-      צוות, אין guard נוסף). לוודא בפועל ש-`GET /sprints/:sprintId/comments`
-      (`backend/src/comments/comments.controller.ts`+`comments.service.ts::
-      getCommentsForSprint`) מחזיר את כל השדות הדרושים לקלף (`content, type, category,
-      isHighlighted, author, createdAt`, כולל מיסוך אנונימיות קיים בצד השרת) — ואין צורך
-      לשנות אותו. לא נדרש endpoint/מודל Prisma/guard חדשים לפיצ'ר הזה כלל.
+- [x] **אין נדרש שינוי Backend עבור ה-MVP — אומת בפועל מול הקוד החי (2026-09-06).**
+      `backend/src/comments/comments.controller.ts:23-30` (`getCommentsForSprint`) קורא רק
+      ל-`validateToken` ולשירות — אין guard נוסף מעבר לחברות בצוות, תואם החלטה מוצרית #7.
+      `comments.service.ts::getCommentsForSprint` (שורות 56-109) מחזיר spread מלא של
+      `Comment` (לפי `schema.prisma:127-141`: `content, type, category, isAnonymous,
+      isHighlighted, createdAt` ועוד) יחד עם `author: {id, username, firstName, lastName}`
+      — כל שדה שקלף הפוך צריך קיים בפועל. מיסוך האנונימיות (שורות 94-108) מוחלף בקבוע
+      `{id:0, username:'Anonymous', firstName:'Anonymous', lastName:''}` ללא יוצא מן הכלל
+      ל-admin, בדיוק כפי שתועד. לא בוצע שום שינוי קוד — הטענה מאומתת כלשונה; הרצתי
+      `comments.spec.ts` הקיים כבדיקת שפיות (11/11 עוברים, ללא שינוי).
 
 ### 8.2 Frontend
 
-- [ ] `frontend/src/features/retro/components/memory-board-web.tsx` +
+- [x] `frontend/src/features/retro/components/memory-board-web.tsx` +
       `memory-board-native.tsx` — קומפוננטת הקנבס: מקבלת את אותה רשימת תגובות שכבר נטענת
       ע"י `SprintRetroBoard` (`fetchComments()` הקיים, בלי endpoint נוסף — ר' ברירת מחדל
       טכנית #3), מציגה **שני קנבסים/סעיפים נפרדים** — "שימור" (KEEP) ו"שיפור" (IMPROVE) —
@@ -1511,7 +1514,11 @@ auth.service.ts:13-52`) יוצר את המשתמש ומנפיק JWT (`expiresIn:
       שורות 138-140), עם כותרת ירוקה/אדומה כמו בעמודות הקיימות (ר' החלטה מוצרית #2).
       פריסת כל קנבס: flex-wrap/CSS grid ייעודי לקלפים (לא `<Grid columns={n}>` הקיים — ר'
       ממצאי מחקר), עדיין בתוך `<Page>` עוטף.
-- [ ] `memory-card-web.tsx`/`memory-card-native.tsx` — קלף בודד עם state מקומי בלבד
+      **ממומש (2026-09-06):** שני הקבצים נוצרו; כל קנבס עושה `fetchComments()` משלו בעצמו
+      (אותו endpoint, אותו דפוס mount-fetch + כפתור רענון ידני כמו `SprintSummary`), הקנבסים
+      מוצגים אחד מתחת לשני (לא side-by-side) כדי להימנע מבעיית הדחיסה במובייל שכבר תועדה
+      ב-`UI-GUIDELINES.md` §11. פריסת קלפים: `Box`/`View` עם `flexWrap`, לא `Grid`.
+- [x] `memory-card-web.tsx`/`memory-card-native.tsx` — קלף בודד עם state מקומי בלבד
       (`useState`, לא persisted, ר' החלטה מוצרית #4): `isFlipped`, `isEnlarged`.
       - **web**: `onClick` הופך (`isFlipped`); `onDoubleClick` הופך **וגם** מגדיל
         (`isEnlarged`, ר' החלטה מוצרית #5). אנימציית הפיכה: `framer-motion` (`motion.div` +
@@ -1525,7 +1532,12 @@ auth.service.ts:13-52`) יוצר את המשתמש ומנפיק JWT (`expiresIn:
         ש-single-tap לא "יורה" גם בלחיצה כפולה) הופך **וגם** מגדיל. אנימציה:
         `react-native-reanimated`/`Animated.spring` (בהשראת `wheelScale` ב-
         `sprint-retro-board-native.tsx` שורות 96-163) על `rotateY`/`scale`.
-- [ ] גב הקלף: עיצוב אחיד מטוקנים בלבד (לפי `UI-GUIDELINES.md`), **בלי שום מידע** — לא
+      **ממומש (2026-09-06):** web משתמש בזיהוי single/double-click ידני (טיימר ~220ms) במקום
+      `onClick`+`onDoubleClick` נפרדים — הדפדפן יורה `click,click,dblclick` על לחיצה כפולה,
+      מה שהיה מכפיל את הטיפול ב-click בודד. native משתמש ב-`Animated.spring` (לא reanimated,
+      עקבי עם `wheelScale` הקיים) + `Gesture.Tap()` בדיוק לפי המפרט; נוסף `GestureHandlerRootView`
+      ב-`_layout.tsx` (נדרש בפועל ל-`GestureDetector`, לא היה קיים בשורש עד כה).
+- [x] גב הקלף: עיצוב אחיד מטוקנים בלבד (לפי `UI-GUIDELINES.md`), **בלי שום מידע** — לא
       קטגוריה, לא KEEP/IMPROVE, לא מחבר (ר' ברירת מחדל טכנית #4). פני הקלף (אחרי הפיכה):
       תוכן התגובה, badge קטגוריה (`Strings.retroBoard.categories[comment.category]`, אותו
       דפוס בדיוק כמו `CommentCardWeb`/`renderCommentCard` היום — ר' ברירת מחדל טכנית #7),
@@ -1534,44 +1546,116 @@ auth.service.ts:13-52`) יוצר את המשתמש ומנפיק JWT (`expiresIn:
       לחלץ/לייבא תוכן זה משותף עם `CommentCardWeb`/`renderCommentCard` הקיימים אם אפשר, או
       לפחות להעתיק במפורש עם הערת קוד שמצביעה על המקור — כדי לא ליצור כפילות שיוצאת
       מסונכרנת.
-- [ ] נקודת כניסה: כפתור/טאב חדש "משחק זיכרון" בכותרת `SprintRetroBoard` (ליד "ערוך
+      **ממומש (2026-09-06):** נוצר `frontend/src/features/retro/comment-display.ts`
+      (`getCommentCategoryLabel`/`getCommentAuthorName`), חולץ מ-`CommentCardWeb` ומ-
+      `renderCommentCard` (שניהם עודכנו להשתמש בו במקום הלוגיקה המשוכפלת) וגם משמש את שני
+      קומפוננטות הקלף — מקור אמת יחיד במקום 4 עותקים.
+- [x] נקודת כניסה: כפתור/טאב חדש "משחק זיכרון" בכותרת `SprintRetroBoard` (ליד "ערוך
       ספרינט"/"סיכום ספרינט" הקיימים, `sprint-retro-board-web.tsx` שורות ~192-217, ואותה
       שורת כותרת ב-native) שמחליף את גוף המסך ל-`MemoryBoard` (אותו דפוס
       `showSummary`/`<SprintSummary>` הקיים, שורות 184-186) — לוח הרטרו הרגיל נשאר זמין,
       חוזרים אליו באותו כפתור/טאב (ר' החלטה מוצרית #1). **בלי** אנימציית `Grow`/`Fade` על
       ה-mount של המסך עצמו (ר' ברירת מחדל טכנית #2 — החריגה חלה רק על אינטראקציות הקלף, לא
       על מעבר המסך).
-- [ ] הרשאת גישה לכפתור/טאב: **כל חבר צוות** (ר' החלטה מוצרית #7) — בלי בדיקת
+      **ממומש (2026-09-06):** `showMemoryBoard` state ב-`sprint-retro-board-web/native.tsx`,
+      אותו דפוס בדיוק כמו `showSummary`; כפתור/טאב "משחק זיכרון" בשורת הפעולות (אייקון `eye`).
+- [x] הרשאת גישה לכפתור/טאב: **כל חבר צוות** (ר' החלטה מוצרית #7) — בלי בדיקת
       `isAdmin`/`role` נוספת, זהה להרשאת הצפייה הרגילה של `SprintRetroBoard` כולו.
-- [ ] `trackEvent()` על: פתיחת התצוגה (הכפתור/טאב), כל הפיכת קלף, כל הגדלת קלף — לפי הכלל
+      **ממומש (2026-09-06):** אין שום תנאי `canHighlight`/`canExportSummary`/`canEditSprint`
+      דומה על הכפתור החדש — מוצג לכל חבר צוות תמיד.
+- [x] `trackEvent()` על: פתיחת התצוגה (הכפתור/טאב), כל הפיכת קלף, כל הגדלת קלף — לפי הכלל
       הקבוע בפרויקט.
-- [ ] `Strings.retroBoard.*` (או `Strings.memoryBoard.*` חדש) — מחרוזות עבריות חדשות: שם
+      **ממומש (2026-09-06):** `memory_board_opened`, `memory_card_flipped`,
+      `memory_card_enlarged`.
+- [x] `Strings.retroBoard.*` (או `Strings.memoryBoard.*` חדש) — מחרוזות עבריות חדשות: שם
       הכפתור/טאב ("משחק זיכרון"), כותרות שני הקנבסים (שימור/שיפור), טקסט מצב-ריק (ספרינט
       בלי תגובות בכלל, לכל קנבס בנפרד).
-- [ ] הערת קוד מפורשת ליד קומפוננטות הקלף (`memory-card-web.tsx`/`memory-card-native.tsx`)
+      **ממומש (2026-09-06):** `Strings.memoryBoard.*` חדש ב-`constants/strings.ts`.
+- [x] הערת קוד מפורשת ליד קומפוננטות הקלף (`memory-card-web.tsx`/`memory-card-native.tsx`)
       על החריגה המוגבלת-בהיקף מ-`UI-GUIDELINES.md` §6 (ר' ברירת מחדל טכנית #2) — כדי
       שסוכן `ui-migration` עתידי לא "יתקן" את זה כסטייה מהדיזיין סיסטם.
+      **ממומש (2026-09-06):** הערת בלוק בראש שני הקבצים.
 
 ### 8.3 בדיקות
 
-- [ ] Playwright e2e (web): כל חבר צוות (כולל חבר רגיל, לא admin/TEAM_LEADER — ר' החלטה
+- [x] Playwright e2e (web): כל חבר צוות (כולל חבר רגיל, לא admin/TEAM_LEADER — ר' החלטה
       מוצרית #7) רואה את כפתור/טאב "משחק זיכרון" ויכול לפתוח אותו; רואה שני קנבסים נפרדים
       (שימור/שיפור); קלפים מוצגים הפוכים בלבד (בלי טקסט תגובה גלוי בשום מקום ב-DOM/
       accessibility tree לפני הפיכה — לא רק "מוסתר ויזואלית"); `click` בודד הופך קלף
       וחושף תוכן+שם כותב (לתגובה לא-אנונימית)/"אנונימי" (לתגובה אנונימית); `dblclick` על
       קלף שכבר הפוך מגדיל אותו בתוך הקנבס (לא מודאל/ניווט לעמוד אחר — לוודא ש-URL/מבנה
       הקנבס לא משתנה, רק scale/z-index של הקלף); חזרה ללוח הרטרו הרגיל דרך אותו כפתור/טאב.
-- [ ] Playwright e2e: הפיכת קלף אינה persisted — טעינה מחדש של העמוד (או פתיחה בהקשר
+      **ממומש (2026-09-06):** `frontend/e2e/memory-board.spec.ts`, טסט ראשון — משתמש שנוסף
+      כ-`DEVELOPER` רגיל (לא admin/leader) פותח את הלוח, רואה 2 קנבסים, קלפים הפוכים
+      (`getByText(commentContent)` מחזיר count=0 לפני הפיכה — לא CSS-hidden), הופך קלף KEEP
+      לא-אנונימי (תוכן+קטגוריה+שם משתמש אמיתי נחשפים) וקלף IMPROVE אנונימי (מוצג "אנונימי"),
+      dblclick על הקלף שכבר הפוך מגדיל אותו (`boundingBox().width` גדל) בלי שינוי `page.url()`
+      ותוך שהכותרות של שני הקנבסים עדיין על המסך, וחזרה ללוח הרגיל דרך כפתור "חזרה ללוח".
+      Desktop+Mobile Chrome, שניהם עוברים.
+- [x] Playwright e2e: הפיכת קלף אינה persisted — טעינה מחדש של העמוד (או פתיחה בהקשר
       דפדפן/משתמש שני) מציגה את כל הקלפים הפוכים מחדש (מאמת בפירוש את החלטה מוצרית #4 —
       local, לא synced).
-- [ ] Jest לקומפוננטת הקלף (`memory-card-web.tsx`): מצב התחלתי הפוך; `click` בודד →
+      **ממומש (2026-09-06):** `memory-board.spec.ts`, טסט שני. גילוי אגב הכתיבה: ניווט
+      צוות/ספרינט/לוח באפליקציה הזו הוא state של React בלבד, לא route תחת `src/app/` — לכן
+      `page.reload()` תמיד מחזיר לרשימת הצוותים (לא רק מאפס את מצב ההפיכה), והטסט צריך
+      לנווט מחדש עד ללוח הזיכרון אחרי הרענון לפני שבודקים שהקלפים חזרו להיות הפוכים; זה עדיין
+      מוכיח את הדבר הנכון (אין שום state של הפיכה ששרד בשום מקום). כיסוי גם למשתמש שני
+      (`browser.newContext()` נפרד, ה-leader) שרואה את אותו ספרינט הפוך-לגמרי, בלי קשר
+      להפיכות של המשתמש הראשון. Desktop+Mobile Chrome, שניהם עוברים. **תיקון (2026-09-06):**
+      הטסט הזה עושה שלושה round-trip מלאים של login+ניווט (נביגציה ראשונית, reload+ניווט
+      מחדש, ואז context שני עם ניווט משלו) — נמדד ~24-26 שניות גם בהרצה מבודדת ונקייה, קרוב
+      מדי ל-timeout ברירת המחדל של Playwright (30s), וקורס כשהוא רץ מאוחר בתוך ריצה ארוכה
+      ורציפה (`workers: 1`) של כל הסוויטה. נוסף `test.setTimeout(60_000)` לטסט הזה בלבד —
+      לא באג במימוש, רק מרווח timeout צר מדי לכמות הצעדים האמיתית בטסט הזה.
+- [x] Jest לקומפוננטת הקלף (`memory-card-web.tsx`): מצב התחלתי הפוך; `click` בודד →
       `isFlipped=true`; `dblclick` על קלף הפוך → `isEnlarged=true` בנוסף; תוכן/badge
       קטגוריה/שם כותב מוצגים נכון אחרי הפיכה, כולל מקרה `isAnonymous`.
-- [ ] בדיקת מובייל — `Mobile Chrome` project ב-Playwright, עקבי עם כל שאר הפיצ'רים
+      **ממומש (2026-09-06):** `frontend/src/features/retro/components/__tests__/memory-card-
+      web.test.tsx`, 5 טסטים, כולם עוברים. אין `@testing-library/react` בפרויקט (רק
+      `/react-native`, `/jest-dom`, `/user-event`) והקומפוננטה הזו MUI+framer-motion בלבד —
+      הטסט מרכיב ישירות עם `react-dom/client` + `act` תחת `@jest-environment jsdom` (override
+      per-file, כי ה-preset הגלובלי `jest-expo` הוא `node`, בלי `document`). **גילוי אגב
+      הכתיבה, לא באג ייצור:** `jest/framer-motion-mock.js` (המוק המשותף ל-`framer-motion`)
+      בונה `React.forwardRef` חדש בכל גישה ל-`motion.div` (Proxy `get`), כלומר טיפוס
+      קומפוננטה חדש בכל render — מה שגורם ל-React להחליף/למחוק ולבנות מחדש את ה-DOM node בכל
+      עדכון state; רפרנס ל-`motion.div` שנתפס פעם אחת (למשל דרך `querySelector`) הופך stale
+      אחרי כל אינטראקציה שמשנה state. אין לזה השפעה בפרויקט האמיתי (`motion.div` האמיתי הוא
+      קומפוננטה יציבה וממוקדת-זיכרון) — רק ארטיפקט של המוק ב-Jest; הטסטים כתובים כך שכל
+      אינטראקציה שולפת מחדש את האלמנט החי (`getCard()`) במקום להחזיק רפרנס ישן.
+- [x] Jest ל-hook המשותף (`useMemoryCardFlip`, `memory-card-flip.ts`) ולפונקציות התצוגה
+      המשותפות (`getCommentCategoryLabel`/`getCommentAuthorName`, `comment-display.ts`) —
+      נוסף בנפרד מריצת `feature-tests` המקורית, אחרי שהלוגיקה המשותפת חולצה מ-`memory-card-
+      web.tsx`/`memory-card-native.tsx` לקובץ אחד (כדי לצמצם כפילות/לאפשר שימוש חוזר).
+      **ממומש (2026-09-06):** `frontend/src/features/retro/__tests__/memory-card-flip.test.ts`
+      (9 טסטים — מצב התחלתי, flip/flipAndEnlarge בכל הכיוונים, קריאות `trackEvent` המדויקות,
+      וסדר קריאה ל-`onFlip`/`onResize` שהגרסה native מסתמכת עליו) ו-`comment-display.test.ts`
+      (8 טסטים — מיפוי קטגוריה ידועה/לא ידועה/חסרה, הרכבת שם מלא/חלקי/fallback ל-username,
+      ומקרה `isAnonymous`). **גילוי אגב הכתיבה:** `renderHook`/`act` בגרסת
+      `@testing-library/react-native` המותקנת כאן הן אסינכרוניות בפועל — `act(() => ...)`
+      לא-awaited עלול להשאיר את `result.current` stale/null באינטראקציה הבאה; הפתרון
+      העקבי שאומת היה `await act(async () => { ... })` לכל אינטראקציה.
+- [x] בדיקת מובייל — `Mobile Chrome` project ב-Playwright, עקבי עם כל שאר הפיצ'רים
       בבאקלוג — כולל אימות ספציפי למחוות ה-double-tap (לא ניתן "להעתיק" בדיקת web
       `dblclick` בלי אימות שהמחווה בפועל עובדת על viewport מובייל דרך
       `react-native-gesture-handler`): single-tap הופך, double-tap הופך+מגדיל, בלי
       להתנגש עם double-tap-to-zoom של הדפדפן במובייל.
+      **ממומש (2026-09-06):** `memory-board.spec.ts`, טסט שלישי, מדלג (`test.skip`) על
+      Desktop Chrome ורץ רק תחת `Mobile Chrome` (`hasTouch`), משתמש ב-`page.touchscreen.tap()`
+      אמיתי (לא `dblclick()` של עכבר) — tap בודד הופך, שני tap-ים רצופים על אותו קלף מגדילים
+      אותו (`boundingBox().width` גדל), ו-`window.visualViewport.scale` נשאר 1 (לא זום). **הבהרה
+      עובדתית חשובה, לא סתם ניואנס טכני:** `frontend/e2e` תמיד רץ מול `npm run web:e2e` (בניית
+      Expo web דרך Metro) — כלומר `Platform.OS === 'web'` **תמיד**, בלי קשר לאמולציית ה-device
+      של הפרויקט (`devices['Pixel 7']` היא רק viewport+`hasTouch`+UA, לא build native). לכן
+      `MemoryBoard`/`memory-board.tsx` תמיד בוחר את ה-branch של `MemoryBoardWeb`/
+      `MemoryCardWeb` — **הקוד של `memory-card-native.tsx` (`Gesture.Tap()`,
+      `requireExternalGestureToFail`, `react-native-gesture-handler`) לעולם לא רץ תחת
+      Playwright, בשום project, כולל "Mobile Chrome"**, ולכן לא ניתן לאמת אותו קוד ספציפית
+      עם הכלים הקיימים בריפו (אין Detox/Maestro/native test runner). הטסט כאן מאמת את
+      **ההתנהגות המבוססת-מגע של גרסת ה-web** (זיהוי single/double click הידני מבוסס-טיימר
+      ב-`memory-card-web.tsx`) תחת viewport מובייל אמיתי עם `touchscreen.tap()`, לא dblclick
+      עכבר מועתק — זה המקסימום הניתן לאימות בכלי הבדיקה הקיימים, ועקבי עם איך שכל שאר הפיצ'רים
+      בבאקלוג הזה כבר משתמשים ב-project "Mobile Chrome" (בדיקת responsive/מגע על ה-web build,
+      לא native אמיתי).
 
 ### לא בטיפול (פיצ'ר 8)
 

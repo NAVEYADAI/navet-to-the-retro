@@ -20,7 +20,9 @@ import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
 import { SprintSummary } from '@/features/sprint-summary';
+import { MemoryBoard } from './memory-board';
 import { trackEvent } from '@/lib/analytics';
+import { getCommentCategoryLabel, getCommentAuthorName } from '../comment-display';
 
 interface SprintRetroBoardProps {
   sprint: any;
@@ -61,6 +63,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
+  const [showMemoryBoard, setShowMemoryBoard] = useState(false);
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -192,11 +195,9 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   const wheelTone = isKeep ? t.color.status.success : t.color.status.danger;
 
   const renderCommentCard = (comment: any, accent: { fg: string; bg: string; border: string }) => {
-    const categoryLabel = comment.category ? Strings.retroBoard.categories[comment.category] : null;
+    const categoryLabel = getCommentCategoryLabel(comment);
     const isHighlighted = !!comment.isHighlighted;
-    const authorName = comment.isAnonymous
-      ? Strings.retroBoard.anonymousAuthor
-      : `${comment.author.firstName || ''} ${comment.author.lastName || ''}`.trim() || comment.author.username;
+    const authorName = getCommentAuthorName(comment);
 
     return (
       <View
@@ -298,6 +299,10 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
     return <SprintSummary sprint={sprintData} team={team} token={token} onBack={() => setShowSummary(false)} />;
   }
 
+  if (showMemoryBoard) {
+    return <MemoryBoard sprint={sprintData} team={team} token={token} onBack={() => setShowMemoryBoard(false)} />;
+  }
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: t.color.bg }}
@@ -351,6 +356,16 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
                   </Text>
                 </TouchableOpacity>
               )}
+              {/* Any team member can open — no isAdmin/role gate, see PRODUCT-BACKLOG.md §8.0 decision #7. */}
+              <TouchableOpacity
+                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
+                onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); setShowMemoryBoard(true); }}
+              >
+                <Icon name="eye" size="sm" tone="muted" />
+                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                  {Strings.memoryBoard.openButton}
+                </Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
                 onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); }}

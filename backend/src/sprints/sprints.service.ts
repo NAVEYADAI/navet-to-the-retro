@@ -1,11 +1,17 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateSprintDto, UpdateSprintDto } from './dto/sprints.dto';
 import { buildSprintSummaryPptx, buildExportFileName, resolveTemplateId } from './sprint-summary.builder';
+import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 
 @Injectable()
 export class SprintsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(SprintsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly googleCalendarService: GoogleCalendarService
+  ) {}
 
   async create(teamId: number, dto: CreateSprintDto, requesterId: number) {
     // 1. Verify team exists
@@ -33,7 +39,7 @@ export class SprintsService {
     }
 
     // 3. Create sprint
-    return this.prisma.sprint.create({
+    const sprint = await this.prisma.sprint.create({
       data: {
         name: dto.name,
         description: dto.description,
@@ -42,6 +48,23 @@ export class SprintsService {
         teamId: teamId
       }
     });
+
+    // 4. Best-effort sync to every team member's connected Google Calendar
+    // (product-backlog/06-google-calendar-integration.md §6) — never blocks/fails sprint creation, same external-service pattern as EmailService.
+    try {
+      await this.googleCalendarService.syncSprintCreated({
+        sprintId: sprint.id,
+        teamId,
+        name: sprint.name,
+        teamName: team.name,
+        startDate: sprint.startDate,
+        endDate: sprint.endDate
+      });
+    } catch (err) {
+      this.logger.warn(`Google Calendar sync failed for newly created sprint ${sprint.id}`, err instanceof Error ? err.stack : err);
+    }
+
+    return sprint;
   }
 
   async update(teamId: number, sprintId: number, dto: UpdateSprintDto, requesterId: number) {
@@ -67,7 +90,7 @@ export class SprintsService {
     }
 
     // 4. Update only the fields actually provided
-    return this.prisma.sprint.update({
+    const updated = await this.prisma.sprint.update({
       where: { id: sprintId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -76,6 +99,30 @@ export class SprintsService {
         ...(dto.endDate !== undefined && { endDate: new Date(dto.endDate) })
       }
     });
+
+    // 5. If the dates actually changed, patch the existing Google Calendar event(s) for this
+    // sprint (product-backlog/06-google-calendar-integration.md §6.0.4) rather than deleting/recreating — best-effort, same
+    // pattern as `create` above.
+    const datesChanged =
+      updated.startDate.getTime() !== sprint.startDate.getTime() ||
+      updated.endDate.getTime() !== sprint.endDate.getTime();
+
+    if (datesChanged) {
+      try {
+        await this.googleCalendarService.syncSprintUpdated({
+          sprintId: updated.id,
+          teamId,
+          name: updated.name,
+          teamName: team.name,
+          startDate: updated.startDate,
+          endDate: updated.endDate
+        });
+      } catch (err) {
+        this.logger.warn(`Google Calendar sync failed for updated sprint ${updated.id}`, err instanceof Error ? err.stack : err);
+      }
+    }
+
+    return updated;
   }
 
   async findAll(teamId: number, requesterId: number) {
@@ -106,7 +153,7 @@ export class SprintsService {
     }
 
     // The team's creator OR any team admin can export a sprint summary — see
-    // PRODUCT-BACKLOG.md §1.0 (updated 2026-09-01 per Nave: admins should also be able to).
+    // product-backlog/01-sprint-summary-export.md §1.0 (updated 2026-09-01 per Nave: admins should also be able to).
     if (team.creatorId !== requesterId) {
       const membership = await this.prisma.teamMember.findUnique({
         where: { userId_teamId: { userId: requesterId, teamId } }

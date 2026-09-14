@@ -63,7 +63,7 @@ test.describe('Sprint summary export', () => {
     });
 
     // A plain, non-admin, non-creator member — confirms the export button is still gated
-    // (not visible to just anyone on the team), per PRODUCT-BACKLOG.md §1.0.
+    // (not visible to just anyone on the team), per product-backlog/01-sprint-summary-export.md §1.0.
     const addMemberRes = await request.post(`${BACKEND_URL}/teams/${team.id}/members`, {
       headers: { Authorization: `Bearer ${creator.token}` },
       data: { username: memberUsername, role: 'DEVELOPER' },

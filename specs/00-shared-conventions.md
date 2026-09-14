@@ -11,8 +11,14 @@
 `User` (מ-`backend/prisma/schema.prisma`):
 - `id: Int @id @default(autoincrement())`
 - `username: String @unique`
-- `email: String @unique`
-- `password: String` — hash של bcrypt, תמיד מוסר ידנית מתשובות API (`const { password, ...result } = user`)
+- `email: String` — **לא** `@unique` (הוסר בפיצ'ר 7, §7.0 decision #3, כדי לאפשר קישור Google
+  גם כשהכתובת "תפוסה" ע"י שורה לא-מקושרת אחרת — ר' סעיף 3 למטה לפירוט המלא. עודכן
+  2026-09-14, סעיף זה עצמו נשאר סותר את סעיף 3 מתחתיו במשך זמן-מה).
+- `googleId: String? @unique` — נוסף בפיצ'ר 7.
+- `password: String?` — nullable מאז פיצ'ר 7 (משתמש Google-only). hash של bcrypt כשקיים,
+  תמיד מוסר ידנית מתשובות API (`const { password, ...result } = user`)
+- `emailVerifiedAt: DateTime?` — נוסף בפיצ'ר 7 §7.4 (תיעוד "מתי הוכחה בעלות על המייל ע"י
+  Google", לא flag אכיפה).
 - `firstName: String?`, `lastName: String?`
 - `role: String @default("DEVELOPER")` — **שדה טקסט חופשי, לא enum** (בניגוד ל-`TeamRole` שכן enum). לא נאכף שום ולידציה על הערך הזה ברמת ה-DB.
 - `createdAt: DateTime @default(now())`
@@ -50,9 +56,20 @@
 - Compare: `bcryptjs.compare(dto.password, user.password)`.
 - כל תשובת API שמכילה `User` מסירה `password` ידנית (`const { password, ...result } = user`) — אין `@Exclude` ברמת ה-schema, זה נאכף בכל endpoint בנפרד. אם endpoint חדש ישכח לעשות את זה, ה-hash ידלוף בתשובה.
 
-### `PATCH /auth/profile` — חוסר עקביות מול `register`
+### `PATCH /auth/profile` — עודכן בפיצ'ר 7 §7.4 (2026-09-11), כבר לא באג
 
-`AuthService.updateProfile` (`auth.service.ts:109-121`) מעדכן `email` בלי שום בדיקת ייחודיות — לעומת `register` שבודק `OR: [{username}, {email}]` לפני יצירה. **STATUS: Bug candidate**: משתמש יכול לעדכן את המייל שלו לערך שכבר תפוס ע"י משתמש אחר; Prisma יזרוק שגיאת unique-constraint לא-מטופלת (500, לא 409 מסודר). זה משפיע ישירות על `02-teams-and-approval.md` כי `approverEmail` lookup נשען על ייחודיות מייל.
+**STATUS: Fixed.** `AuthService.updateProfile` (`auth.service.ts`) עכשיו קורא-לפני-כתיבה,
+מזהה שינוי email אמיתי (trim + case-insensitive, לא "האם השדה נשלח" — הפרונט תמיד שולח את
+המייל הנוכחי), ובודק התנגשות מול משתמש/ת אחר/ת לפני העדכון — `ConflictException` (409) מסודר,
+לא קריסת unique-constraint. `emailVerifiedAt` (שדה חדש מאותה תוספת) מתאפס ל-`null` רק על שינוי
+אמיתי ולא-מתנגש. ר' `product-backlog/07-google-sign-in.md` §7.4 לפירוט המלא.
+
+**נשאר רלוונטי:** מאז פיצ'ר 7 (§7.0 decision #3), `User.email` כבר לא `@unique` ברמת ה-DB
+בכלל (כדי לאפשר קישור Google גם כשהכתובת "תפוסה" ע"י שורה אחרת לא-מקושרת) — כך שגם אחרי
+התיקון הזה, כמה שורות `User` יכולות לחלוק אימייל בפועל. `02-teams-and-approval.md`'s
+`approverEmail` lookup וגם `AuthService.login`'s email-lookup עודכנו (2026-09-11) עם
+`orderBy: {id:'asc'}` דטרמיניסטי כדי לא להיתקע על בחירת-שורה לא-עקבית — אותו דפוס שכבר היה
+ב-`google-login.service.ts` מלכתחילה.
 
 ## 4. Error → HTTP Status Mapping (NestJS built-ins בשימוש בקוד)
 

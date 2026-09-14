@@ -17,3 +17,12 @@ export class UpdateProfileDto {
   lastName?: string;
   email?: string;
 }
+
+export class ExchangeGoogleTicketDto {
+  ticket!: string;
+}
+
+export class CompleteGoogleRegistrationDto {
+  pendingTicket!: string;
+  role?: string;
+}

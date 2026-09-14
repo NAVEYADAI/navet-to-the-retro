@@ -167,47 +167,51 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
             </Box>
           ) : null}
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
-            <Typography sx={{ ...t.type.label, color: t.color.textSecondary }}>
-              {Strings.sprintSummary.templateLabel}
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
-              {SPRINT_SUMMARY_TEMPLATES.map((tpl) => {
-                const selected = templateId === tpl.id;
-                return (
-                  <Box
-                    key={tpl.id}
-                    component="button"
-                    type="button"
-                    onClick={() => setTemplateId(tpl.id)}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: `${t.space[1] + 2}px`,
-                      borderRadius: `${t.radius.pill}px`,
-                      border: `1.5px solid ${selected ? t.color.accent.base : t.color.border}`,
-                      backgroundColor: selected ? t.color.accent.subtle : t.color.surface,
-                      paddingBlock: '7px',
-                      paddingInline: `${t.space[3]}px`,
-                      cursor: 'pointer',
-                      transition: `border-color ${t.motion.fast}, background-color ${t.motion.fast}`,
-                    }}
-                  >
-                    <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: tpl.swatch, flexShrink: 0 }} />
-                    <Typography sx={{ ...t.type.caption, fontWeight: selected ? 700 : 500, color: selected ? t.color.accent.base : t.color.textSecondary }}>
-                      {tpl.label}
-                    </Typography>
-                  </Box>
-                );
-              })}
-            </Box>
-          </Box>
+          {stats.total > 0 && (
+            <>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
+                <Typography sx={{ ...t.type.label, color: t.color.textSecondary }}>
+                  {Strings.sprintSummary.templateLabel}
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
+                  {SPRINT_SUMMARY_TEMPLATES.map((tpl) => {
+                    const selected = templateId === tpl.id;
+                    return (
+                      <Box
+                        key={tpl.id}
+                        component="button"
+                        type="button"
+                        onClick={() => setTemplateId(tpl.id)}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: `${t.space[1] + 2}px`,
+                          borderRadius: `${t.radius.pill}px`,
+                          border: `1.5px solid ${selected ? t.color.accent.base : t.color.border}`,
+                          backgroundColor: selected ? t.color.accent.subtle : t.color.surface,
+                          paddingBlock: '7px',
+                          paddingInline: `${t.space[3]}px`,
+                          cursor: 'pointer',
+                          transition: `border-color ${t.motion.fast}, background-color ${t.motion.fast}`,
+                        }}
+                      >
+                        <Box sx={{ width: 14, height: 14, borderRadius: '50%', backgroundColor: tpl.swatch, flexShrink: 0 }} />
+                        <Typography sx={{ ...t.type.caption, fontWeight: selected ? 700 : 500, color: selected ? t.color.accent.base : t.color.textSecondary }}>
+                          {tpl.label}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Box>
 
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button variant="primary" icon="download" onPress={handleDownload} disabled={isDownloading} loading={isDownloading}>
-              {isDownloading ? Strings.sprintSummary.downloadingButton : Strings.sprintSummary.downloadButton}
-            </Button>
-          </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Button variant="primary" icon="download" onPress={handleDownload} disabled={isDownloading} loading={isDownloading}>
+                  {isDownloading ? Strings.sprintSummary.downloadingButton : Strings.sprintSummary.downloadButton}
+                </Button>
+              </Box>
+            </>
+          )}
         </Card>
       )}
     </Page>

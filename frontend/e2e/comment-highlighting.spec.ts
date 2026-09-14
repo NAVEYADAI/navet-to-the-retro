@@ -56,7 +56,7 @@ test.describe('Comment highlighting', () => {
     });
 
     // A plain DEVELOPER, non-admin member — used to confirm the highlight control is gated
-    // on isAdmin/TEAM_LEADER, not just team membership (see PRODUCT-BACKLOG.md §2.0).
+    // on isAdmin/TEAM_LEADER, not just team membership (see product-backlog/02-comment-highlighting.md §2.0).
     const addMemberRes = await request.post(`${BACKEND_URL}/teams/${team.id}/members`, {
       headers: { Authorization: `Bearer ${leader.token}` },
       data: { username: memberUsername, role: 'DEVELOPER' },

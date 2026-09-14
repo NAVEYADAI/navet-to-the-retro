@@ -11,7 +11,7 @@ import { useMemoryCardFlip, type MemoryCardComment } from '../memory-card-flip';
  * `transition` only on hover/focus/press at 0.15s, no long/entrance animations).
  *
  * Nave explicitly asked for "lots of animation" / a "game feel" for THIS card's flip and
- * enlarge interactions specifically — see PRODUCT-BACKLOG.md §8.0, ברירת מחדל טכנית #2. This
+ * enlarge interactions specifically — see product-backlog/08-memory-board.md §8.0, ברירת מחדל טכנית #2. This
  * does NOT extend to the screen/tab transition (mounting <MemoryBoard>, see
  * memory-board-native.tsx) which intentionally has no entrance animation, staying consistent
  * with the rest of the app.
@@ -80,7 +80,7 @@ export function MemoryCardNative({ comment }: MemoryCardNativeProps) {
         style={{ width: size, height: size }}
       >
         {/* Back — deliberately shows NO information at all (no category/type/author), standard
-            memory-game convention. See PRODUCT-BACKLOG.md §8.0 default #4. */}
+            memory-game convention. See product-backlog/08-memory-board.md §8.0 default #4. */}
         <Animated.View
           pointerEvents="none"
           importantForAccessibility={isFlipped ? 'no-hide-descendants' : 'auto'}

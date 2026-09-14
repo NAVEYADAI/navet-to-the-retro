@@ -3,7 +3,7 @@ import { trackEvent } from '@/lib/analytics';
 
 /**
  * Shared between MemoryCardWeb (components/memory-card-web.tsx) and MemoryCardNative
- * (components/memory-card-native.tsx, PRODUCT-BACKLOG.md §8) — comment shape, card sizing, and
+ * (components/memory-card-native.tsx, product-backlog/08-memory-board.md §8) — comment shape, card sizing, and
  * flip/enlarge state transitions (incl. the trackEvent calls) are identical on both platforms;
  * only the *rendering* (framer-motion vs Animated/LayoutAnimation) and *input handling*
  * (click-timer vs gesture-handler) differ, and stay in each platform file.

@@ -57,7 +57,7 @@ test.describe('Sprint editing', () => {
     });
 
     // A plain DEVELOPER, non-admin member — used to confirm the edit control is gated on
-    // isAdmin, the same guard as sprint creation (see PRODUCT-BACKLOG.md's sprint-editing entry).
+    // isAdmin, the same guard as sprint creation (see product-backlog/04-sprint-editing.md's sprint-editing entry).
     const addMemberRes = await request.post(`${BACKEND_URL}/teams/${team.id}/members`, {
       headers: { Authorization: `Bearer ${admin.token}` },
       data: { username: memberUsername, role: 'DEVELOPER' },

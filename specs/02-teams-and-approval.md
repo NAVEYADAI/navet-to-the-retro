@@ -230,7 +230,16 @@ const isMyPendingTeam = isPending && team.creatorId === userId;
 
 כל הפריטים כאן מתועדים בלבד — לא לתקן בשלב הזה.
 
-1. **Case-mismatch בין allowlist-check ל-DB lookup ב-`POST /teams`** (`teams.service.ts:20` לעומת `:25-27`): ה-allowlist בודק `dto.approverEmail.toLowerCase()`, אבל `findUnique({email: dto.approverEmail})` משתמש במחרוזת המקורית (לא lowercased), ו-`User.email` גם לא מנורמל ב-`register()`. תוצאה: approverEmail עם case שונה מזה שנשמר ב-DB עובר את בדיקת ה-allowlist אבל נכשל ב-lookup עם 404 מטעה ("לא נמצא משתמש"). **STATUS: Bug candidate — סביר שזו בדיוק הסיבה לחוסר הביטחון של המשתמש שהפיצ'ר "לא בטוח שעובד".**
+1. **[עודכן 2026-09-11, STATUS: Fixed]** Case-mismatch בין allowlist-check ל-DB lookup ב-`POST
+   /teams` — **כבר לא קיים**. `teams.service.ts::create` משתמש היום ב-
+   `findFirst({where:{email:{equals: dto.approverEmail, mode:'insensitive'}}})`, לא ב-
+   `findUnique` case-sensitive כפי שתועד כאן במקור. **תיעוד היסטורי, לא לסמוך עליו יותר** —
+   Flow C (§8) ו-test case #2 (§8) שמתארים את הבאג הזה **גם הם כבר לא נכונים**, צריך עדכון
+   נפרד אם מישהו כותב טסטים לאזור הזה. בנוסף (פיצ'ר 7 §7.4 fallout, 2026-09-11): מאז ש-
+   `User.email` הפסיק להיות `@unique` (כדי לאפשר קישור Google), אותו lookup קיבל גם
+   `orderBy:{id:'asc'}` דטרמיניסטי — בלי זה, אם אי-פעם שתי שורות `User` יחלקו את אחת מכתובות
+   `ALLOWED_APPROVER_EMAILS`, הבחירה ביניהן הייתה תלוית סדר-סריקה של ה-DB, לא דטרמיניסטית. ר.
+   `00-shared-conventions.md` §"PATCH /auth/profile" לפירוט המלא של תוספת §7.4.
 2. **A3 (`ConflictException` באישור כפול) הוא dead code בזרימה סדרתית**, ומתחת לרייס אמיתי כנראה זורק unique-constraint violation לא-מטופל (500) במקום 409 מסודר, כי הבדיקה (`findUnique`) והפעולה (`$transaction`) לא אטומיות יחד. STATUS: Bug candidate.
 3. **אין ולידציית runtime על גוף הבקשה בכלל** (`CreateTeamDto`/`AddMemberDto`/`UpdateMemberDto` בלי class-validator, בלי `ValidationPipe` ב-`main.ts`) — שדות חסרים גורמים ל-500 גולמי (E1, E5) במקום 400 מסודר. STATUS: Bug candidate.
 4. **`ALLOWED_APPROVER_EMAILS` קשיח בקוד**, לא DB/env-driven — הוספת מאשר שלישי דורשת שינוי קוד + דיפלוי. STATUS: Bug candidate (config risk).

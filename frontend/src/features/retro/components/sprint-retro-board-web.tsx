@@ -120,7 +120,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
     (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase())) &&
     (!highlightedOnly || c.isHighlighted);
 
-  // Only team admins and team leads may highlight — see PRODUCT-BACKLOG.md §2.0.
+  // Only team admins and team leads may highlight — see product-backlog/02-comment-highlighting.md §2.0.
   const myMembership = team.members?.find((m: any) => m.userId === user.id);
   const canHighlight = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
 
@@ -146,7 +146,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
     ...Object.entries(Strings.retroBoard.categories).map(([value, label]) => ({ value, label })),
   ];
 
-  // The team's creator OR any team admin can export a sprint summary — see PRODUCT-BACKLOG.md §1.0.
+  // The team's creator OR any team admin can export a sprint summary — see product-backlog/01-sprint-summary-export.md §1.0.
   const canExportSummary = team.creatorId === user.id || !!myMembership?.isAdmin;
   // Same permission as creating a sprint in the first place (sprints.service.ts::create) — no
   // one should be able to edit a sprint they couldn't have created.
@@ -208,7 +208,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
                   {Strings.sprintSummary.openButton}
                 </Button>
               ) : null}
-              {/* Any team member can open — no isAdmin/role gate, see PRODUCT-BACKLOG.md §8.0 decision #7. */}
+              {/* Any team member can open — no isAdmin/role gate, see product-backlog/08-memory-board.md §8.0 decision #7. */}
               <Button
                 variant="ghost"
                 size="sm"

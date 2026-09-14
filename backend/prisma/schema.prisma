@@ -8,19 +8,38 @@ generator client {
 }
 
 model User {
-  id               Int          @id @default(autoincrement())
-  username         String       @unique
-  email            String       @unique
-  password         String
-  firstName        String?
-  lastName         String?
-  role             String       @default("DEVELOPER")
-  createdAt        DateTime     @default(now())
-  createdTeams     Team[]       @relation("TeamCreator")
-  pendingApprovals Team[]       @relation("TeamPendingApprover")
-  members          TeamMember[]
-  comments         Comment[]
-  createdInvites   TeamInvite[]
+  id                        Int                        @id @default(autoincrement())
+  username                  String                     @unique
+  // Feature 7 (2026-09-07, decision #3): intentionally NOT @unique anymore. Signing in with
+  // Google can attach `googleId` to (or create a fresh row for) a user whose email already
+  // matches another existing `User` row — that email-collision case is explicitly deferred,
+  // not solved (see PRODUCT-BACKLOG.md §7.0/"לא בטיפול"), so two rows may transiently share an
+  // email. Do not re-add @unique here without resolving that decision first.
+  email                     String
+  // Feature 7: nullable because a user created directly via Google sign-in has no password at
+  // all (`password: null`), permanently and by design — not a transitional state. See
+  // AuthService.login's explicit null-password guard and PRODUCT-BACKLOG.md §7.0 default #4.
+  password                  String?
+  // Feature 7: Google's `sub` claim — the stable identifier for "same Google account returns",
+  // deliberately not relying on email comparisons alone for that (see PRODUCT-BACKLOG.md §7.0
+  // default #3).
+  googleId                  String?                    @unique
+  // Feature 7 addendum (2026-09-11, §7.4): timestamp for "we have real external proof this
+  // email belongs to this user" (Google sign-in linked/created this row with this exact
+  // email) — not an enforcement/gating flag, nothing reads this to block anything. Reset to
+  // null whenever the email actually changes to an address that hasn't been proven. Separate
+  // from, and does not touch, the deferred email-collision decision above.
+  emailVerifiedAt           DateTime?
+  firstName                 String?
+  lastName                  String?
+  role                      String                     @default("DEVELOPER")
+  createdAt                 DateTime                   @default(now())
+  createdTeams              Team[]                     @relation("TeamCreator")
+  pendingApprovals          Team[]                     @relation("TeamPendingApprover")
+  members                   TeamMember[]
+  comments                  Comment[]
+  createdInvites            TeamInvite[]
+  googleCalendarConnections GoogleCalendarConnection[]
 }
 
 enum TeamRole {
@@ -55,6 +74,7 @@ model Team {
   comments          Comment[]
   sprints           Sprint[]
   invites           TeamInvite[]
+  googleCalendars   GoogleCalendarTeamCalendar[]
 }
 
 model TeamInvite {
@@ -73,6 +93,60 @@ model TeamInvite {
 
   team      Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+// Personal Google Calendar connection — one per user (not per team, see
+// PRODUCT-BACKLOG.md §6.0.2). Built on the same shape as `TeamInvite`: FK cascade to the
+// owning entity, a soft-revoke flag instead of a hard delete on disconnect.
+model GoogleCalendarConnection {
+  id                 Int      @id @default(autoincrement())
+  userId             Int
+  accessToken        String
+  refreshToken       String
+  expiresAt          DateTime
+  googleAccountEmail String
+  isRevoked          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+
+  user          User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events        SprintGoogleEvent[]
+  teamCalendars GoogleCalendarTeamCalendar[]
+}
+
+// One dedicated (secondary, non-primary) Google Calendar per (connection, team) — created lazily
+// on first sync, so a user's sprint events land in a calendar named after the team instead of
+// mixed into their personal primary calendar, and can be shown/hidden independently in Google
+// Calendar's own UI. Replaces the earlier `GoogleCalendarConnection.calendarId` (always
+// "primary") — 2026-09-11, Nave's request. `@@unique` so a second sync never creates a duplicate
+// calendar for the same team.
+model GoogleCalendarTeamCalendar {
+  id           Int      @id @default(autoincrement())
+  connectionId Int
+  teamId       Int
+  calendarId   String
+  createdAt    DateTime @default(now())
+
+  connection GoogleCalendarConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  team       Team                     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, teamId])
+}
+
+// Maps a Sprint to the Google Calendar event created for it on one specific connection —
+// a single connection can hold events for many sprints (across every team the user belongs
+// to), so this can't just be a column on GoogleCalendarConnection. Looked up on
+// `sprints.service.ts::update` to `events.patch` the existing event instead of recreating it.
+model SprintGoogleEvent {
+  id            Int      @id @default(autoincrement())
+  sprintId      Int
+  connectionId  Int
+  googleEventId String
+  createdAt     DateTime @default(now())
+
+  sprint     Sprint                   @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  connection GoogleCalendarConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([sprintId, connectionId])
 }
 
 model TeamMember {
@@ -120,8 +194,9 @@ model Sprint {
   teamId      Int
   createdAt   DateTime @default(now())
 
-  team     Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  comments Comment[]
+  team         Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  comments     Comment[]
+  googleEvents SprintGoogleEvent[]
 }
 
 model Comment {

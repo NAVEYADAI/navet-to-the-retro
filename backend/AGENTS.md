@@ -70,8 +70,8 @@ lead" gated action instead of re-deriving the same check inline in a new service
 
 - Workflow is `npx prisma db push`, **not** `prisma migrate` — there are no migration files in this
   project. A schema change is applied directly; anything beyond an additive nullable/defaulted
-  column needs a hand-planned backfill script (see `PRODUCT-BACKLOG.md` feature 3 for a worked
-  example of planning a risky backfill before running it against real data).
+  column needs a hand-planned backfill script (see `product-backlog/03-team-comment-categories.md`
+  for a worked example of planning a risky backfill before running it against real data).
 - **Never run `prisma db push` against the shared dev/prod Neon database without the user's
   explicit go-ahead first** — it's not an isolated per-agent database. Pushing against the
   `postgres-test` service for e2e (`.env.test`) is safe to do directly.

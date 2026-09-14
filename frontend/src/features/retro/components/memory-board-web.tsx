@@ -18,7 +18,7 @@ interface MemoryBoardWebProps {
 /**
  * The KEEP/IMPROVE canvases below are a dedicated flex-wrap layout, not `<Grid columns={n}>` —
  * that component is built for a fixed number of large blocks, not a variable-count card canvas
- * (see PRODUCT-BACKLOG.md §8.2 research notes). The screen itself still wraps in `<Page>`.
+ * (see product-backlog/08-memory-board.md §8.2 research notes). The screen itself still wraps in `<Page>`.
  */
 export function MemoryBoardWeb({ sprint, team, token, onBack }: MemoryBoardWebProps) {
   const t = useTheme();

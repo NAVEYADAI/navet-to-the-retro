@@ -8,7 +8,7 @@
 - **`frontend/`** — יש שם שרשרת הנחיות משלה: `frontend/CLAUDE.md` → `frontend/AGENTS.md` → `frontend/UI-GUIDELINES.md`. היא נטענת אוטומטית ברגע שעובדים על קבצים בתוך `frontend/`. אל תשכפל אותה כאן ואל תסתור אותה.
 - **`backend/`** — יש כעת `backend/AGENTS.md` משלו (מוסכמות NestJS/Prisma, דפוס auth ידני, מה לעשות עם שינוי סכמה). מפנה בעצמו ל-`specs/00-shared-conventions.md` לבאגים/edge cases מתועדים.
 - **`specs/`** — תיעוד עובדתי per-feature, נגזר מקריאת קוד (לא מזיכרון/כוונה). קרא `specs/README.md` לפני כתיבת טסטים לפיצ'ר שכבר מתועד שם — הוא מקור האמת למקרי קצה ובאגים ידועים, לא הנחה על מה שהקוד "אמור" לעשות.
-- **`PRODUCT-BACKLOG.md`** — הבאק לוג המוצרי המשותף (backend+frontend ביחד, per feature). זה שונה לגמרי מ-`frontend/UI-MIGRATION-BACKLOG.md` (checklist טכני של מעבר עיצוב מסכים קיימים) — אל תערבב בין השניים. מונע על ידי שלושת הסוכנים שמפורטים למטה.
+- **`product-backlog/`** — הבאק לוג המוצרי המשותף (backend+frontend ביחד), קובץ נפרד לכל פיצ'ר (ר' `product-backlog/README.md` לאינדקס + טבלת סטטוס). כל קובץ פיצ'ר פותח בסעיף "נקודות מרכזיות (touchpoints)" — מודלים/endpoints/קבצים משותפים שהפיצ'ר נוגע בהם, כדי שאפשר לגרפ חפיפות בין פיצ'רים בלי לקרוא הכל. `product-backlog/IDEAS.md` הוא שכבה נפרדת ומוקדמת יותר — רעיונות בשורה-שתיים שנוה עוד לא אפיין איתי/עם `product-manager`, לפני שהם הופכים לקובץ פיצ'ר ממוספר. זה שונה לגמרי מ-`frontend/UI-MIGRATION-BACKLOG.md` (checklist טכני של מעבר עיצוב מסכים קיימים) — אל תערבב בין השניים. מונע על ידי הסוכנים שמפורטים למטה.
 
 ## פקודות נפוצות (מהשורש)
 
@@ -18,12 +18,13 @@
 
 ## סוכנים זמינים (`.claude/agents/`)
 
-- **`ui-migration`** — ממיר קובץ frontend אחד בכל הפעלה למערכת העיצוב שב-`frontend/UI-GUIDELINES.md`, לפי הסדר ב-`frontend/UI-MIGRATION-BACKLOG.md`. הבאקלוג הנוכחי **סגור (69/69)** — הפעל שוב רק אחרי שמוסיפים פריטים חדשים אליו. **לא קשור** ל-`PRODUCT-BACKLOG.md`.
-- **`backend-feature`** — מממש את תת-הסעיף "Backend" של הפיצ'ר הבא ב-`PRODUCT-BACKLOG.md` שעדיין לא סגור.
+- **`ui-migration`** — ממיר קובץ frontend אחד בכל הפעלה למערכת העיצוב שב-`frontend/UI-GUIDELINES.md`, לפי הסדר ב-`frontend/UI-MIGRATION-BACKLOG.md`. הבאקלוג הנוכחי **סגור (69/69)** — הפעל שוב רק אחרי שמוסיפים פריטים חדשים אליו. **לא קשור** ל-`product-backlog/`.
+- **`backend-feature`** — מממש את תת-הסעיף "Backend" של הפיצ'ר הבא ב-`product-backlog/` שעדיין לא סגור.
 - **`frontend-feature`** — מממש את תת-הסעיף "Frontend" של אותו פיצ'ר, רק אחרי שה-Backend שלו סגור.
 - **`feature-tests`** — כותב את תת-הסעיף "בדיקות" (Playwright e2e + Jest) של אותו פיצ'ר, רק אחרי ש-Backend+Frontend שלו סגורים.
-- **`feature-orchestrator`** — הסוכן הראשי: מוצא את הפיצ'ר הבא ב-`PRODUCT-BACKLOG.md`, מפעיל `backend-feature` → `frontend-feature` → `feature-tests` בסדר הנכון (דרך `Task`), ומדווח אם הפיצ'ר סגור לגמרי או מה עוד נשאר. זו נקודת הכניסה הרגילה לקידום הבאקלוג — קרא `.claude/agents/feature-orchestrator.md` אם צריך לדעת בדיוק איך הוא מחליט.
-- **`product-manager`** — **לא חלק מהשרשרת האוטומטית של ה-orchestrator.** מופעל ישירות ע"י המשתמש עם רעיון לפיצ'ר בפרומפט; חוקר את הקוד וכותב סעיף חדש ב-`PRODUCT-BACKLOG.md` לפי התבנית הקיימת, אבל **לא ממציא החלטות מוצריות** — מסמן אותן כ"שאלות פתוחות" ומשאיר את הפיצ'ר מסומן כטיוטה עד שהמשתמש עונה עליהן.
+- **`feature-orchestrator`** — הסוכן הראשי: מוצא את הפיצ'ר הבא ב-`product-backlog/`, מפעיל `backend-feature` → `frontend-feature` → `feature-tests` בסדר הנכון (דרך `Task`), ומדווח אם הפיצ'ר סגור לגמרי או מה עוד נשאר. זו נקודת הכניסה הרגילה לקידום הבאקלוג — קרא `.claude/agents/feature-orchestrator.md` אם צריך לדעת בדיוק איך הוא מחליט.
+- **`product-manager`** — **לא חלק מהשרשרת האוטומטית של ה-orchestrator.** מופעל ישירות ע"י המשתמש עם רעיון לפיצ'ר בפרומפט; חוקר את הקוד וכותב קובץ פיצ'ר חדש תחת `product-backlog/` לפי התבנית הקיימת, אבל **לא ממציא החלטות מוצריות** — מסמן אותן כ"שאלות פתוחות" ומשאיר את הפיצ'ר מסומן כטיוטה עד שהמשתמש עונה עליהן.
+- **`feature-dependency-checker`** — **גם הוא לא חלק מהשרשרת האוטומטית.** מופעל ידנית לבדיקת תלויות של פיצ'ר (קיים או רעיון חדש) מול כל שאר הפיצ'רים ב-`product-backlog/` — סורק את סעיפי ה-touchpoints שלהם, ומדווח על חפיפות/סיכוני אינטראקציה בפועל (לא ממציא החלטות מוצריות, בדיוק כמו `product-manager`).
 
 ## עיצוב/מוקאפים — הערת סנכרון
 

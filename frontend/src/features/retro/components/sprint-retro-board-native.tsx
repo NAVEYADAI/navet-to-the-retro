@@ -174,7 +174,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
   const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
 
-  // Only team admins and team leads may highlight — see PRODUCT-BACKLOG.md §2.0.
+  // Only team admins and team leads may highlight — see product-backlog/02-comment-highlighting.md §2.0.
   const myMembership = team.members?.find((m: any) => m.userId === user.id);
   const canHighlight = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
 
@@ -258,7 +258,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
     );
   };
 
-  // The team's creator OR any team admin can export a sprint summary — see PRODUCT-BACKLOG.md §1.0.
+  // The team's creator OR any team admin can export a sprint summary — see product-backlog/01-sprint-summary-export.md §1.0.
   const canExportSummary = team.creatorId === user.id || !!myMembership?.isAdmin;
   // Only team admins may edit a sprint's own settings — same guard as sprint creation.
   const canEditSprint = !!myMembership?.isAdmin;
@@ -356,7 +356,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
                   </Text>
                 </TouchableOpacity>
               )}
-              {/* Any team member can open — no isAdmin/role gate, see PRODUCT-BACKLOG.md §8.0 decision #7. */}
+              {/* Any team member can open — no isAdmin/role gate, see product-backlog/08-memory-board.md §8.0 decision #7. */}
               <TouchableOpacity
                 style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
                 onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); setShowMemoryBoard(true); }}

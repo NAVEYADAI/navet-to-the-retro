@@ -198,6 +198,7 @@ describe('AuthService', () => {
         where: {
           OR: [{ username: dto.username }, { email: dto.username }],
         },
+        orderBy: { id: 'asc' },
       });
     });
 
@@ -224,6 +225,34 @@ describe('AuthService', () => {
 
       await expect(service.login(dto)).rejects.toThrow(UnauthorizedException);
     });
+
+    it('should throw a clear error (not crash bcrypt.compare) for a Google-only user with password:null', async () => {
+      // Feature 7 (product-backlog/07-google-sign-in.md §7.0 default #4): a Google-only user has password:null
+      // permanently. Regression pin: this must not reach bcrypt.compare(dto.password, null),
+      // which bcryptjs throws on internally.
+      mockPrismaService.user.findFirst.mockResolvedValue({ ...mockUser, password: null });
+
+      const dto = {
+        username: 'googleuser',
+        password: 'whatever',
+      };
+
+      await expect(service.login(dto)).rejects.toThrow(UnauthorizedException);
+      expect(bcrypt.compare).not.toHaveBeenCalled();
+    });
+
+    it('should still allow password login for a user that has both a password and a linked googleId', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue({ ...mockUser, googleId: 'g1' });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      const dto = {
+        username: 'testuser',
+        password: 'password123',
+      };
+
+      const result = await service.login(dto);
+      expect(result.accessToken).toBeDefined();
+    });
   });
 
   describe('validateToken', () => {
@@ -233,6 +262,19 @@ describe('AuthService', () => {
       await expect(service.validateToken('')).rejects.toThrow(
         new UnauthorizedException('Missing authorization header')
       );
+    });
+
+    it('should reject a validly-signed token carrying a `purpose` claim (2026-09-14 security fix)', async () => {
+      // Pins the fix: a leaked short-lived narrow-purpose token (Google-calendar-connect
+      // `state`, Google-login `state`/`ticket`) — all signed with this same JWT_SECRET, all
+      // shaped as `{sub, ...}` — must never be usable as a Bearer session token here. Real
+      // session tokens (register/login/Google issueSession) never set `purpose`.
+      const tokenWithPurpose = jwt.sign({ sub: mockUser.id, purpose: 'google-login-ticket' }, secret, { expiresIn: '12h' });
+
+      await expect(service.validateToken(`Bearer ${tokenWithPurpose}`)).rejects.toThrow(
+        new UnauthorizedException('Invalid token')
+      );
+      expect(mockPrismaService.user.findUnique).not.toHaveBeenCalled();
     });
 
     it('should throw a generic "Invalid token" for a malformed token', async () => {
@@ -275,17 +317,65 @@ describe('AuthService', () => {
 
   describe('updateProfile', () => {
     it('should update the user and strip the password from the result', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       const updated = { ...mockUser, firstName: 'Updated' };
       mockPrismaService.user.update.mockResolvedValue(updated);
 
       const result = await service.updateProfile(mockUser.id, { firstName: 'Updated' });
 
+      // No email in the dto at all -> emailChanged is false -> email/emailVerifiedAt untouched.
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
         where: { id: mockUser.id },
         data: { firstName: 'Updated', lastName: undefined, email: undefined },
       });
+      expect(mockPrismaService.user.findFirst).not.toHaveBeenCalled();
       expect(result.firstName).toBe('Updated');
       expect((result as any).password).toBeUndefined();
+    });
+
+    it('should not treat a same-address save (different case/whitespace) as a real email change', async () => {
+      // §7.4: the frontend always resends the current email on every save, even a
+      // firstName-only edit — this must not reset emailVerifiedAt or run the collision check.
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.update.mockResolvedValue(mockUser);
+
+      await service.updateProfile(mockUser.id, {
+        firstName: 'Test',
+        email: `  ${mockUser.email.toUpperCase()}  `,
+      });
+
+      expect(mockPrismaService.user.findFirst).not.toHaveBeenCalled();
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: { firstName: 'Test', lastName: undefined, email: undefined },
+      });
+    });
+
+    it('should reset emailVerifiedAt when the email genuinely changes to an unclaimed address', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(null); // no collision
+      mockPrismaService.user.update.mockResolvedValue({ ...mockUser, email: 'new@example.com' });
+
+      await service.updateProfile(mockUser.id, { email: 'new@example.com' });
+
+      expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+        where: { email: { equals: 'new@example.com', mode: 'insensitive' }, NOT: { id: mockUser.id } },
+      });
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: { firstName: undefined, lastName: undefined, email: 'new@example.com', emailVerifiedAt: null },
+      });
+    });
+
+    it('should reject changing to an email already claimed by a different user, without writing anything', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue({ ...mockUser, id: 2, email: 'taken@example.com' });
+
+      await expect(
+        service.updateProfile(mockUser.id, { email: 'taken@example.com' })
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
   });
 });

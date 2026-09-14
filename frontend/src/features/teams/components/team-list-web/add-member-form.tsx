@@ -5,6 +5,7 @@ import { Strings } from '@/constants/strings';
 import { Box, Typography, Collapse, Alert } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
 import { Button, Field } from '@/components/ui';
+import { RoleSelectorChips } from '@/features/auth/components/role-selector-chips';
 
 interface AddMemberFormProps {
   teamId: number;
@@ -16,6 +17,10 @@ interface AddMemberFormProps {
 export function AddMemberForm({ teamId, token, isVisible, onInviteSent }: AddMemberFormProps) {
   const t = useTheme();
   const [username, setUsername] = useState('');
+  // Parity fix: the native AddMemberForm already sends `role` (team-list-native/add-member-form.tsx)
+  // — this was missing here entirely, so the web flow always fell through to TeamsService's
+  // 'DEVELOPER' default regardless of what the admin actually intended for the invitee.
+  const [role, setRole] = useState('DEVELOPER');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -32,12 +37,14 @@ export function AddMemberForm({ teamId, token, isVisible, onInviteSent }: AddMem
     setIsLoading(true);
     try {
       const response = await axios.post(`${getBackendUrl()}/teams/${teamId}/members`, {
-        username: trimmed
+        username: trimmed,
+        role
       }, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       setUsername('');
+      setRole('DEVELOPER');
       // A response with an `email` field means the person isn't registered yet — an invite
       // email was sent instead of creating a pending membership (see TeamsService.addMember).
       if (response.data?.email) {
@@ -87,6 +94,8 @@ export function AddMemberForm({ teamId, token, isVisible, onInviteSent }: AddMem
           type="email"
           placeholder="הכנס כתובת אימייל"
         />
+
+        <RoleSelectorChips role={role} onSelectRole={setRole} />
 
         <Button variant="primary" icon="user-plus" onPress={handleAddMember} disabled={isLoading} loading={isLoading}>
           {Strings.teamList.addMemberButton}

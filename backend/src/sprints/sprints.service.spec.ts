@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SprintsService } from './sprints.service';
 import { PrismaService } from '../prisma.service';
+import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { buildSprintSummaryPptx, buildExportFileName } from './sprint-summary.builder';
 
@@ -19,7 +20,7 @@ jest.mock('./sprint-summary.builder', () => {
 describe('SprintsService', () => {
   let service: SprintsService;
 
-  const activeTeam = { id: 1, status: 'ACTIVE' };
+  const activeTeam = { id: 1, name: 'Team A', status: 'ACTIVE' };
   const pendingTeam = { id: 2, status: 'PENDING_APPROVAL' };
   const admin = { userId: 10, teamId: activeTeam.id, isAdmin: true };
   const nonAdmin = { userId: 20, teamId: activeTeam.id, isAdmin: false };
@@ -44,11 +45,17 @@ describe('SprintsService', () => {
     },
   };
 
+  const mockGoogleCalendarService = {
+    syncSprintCreated: jest.fn().mockResolvedValue(undefined),
+    syncSprintUpdated: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SprintsService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: GoogleCalendarService, useValue: mockGoogleCalendarService },
       ],
     }).compile();
 
@@ -92,6 +99,30 @@ describe('SprintsService', () => {
         expect.objectContaining({ data: expect.objectContaining({ teamId: activeTeam.id, name: dto.name }) })
       );
     });
+
+    it('syncs the newly created sprint to Google Calendar (best-effort)', async () => {
+      const createdSprint = { id: 1, ...dto, teamId: activeTeam.id };
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.create.mockResolvedValue(createdSprint);
+
+      await service.create(activeTeam.id, dto, admin.userId);
+
+      expect(mockGoogleCalendarService.syncSprintCreated).toHaveBeenCalledWith(
+        expect.objectContaining({ sprintId: createdSprint.id, teamId: activeTeam.id, teamName: activeTeam.name })
+      );
+    });
+
+    it('does not let a Google Calendar sync failure fail sprint creation', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.create.mockResolvedValue({ id: 1, ...dto, teamId: activeTeam.id });
+      mockGoogleCalendarService.syncSprintCreated.mockRejectedValueOnce(new Error('google is down'));
+
+      await expect(service.create(activeTeam.id, dto, admin.userId)).resolves.toEqual(
+        expect.objectContaining({ id: 1 })
+      );
+    });
   });
 
   describe('findAll', () => {
@@ -112,7 +143,13 @@ describe('SprintsService', () => {
   });
 
   describe('update', () => {
-    const existingSprint = { id: 5, teamId: activeTeam.id, name: 'Old name' };
+    const existingSprint = {
+      id: 5,
+      teamId: activeTeam.id,
+      name: 'Old name',
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-01-14'),
+    };
     const updateDto = { name: 'New name' };
 
     it('throws NotFoundException when the team does not exist', async () => {
@@ -163,7 +200,11 @@ describe('SprintsService', () => {
       mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
       mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
       mockPrismaService.sprint.findFirst.mockResolvedValue(existingSprint);
-      mockPrismaService.sprint.update.mockResolvedValue(existingSprint);
+      mockPrismaService.sprint.update.mockResolvedValue({
+        ...existingSprint,
+        startDate: new Date('2026-02-01'),
+        endDate: new Date('2026-02-14'),
+      });
 
       await service.update(activeTeam.id, existingSprint.id, { startDate: '2026-02-01', endDate: '2026-02-14' }, admin.userId);
 
@@ -171,6 +212,44 @@ describe('SprintsService', () => {
         where: { id: existingSprint.id },
         data: { startDate: new Date('2026-02-01'), endDate: new Date('2026-02-14') },
       });
+    });
+
+    it('syncs the updated dates to Google Calendar when startDate/endDate actually change', async () => {
+      const updatedSprint = { ...existingSprint, startDate: new Date('2026-02-01'), endDate: new Date('2026-02-14') };
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(existingSprint);
+      mockPrismaService.sprint.update.mockResolvedValue(updatedSprint);
+
+      await service.update(activeTeam.id, existingSprint.id, { startDate: '2026-02-01', endDate: '2026-02-14' }, admin.userId);
+
+      expect(mockGoogleCalendarService.syncSprintUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({ sprintId: existingSprint.id, startDate: updatedSprint.startDate, endDate: updatedSprint.endDate })
+      );
+    });
+
+    it('does not touch Google Calendar when only non-date fields change', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(existingSprint);
+      mockPrismaService.sprint.update.mockResolvedValue({ ...existingSprint, name: 'New name' });
+
+      await service.update(activeTeam.id, existingSprint.id, { name: 'New name' }, admin.userId);
+
+      expect(mockGoogleCalendarService.syncSprintUpdated).not.toHaveBeenCalled();
+    });
+
+    it('does not let a Google Calendar sync failure fail the sprint update', async () => {
+      const updatedSprint = { ...existingSprint, startDate: new Date('2026-02-01'), endDate: new Date('2026-02-14') };
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(existingSprint);
+      mockPrismaService.sprint.update.mockResolvedValue(updatedSprint);
+      mockGoogleCalendarService.syncSprintUpdated.mockRejectedValueOnce(new Error('google is down'));
+
+      await expect(
+        service.update(activeTeam.id, existingSprint.id, { startDate: '2026-02-01', endDate: '2026-02-14' }, admin.userId)
+      ).resolves.toEqual(updatedSprint);
     });
   });
 

@@ -116,6 +116,7 @@ describe('TeamsService', () => {
 
       expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
         where: { email: { equals: 'NaveYadai@Gmail.com', mode: 'insensitive' } },
+        orderBy: { id: 'asc' },
       });
     });
 

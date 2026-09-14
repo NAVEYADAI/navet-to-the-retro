@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Box, Typography, Alert } from '@mui/material';
 import { Button, Card, Page, PageHeader, Grid } from '@/components/ui';
 import { CreateTeamForm } from '@/features/teams';
-import { ProfileFormCard, AppearanceCard, AdminTeamsCard } from '@/features/settings';
+import { ProfileFormCard, AppearanceCard, AdminTeamsCard, GoogleCalendarCard } from '@/features/settings';
 import { useProfileForm } from '@/features/settings/hooks/use-profile-form';
 import { useTeamsAdmin } from '@/features/settings/hooks/use-teams-admin';
 import { useTheme } from '@/design/theme-context';
@@ -62,6 +62,7 @@ export default function SettingsScreen() {
             onUpdateProfile={handleUpdateProfile}
           />
           <AppearanceCard />
+          <GoogleCalendarCard />
         </Box>
 
         <Card padding={5}>

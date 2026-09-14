@@ -62,7 +62,7 @@ async function setupTeamSprintAndComments(request: APIRequestContext, suffix: st
   });
 
   // A plain DEVELOPER, non-admin, non-TEAM_LEADER member — used to confirm the memory-board
-  // entry point has NO isAdmin/role gate (PRODUCT-BACKLOG.md §8.0 decision #7), unlike
+  // entry point has NO isAdmin/role gate (product-backlog/08-memory-board.md §8.0 decision #7), unlike
   // canHighlight/canExportSummary/canEditSprint elsewhere on the same screen.
   const addMemberRes = await request.post(`${BACKEND_URL}/teams/${team.id}/members`, {
     headers: { Authorization: `Bearer ${leader.token}` },
@@ -121,7 +121,7 @@ test.describe('Memory board (memory-game retro view)', () => {
 
     const boardUrl = page.url();
 
-    // Two separate canvases (KEEP/IMPROVE), per PRODUCT-BACKLOG.md §8.0 decision #2.
+    // Two separate canvases (KEEP/IMPROVE), per product-backlog/08-memory-board.md §8.0 decision #2.
     await expect(page.getByText(Strings.memoryBoard.keepCanvasHeader)).toBeVisible();
     await expect(page.getByText(Strings.memoryBoard.improveCanvasHeader)).toBeVisible();
 
@@ -194,7 +194,7 @@ test.describe('Memory board (memory-game retro view)', () => {
     await faceDownCards.first().click();
     await expect(page.getByText(keepContent)).toBeVisible();
 
-    // Reload as the SAME user — PRODUCT-BACKLOG.md §8.0 decision #4: flip state is `useState`
+    // Reload as the SAME user — product-backlog/08-memory-board.md §8.0 decision #4: flip state is `useState`
     // local to the component, never sent to the server, so a reload must show everything
     // face-down again, not restore the flipped card. Team/sprint/board selection in this app is
     // plain React state, not URL-routed (no route under src/app/ for it) — a reload always drops

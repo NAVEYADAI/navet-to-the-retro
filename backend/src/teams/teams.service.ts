@@ -51,8 +51,13 @@ export class TeamsService {
     // The team only becomes usable once a second person (by email) approves it.
     // Case-insensitive match: the allowlist check above is normalized to lowercase, so the
     // lookup must be too, or a differently-cased (but otherwise valid) email would 404 here.
+    // Feature 7 fallout (product-backlog/07-google-sign-in.md §7 findings, 2026-09-11): `User.email` is no longer
+    // @unique (decision #3), so multiple rows can share an email — `orderBy` makes the pick
+    // deterministic instead of depending on DB scan order, matching the pattern already used in
+    // google-login.service.ts for the same underlying issue.
     const approver = await this.prisma.user.findFirst({
-      where: { email: { equals: dto.approverEmail, mode: 'insensitive' } }
+      where: { email: { equals: dto.approverEmail, mode: 'insensitive' } },
+      orderBy: { id: 'asc' }
     });
     if (!approver) {
       throw new NotFoundException('לא נמצא משתמש עם כתובת האימייל הזו. בקש/י מהחבר להירשם קודם ולנסות שוב.');

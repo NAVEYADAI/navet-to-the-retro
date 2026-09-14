@@ -17,7 +17,7 @@ interface CommentCardWebProps {
     createdAt: string;
   };
   index: number;
-  /** מוצג רק למנהלי צוות/ראשי צוותים — ראו PRODUCT-BACKLOG.md §2. */
+  /** מוצג רק למנהלי צוות/ראשי צוותים — ראו product-backlog/02-comment-highlighting.md §2. */
   canHighlight?: boolean;
   onToggleHighlight?: (commentId: number, nextValue: boolean) => void;
 }

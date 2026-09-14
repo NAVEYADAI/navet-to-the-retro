@@ -30,6 +30,9 @@ function LayoutContent() {
   const t = useTheme();
   const pathname = usePathname();
   const isInviteRoute = pathname?.startsWith('/invite/');
+  // /auth/google/callback runs before there's a `token` in context (it's the page that produces
+  // one, via POST /auth/google/exchange) — same bypass reasoning as isInviteRoute above.
+  const isGoogleCallbackRoute = pathname?.startsWith('/auth/google/callback');
 
   useEffect(() => {
     if (pathname) {
@@ -55,7 +58,7 @@ function LayoutContent() {
   // own AuthForm) and for the moment right after (it still needs to call the consume endpoint
   // and redirect itself). AppTabs' <Tabs> crashes if mounted on a route it has no trigger for,
   // so keep bypassing it here until the page navigates itself away from /invite/*.
-  if (isInviteRoute) {
+  if (isInviteRoute || isGoogleCallbackRoute) {
     return <Slot />;
   }
 

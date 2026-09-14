@@ -7,6 +7,7 @@ import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Card, Field, Button } from '@/components/ui';
+import { trackEvent } from '@/lib/analytics';
 import { RoleSelectorChips } from './role-selector-chips';
 
 interface AuthFormWebProps {
@@ -25,6 +26,22 @@ export function AuthFormWeb({ initialEmail }: AuthFormWebProps) {
   const [role, setRole] = useState('DEVELOPER');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formLoading, setFormLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    trackEvent('google_signin_clicked', { screen: 'auth_form' });
+    setErrorMessage(null);
+    setGoogleLoading(true);
+    try {
+      const response = await axios.get(`${getBackendUrl()}/auth/google/connect`);
+      const authUrl = response.data.authUrl;
+      if (!authUrl) throw new Error('no authUrl');
+      window.location.href = authUrl;
+    } catch {
+      setErrorMessage(Strings.auth.googleConnectError);
+      setGoogleLoading(false);
+    }
+  };
 
   const handleAuthSubmit = async () => {
     setErrorMessage(null);
@@ -162,6 +179,19 @@ export function AuthFormWeb({ initialEmail }: AuthFormWebProps) {
               {isLogin ? Strings.auth.toggleToSignUp : Strings.auth.toggleToLogin}
             </Button>
           </Box>
+
+          {/* Google sign-in — additive alongside the password form, not a replacement */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[3]}px` }}>
+            <Box sx={{ flex: 1, height: '1px', backgroundColor: t.color.border }} />
+            <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>
+              {Strings.auth.orDividerText}
+            </Typography>
+            <Box sx={{ flex: 1, height: '1px', backgroundColor: t.color.border }} />
+          </Box>
+
+          <Button variant="secondary" fullWidth loading={googleLoading} onPress={handleGoogleSignIn}>
+            {Strings.auth.continueWithGoogleButton}
+          </Button>
         </Card>
       </Box>
     </Box>

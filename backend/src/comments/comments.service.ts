@@ -114,7 +114,7 @@ export class CommentsService {
       throw new NotFoundException('Comment not found');
     }
 
-    // Only team admins and team leads may highlight — see PRODUCT-BACKLOG.md §2.0.
+    // Only team admins and team leads may highlight — see product-backlog/02-comment-highlighting.md §2.0.
     await assertCanManageTeamContent(this.prisma, comment.teamId, requesterId);
 
     return this.prisma.comment.update({

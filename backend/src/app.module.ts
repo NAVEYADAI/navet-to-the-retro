@@ -8,9 +8,10 @@ import { TeamsModule } from './teams/teams.module';
 import { CommentsModule } from './comments/comments.module';
 import { SprintsModule } from './sprints/sprints.module';
 import { InvitesModule } from './invites/invites.module';
+import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 
 @Module({
-  imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule, InvitesModule],
+  imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule, InvitesModule, GoogleCalendarModule],
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })

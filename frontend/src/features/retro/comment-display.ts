@@ -3,7 +3,7 @@ import { Strings } from '@/constants/strings';
 /**
  * Shared field derivation for "how does a Comment display" — used by CommentCardWeb
  * (comment-card-web.tsx), `renderCommentCard` (sprint-retro-board-native.tsx), and the memory-game
- * card components (memory-card-web.tsx / memory-card-native.tsx, PRODUCT-BACKLOG.md §8) so the
+ * card components (memory-card-web.tsx / memory-card-native.tsx, product-backlog/08-memory-board.md §8) so the
  * category-label/author-name logic has a single source instead of four copies drifting apart.
  */
 export interface DisplayableComment {

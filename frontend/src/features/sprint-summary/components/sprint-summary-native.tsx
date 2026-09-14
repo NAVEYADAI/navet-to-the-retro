@@ -204,59 +204,63 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
               </>
             )}
 
-            <View style={{ gap: t.space[2] }}>
-              <Text style={[rnText(t.type.label), { color: t.color.textSecondary, textAlign: 'right' }]}>
-                {Strings.sprintSummary.templateLabel}
-              </Text>
-              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
-                {SPRINT_SUMMARY_TEMPLATES.map((tpl) => {
-                  const selected = templateId === tpl.id;
-                  return (
-                    <TouchableOpacity
-                      key={tpl.id}
-                      onPress={() => setTemplateId(tpl.id)}
-                      activeOpacity={0.8}
-                      style={{
-                        flexDirection: 'row-reverse',
-                        alignItems: 'center',
-                        gap: t.space[1] + 2,
-                        borderRadius: t.radius.pill,
-                        borderWidth: 1.5,
-                        borderColor: selected ? t.color.accent.base : t.color.border,
-                        backgroundColor: selected ? t.color.accent.subtle : t.color.surface,
-                        paddingVertical: 7,
-                        paddingHorizontal: t.space[3],
-                      }}
-                    >
-                      <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: tpl.swatch }} />
-                      <Text style={[
-                        rnText({ ...t.type.caption, fontWeight: selected ? 700 : 500 }),
-                        { color: selected ? t.color.accent.base : t.color.textSecondary },
-                      ]}>
-                        {tpl.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+            {stats.total > 0 && (
+              <>
+                <View style={{ gap: t.space[2] }}>
+                  <Text style={[rnText(t.type.label), { color: t.color.textSecondary, textAlign: 'right' }]}>
+                    {Strings.sprintSummary.templateLabel}
+                  </Text>
+                  <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
+                    {SPRINT_SUMMARY_TEMPLATES.map((tpl) => {
+                      const selected = templateId === tpl.id;
+                      return (
+                        <TouchableOpacity
+                          key={tpl.id}
+                          onPress={() => setTemplateId(tpl.id)}
+                          activeOpacity={0.8}
+                          style={{
+                            flexDirection: 'row-reverse',
+                            alignItems: 'center',
+                            gap: t.space[1] + 2,
+                            borderRadius: t.radius.pill,
+                            borderWidth: 1.5,
+                            borderColor: selected ? t.color.accent.base : t.color.border,
+                            backgroundColor: selected ? t.color.accent.subtle : t.color.surface,
+                            paddingVertical: 7,
+                            paddingHorizontal: t.space[3],
+                          }}
+                        >
+                          <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: tpl.swatch }} />
+                          <Text style={[
+                            rnText({ ...t.type.caption, fontWeight: selected ? 700 : 500 }),
+                            { color: selected ? t.color.accent.base : t.color.textSecondary },
+                          ]}>
+                            {tpl.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
 
-            <TouchableOpacity
-              onPress={handleDownload}
-              disabled={isDownloading}
-              activeOpacity={0.85}
-              style={{
-                alignSelf: 'flex-end',
-                backgroundColor: isDownloading ? t.color.surfaceSubtle : t.color.accent.base,
-                borderRadius: t.radius.field,
-                paddingVertical: t.space[2] + 2,
-                paddingHorizontal: t.space[4],
-              }}
-            >
-              <Text style={[rnText({ ...t.type.bodyStrong, fontWeight: 600 }), { color: isDownloading ? t.color.textMuted : t.color.accent.onBase }]}>
-                {isDownloading ? Strings.sprintSummary.downloadingButton : Strings.sprintSummary.downloadButton}
-              </Text>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleDownload}
+                  disabled={isDownloading}
+                  activeOpacity={0.85}
+                  style={{
+                    alignSelf: 'flex-end',
+                    backgroundColor: isDownloading ? t.color.surfaceSubtle : t.color.accent.base,
+                    borderRadius: t.radius.field,
+                    paddingVertical: t.space[2] + 2,
+                    paddingHorizontal: t.space[4],
+                  }}
+                >
+                  <Text style={[rnText({ ...t.type.bodyStrong, fontWeight: 600 }), { color: isDownloading ? t.color.textMuted : t.color.accent.onBase }]}>
+                    {isDownloading ? Strings.sprintSummary.downloadingButton : Strings.sprintSummary.downloadButton}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         )}
       </View>

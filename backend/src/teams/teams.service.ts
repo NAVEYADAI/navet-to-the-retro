@@ -1,14 +1,23 @@
 import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
 import { InvitesService } from '../invites/invites.service';
-import { CreateTeamDto, AddMemberDto, UpdateMemberDto } from './dto/teams.dto';
+import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto } from './dto/teams.dto';
+import { assertCanManageTeamContent } from './team-permissions.util';
 
+// Feature 9 (phantom members, §9.2): `isPhantom` must be included everywhere a team member's
+// `User` is selected, or the frontend badge has nothing to key off of. This is the shared
+// constant already used by `getTeamsForUser` — the other member-select blocks below
+// (`getTeamMembers`, `addMember`, `acceptMemberInvite`, `updateMember`) were still using their
+// own inline `select` literals that predate this constant, so they're switched over here too.
 const TEAM_MEMBER_USER_SELECT = {
   id: true,
   username: true,
+  email: true,
   firstName: true,
-  lastName: true
+  lastName: true,
+  isPhantom: true
 };
 
 // Only these two people are allowed to approve a new team's creation
@@ -222,15 +231,7 @@ export class TeamsService {
         status: 'PENDING'
       },
       include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        }
+        user: { select: TEAM_MEMBER_USER_SELECT }
       }
     });
   }
@@ -253,15 +254,7 @@ export class TeamsService {
       where: { id: memberId },
       data: { status: 'ACTIVE' },
       include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        }
+        user: { select: TEAM_MEMBER_USER_SELECT }
       }
     });
   }
@@ -334,15 +327,7 @@ export class TeamsService {
     return this.prisma.teamMember.findMany({
       where: { teamId: teamId },
       include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        }
+        user: { select: TEAM_MEMBER_USER_SELECT }
       }
     });
   }
@@ -401,15 +386,7 @@ export class TeamsService {
         isAdmin: dto.isAdmin
       },
       include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            firstName: true,
-            lastName: true
-          }
-        }
+        user: { select: TEAM_MEMBER_USER_SELECT }
       }
     });
   }
@@ -462,6 +439,50 @@ export class TeamsService {
 
     await this.prisma.teamMember.delete({ where: { id: memberId } });
     return { success: true };
+  }
+
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.1): creates a real
+  // `User` row (password: null, isPhantom: true, auto-generated username/email — never shown to
+  // anyone) plus a `TeamMember` for it in one nested write, mirroring how `create()` above adds
+  // the team creator as a member. Same guard as the other two phantom-member actions (§9.0
+  // decision #1).
+  async createPhantomMember(teamId: number, dto: CreatePhantomMemberDto, requesterId: number) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+    await assertCanManageTeamContent(this.prisma, teamId, requesterId);
+
+    const username = `phantom_${crypto.randomBytes(8).toString('hex')}`;
+
+    const user = await this.prisma.user.create({
+      data: {
+        username,
+        // Deterministic from the already-unique username, never shown in any UI (see §9.0
+        // "ברירת מחדל טכנית" addendum, 2026-09-14) — just here to satisfy the non-nullable
+        // `User.email` column.
+        email: `${username}@phantom.local`,
+        password: null,
+        isPhantom: true,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        members: {
+          create: {
+            teamId,
+            role: dto.role || 'DEVELOPER',
+            isAdmin: false,
+            status: 'ACTIVE'
+          }
+        }
+      },
+      include: {
+        members: { where: { teamId } }
+      }
+    });
+
+    // Every User-shaped response strips `password` manually — see backend/AGENTS.md.
+    const { password, ...result } = user;
+    return result;
   }
 
   async updateTeam(teamId: number, dto: { name?: string; mainOffice?: string }, requesterId: number) {

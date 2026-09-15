@@ -285,7 +285,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.get.mockResolvedValueOnce({ data: [] });
     const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
 
-    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
 
     expect(await findByText(Strings.invites.createLinkButton)).toBeTruthy();
     expect(await findByText(Strings.invites.noLinksText)).toBeTruthy();
@@ -296,7 +296,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.post.mockResolvedValueOnce({ data: { id: 1, token: 'abc123' } });
     const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
 
-    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.createLinkButton));
 
     await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2027-01-01');
@@ -316,7 +316,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.get.mockResolvedValue({ data: [] });
     const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
 
-    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.createLinkButton));
 
     await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2020-01-01');
@@ -332,7 +332,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.post.mockResolvedValueOnce({ data: { id: 8, token: 'named1' } });
     const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
 
-    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.createLinkButton));
     await fireEvent.changeText(getByPlaceholderText(Strings.invites.namePlaceholder), namedInvite.name);
     mockedAxios.get.mockResolvedValueOnce({ data: [namedInvite] });
@@ -350,7 +350,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.get.mockResolvedValue({ data: [{ id: 9, token: 't', isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 }] });
     const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
 
-    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
 
     expect(await findByText(Strings.invites.unnamedLinkLabel)).toBeTruthy();
   });
@@ -361,7 +361,7 @@ describe('TeamListNative — dual-approval UI', () => {
     const shareSpy = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' } as any);
     const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
 
-    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.copyLinkButton));
 
     expect(shareSpy).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining(invite.token) }));
@@ -374,7 +374,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.patch.mockResolvedValueOnce({ data: { ...invite, isRevoked: true } });
     const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
 
-    await fireEvent.press(getByText(new RegExp(Strings.invites.manageLinksToggle)));
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.revokeButton));
 
     expect(mockedAxios.patch).toHaveBeenCalledWith(

@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Patch, Delete, Body, Param, Headers, ParseIntPipe } from '@nestjs/common';
 import { TeamsService } from './teams.service';
 import { AuthService } from '../auth/auth.service';
-import { CreateTeamDto, AddMemberDto, UpdateMemberDto } from './dto/teams.dto';
+import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto } from './dto/teams.dto';
 
 @Controller('teams')
 export class TeamsController {
@@ -86,6 +86,17 @@ export class TeamsController {
   ) {
     await this.authService.validateToken(authHeader);
     return this.teamsService.getTeamMembers(teamId);
+  }
+
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.1).
+  @Post(':teamId/phantom-members')
+  async createPhantomMember(
+    @Headers('authorization') authHeader: string,
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Body() dto: CreatePhantomMemberDto
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamsService.createPhantomMember(teamId, dto, user.id);
   }
 
   @Patch(':teamId/members/:memberId')

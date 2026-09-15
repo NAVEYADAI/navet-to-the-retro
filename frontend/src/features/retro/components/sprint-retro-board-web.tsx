@@ -49,6 +49,11 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   const [type, setType] = useState<'KEEP' | 'IMPROVE'>('KEEP');
   const [category, setCategory] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.2): '' means "post as
+  // me" (the default) — any other value is the target TeamMember's userId, sent as
+  // onBehalfOfUserId. Never both this AND isAnonymous — see the render guard below.
+  const [onBehalfOfUserId, setOnBehalfOfUserId] = useState('');
+  const [isBehalfPickerOpen, setIsBehalfPickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,7 +95,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
         content: content.trim(),
         type,
         category: category || undefined,
-        isAnonymous
+        isAnonymous: onBehalfOfUserId ? false : isAnonymous,
+        onBehalfOfUserId: onBehalfOfUserId ? Number(onBehalfOfUserId) : undefined
       }, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -101,6 +107,10 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
       setCategory('');
       setIsAnonymous(false);
       trackEvent('retro_comment_added', { type });
+      if (onBehalfOfUserId) {
+        trackEvent('retro_comment_posted_on_behalf', { type });
+      }
+      setOnBehalfOfUserId('');
       await fetchComments();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'שגיאה בשליחת ההערה.');
@@ -123,6 +133,23 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   // Only team admins and team leads may highlight — see product-backlog/02-comment-highlighting.md §2.0.
   const myMembership = team.members?.find((m: any) => m.userId === user.id);
   const canHighlight = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
+  // Same guard as canHighlight — Feature 9 (phantom members) §9.0 decision #1: posting "on
+  // behalf of" someone (a phantom or a real member) is an admin/team-leader-only action.
+  const canPostOnBehalf = canHighlight;
+  const behalfCandidates = (team.members || [])
+    .filter((m: any) => m.userId !== user.id && m.status !== 'PENDING')
+    .map((m: any) => ({
+      value: String(m.userId),
+      label: m.user?.firstName || m.user?.lastName
+        ? `${m.user?.firstName || ''} ${m.user?.lastName || ''}`.trim()
+        : (m.user?.username || ''),
+      isPhantom: m.user?.isPhantom === true,
+    }));
+  const postOnBehalfOptions = [
+    { value: '', label: Strings.retroBoard.postOnBehalfMeOption },
+    ...behalfCandidates,
+  ];
+  const selectedBehalfLabel = behalfCandidates.find((m: any) => m.value === onBehalfOfUserId)?.label;
 
   const handleToggleHighlight = async (commentId: number, nextValue: boolean) => {
     setComments(prev => prev.map(c => c.id === commentId ? { ...c, isHighlighted: nextValue } : c));
@@ -301,7 +328,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
           rows={3}
         />
 
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: `${t.space[4]}px`, alignItems: { xs: 'stretch', sm: 'flex-end' } }}>
+        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: `${t.space[4]}px`, alignItems: { xs: 'stretch', sm: 'flex-end' }, flexWrap: 'wrap' }}>
           <Box sx={{ minWidth: 200 }}>
             <Field
               type="select"
@@ -312,18 +339,88 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
             />
           </Box>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px` }}>
+          {/* Feature 9 §9.0 decision #2: "on behalf of" comments can never be anonymous — a
+              single 3-way control instead of a plain dropdown next to a separate toggle, so the
+              three identity states (me / anonymous / on behalf) read as one choice, not two
+              disjoint widgets. Picking "on behalf" opens a small picker instead of committing
+              immediately; the segment itself then shows who was picked, which doubles as the
+              "you're not posting as yourself" indication before the comment is even sent. */}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px`, position: 'relative' }}>
             <Typography sx={{ ...t.type.label, color: t.color.textSecondary }}>
               {Strings.retroBoard.anonymousToggleHint}
             </Typography>
             <Segmented
-              value={isAnonymous ? 'anonymous' : 'identified'}
-              onChange={(v) => setIsAnonymous(v === 'anonymous')}
+              value={onBehalfOfUserId ? 'onBehalf' : (isAnonymous ? 'anonymous' : 'identified')}
+              onChange={(v) => {
+                if (v === 'onBehalf') {
+                  setIsBehalfPickerOpen((prev) => !prev);
+                  return;
+                }
+                setIsBehalfPickerOpen(false);
+                setOnBehalfOfUserId('');
+                setIsAnonymous(v === 'anonymous');
+              }}
               options={[
-                { value: 'identified', label: Strings.retroBoard.identifiedToggleLabel },
-                { value: 'anonymous', label: Strings.retroBoard.anonymousToggleLabel },
+                { value: 'identified', label: Strings.retroBoard.identifiedToggleLabel, icon: 'eye' },
+                { value: 'anonymous', label: Strings.retroBoard.anonymousToggleLabel, icon: 'eye-off' },
+                ...(canPostOnBehalf
+                  ? [{
+                      value: 'onBehalf',
+                      label: onBehalfOfUserId ? `${Strings.retroBoard.postOnBehalfLabel} ${selectedBehalfLabel}` : Strings.retroBoard.postOnBehalfOtherOption,
+                      icon: 'ghost' as const,
+                    }]
+                  : []),
               ]}
             />
+
+            {isBehalfPickerOpen && (
+              <>
+                <Box onClick={() => setIsBehalfPickerOpen(false)} sx={{ position: 'fixed', inset: 0, zIndex: 10 }} />
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: '100%',
+                    marginTop: '6px',
+                    insetInlineEnd: 0,
+                    zIndex: 11,
+                    width: 220,
+                    backgroundColor: t.color.surface,
+                    border: `1px solid ${t.color.accent.border}`,
+                    borderRadius: `${t.radius.field}px`,
+                    boxShadow: t.shadow.md,
+                    padding: '4px',
+                    maxHeight: 280,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {behalfCandidates.map((m: any) => (
+                    <Box
+                      key={m.value}
+                      onClick={() => {
+                        setOnBehalfOfUserId(m.value);
+                        setIsAnonymous(false);
+                        setIsBehalfPickerOpen(false);
+                        trackEvent('retro_comment_on_behalf_picker_selected');
+                      }}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: `${t.space[2]}px`,
+                        padding: '8px 10px',
+                        borderRadius: `${t.radius.badge}px`,
+                        cursor: 'pointer',
+                        color: t.color.text,
+                        ...t.type.body,
+                        '&:hover': { backgroundColor: t.color.surfaceHover },
+                      }}
+                    >
+                      {m.isPhantom && <Icon name="ghost" size="sm" tone="muted" />}
+                      <bdi>{m.label}</bdi>
+                    </Box>
+                  ))}
+                </Box>
+              </>
+            )}
           </Box>
         </Box>
 

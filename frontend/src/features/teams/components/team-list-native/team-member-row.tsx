@@ -7,6 +7,7 @@ import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import { getRoleLabel } from './roles';
 import { ROLES } from '@/constants/roles';
+import { usePhantomConversionLink, PhantomConversionButton, PhantomConversionPanel } from './phantom-conversion-link';
 
 interface TeamMemberRowProps {
   member: any;
@@ -15,6 +16,10 @@ interface TeamMemberRowProps {
   isTeamAdmin: boolean;
   isMe: boolean;
   onChanged: () => void;
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decision #1) —
+  // `isAdmin || role === 'TEAM_LEADER'`, NOT the same as `isTeamAdmin` (isAdmin-only) above.
+  // Gates the "send registration link" action, distinct from the existing edit/remove actions.
+  canManageTeamContent?: boolean;
 }
 
 /** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
@@ -26,7 +31,7 @@ function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: numbe
   };
 }
 
-export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChanged }: TeamMemberRowProps) {
+export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChanged, canManageTeamContent }: TeamMemberRowProps) {
   const t = useTheme();
   const [isEditing, setIsEditing] = useState(false);
   const [editRole, setEditRole] = useState(member.role);
@@ -83,6 +88,8 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
     : `@${member.user?.username || ''}`;
   const roleBadgeLabel = getRoleLabel(member.role);
   const currentRoleIcon = ROLES.find((r) => r.value === member.role)?.icon;
+  const isPhantomManageable = member.user?.isPhantom === true && canManageTeamContent;
+  const conversion = usePhantomConversionLink({ teamId, memberId: member.id, token });
 
   if (isEditing) {
     return (
@@ -248,6 +255,26 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
               </Text>
             </View>
           )}
+          {member.user?.isPhantom === true && (
+            <View
+              style={{
+                flexDirection: 'row-reverse',
+                alignItems: 'center',
+                gap: 4,
+                backgroundColor: t.color.surfaceSubtle,
+                borderWidth: 1,
+                borderColor: t.color.border,
+                borderRadius: t.radius.badge,
+                paddingHorizontal: t.space[2],
+                paddingVertical: 2,
+              }}
+            >
+              <Icon name="ghost" size="sm" tone="muted" />
+              <Text style={[rnText({ ...t.type.caption, fontWeight: 600 }), { color: t.color.textSecondary }]}>
+                {Strings.teamList.phantomBadge}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2], flexWrap: 'wrap' }}>
@@ -286,6 +313,8 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
               {roleBadgeLabel}
             </Text>
           </View>
+
+          {isPhantomManageable && <PhantomConversionButton state={conversion} />}
 
           {isTeamAdmin && (
             <TouchableOpacity
@@ -333,6 +362,8 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
           )}
         </View>
       </View>
+
+      {isPhantomManageable && <PhantomConversionPanel state={conversion} />}
     </View>
   );
 }

@@ -1,11 +1,12 @@
 import React from 'react';
 import { Box } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
+import { Icon, type IconName } from './icon';
 
 export interface SegmentedProps<T extends string> {
   value: T;
   onChange: (v: T) => void;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; icon?: IconName }[];
 }
 
 /** מחליף Tabs, ToggleButtonGroup, ו-Chip נבחר. שימוש אחד לבחירה בלעדית מ-2-4 אפשרויות. */
@@ -29,6 +30,9 @@ export function Segmented<T extends string>({ value, onChange, options }: Segmen
             key={o.value}
             onClick={() => onChange(o.value)}
             sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
               ...t.type.label,
               fontFamily: t.type.overline.fontFamily,
               fontWeight: active ? 600 : 500,
@@ -42,6 +46,7 @@ export function Segmented<T extends string>({ value, onChange, options }: Segmen
               userSelect: 'none',
             }}
           >
+            {o.icon && <Icon name={o.icon} size="sm" tone={active ? 'default' : 'muted'} />}
             {o.label}
           </Box>
         );

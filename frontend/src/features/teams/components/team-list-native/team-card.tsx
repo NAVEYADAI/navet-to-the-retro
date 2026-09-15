@@ -9,7 +9,7 @@ import { Icon } from '@/components/ui';
 import { getRoleLabel, getMemberRank } from './roles';
 import { TeamMemberRow } from './team-member-row';
 import { AddMemberForm } from './add-member-form';
-import { InviteLinksPanel } from './invite-links-panel';
+import { AddPhantomMemberForm } from './add-phantom-member-form';
 
 interface TeamCardProps {
   team: any;
@@ -35,6 +35,9 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
 
   const myMembership = team.members?.find((m: any) => m.userId === userId);
   const isTeamAdmin = myMembership?.isAdmin || false;
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decision #1) —
+  // `isAdmin || role === 'TEAM_LEADER'`, distinct from `isTeamAdmin` above (isAdmin-only).
+  const canManageTeamContent = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
   const sortedMembers = [...(team.members || [])].sort((a: any, b: any) =>
     getMemberRank(a, userId) - getMemberRank(b, userId)
   );
@@ -153,6 +156,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
             isTeamAdmin={isTeamAdmin}
             isMe={member.userId === userId}
             onChanged={onAddMemberSuccess}
+            canManageTeamContent={canManageTeamContent}
           />
         ))}
       </View>
@@ -161,8 +165,8 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
         <AddMemberForm teamId={team.id} token={token} onInviteSent={onAddMemberSuccess} />
       )}
 
-      {isTeamAdmin && !isPending && (
-        <InviteLinksPanel teamId={team.id} token={token} />
+      {canManageTeamContent && !isPending && (
+        <AddPhantomMemberForm teamId={team.id} token={token} onCreated={onAddMemberSuccess} />
       )}
 
       {!isPending && (

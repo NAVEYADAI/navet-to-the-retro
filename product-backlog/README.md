@@ -53,6 +53,6 @@ Backend-Frontend-בדיקות / "לא בטיפול".
 | 6 | [שילוב עם יומן Google — שלב א'](./06-google-calendar-integration.md) | מומש ✅ — Backend+Frontend+בדיקות (§6.1/6.2/6.3) כולם סגורים; `db push` רץ בהצלחה מול Neon האמיתי (2026-09-11); e2e ל-connect/disconnect עם stub (seed DB ישיר, לא OAuth אמיתי — ר' §6.3 למגבלה המפורשת); זרימת ה-connect/callback הספציפית של היומן מול Google האמיתי עדיין לא נלחצה ידנית ב-UI |
 | 7 | [התחברות/הרשמה עם Google (Sign in with Google)](./07-google-sign-in.md) | Backend+Frontend מומשו (ר' §7.1/7.2), כולל §7.4 (אימות אימייל+הגנה על שינוי) ו-§7.5 (בחירת תפקיד בהרשמה דרך Google + מסלול login→register אוטומטי + login_hint ליומן, 2026-09-13) — `db push` רץ בהצלחה מול Neon; login/register/Google sign-in עובדים; **זרימת ה-role-picker (§7.5) לא נבדקה ידנית מקצה-לקצה עדיין**; ה-backfill החד-פעמי ל-`emailVerifiedAt` — טרם הורץ; זרימת OAuth על native היא best-effort; בדיקות (§7.3) טרם הותחלו |
 | 8 | [תצוגת "משחק זיכרון" ללוח הרטרו](./08-memory-board.md) — **עדיפות מיידית** | מומש ✅ |
-| 9 | [חברי צוות פנטום (Phantom Members)](./09-phantom-members.md) | מאופיין במלואו, מוכן למימוש — טרם הותחל |
+| 9 | [חברי צוות פנטום (Phantom Members)](./09-phantom-members.md) | מומש ✅ — Backend+Frontend+בדיקות (§9.1/9.2/9.3) כולם סגורים; `db push` רץ בהצלחה מול Neon האמיתי; Playwright e2e (Desktop+Mobile Chrome) + Jest backend/frontend כולם ירוקים; נמצא באג לא-חוסם ב-`Field` המשותף (בורר `type="select"` לא מציג תווית כשהערך הנבחר הוא מחרוזת ריקה) — לא תוקן כאן, מחוץ להיקף הפיצ'ר |
 
 ---

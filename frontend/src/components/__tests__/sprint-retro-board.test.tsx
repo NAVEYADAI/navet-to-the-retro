@@ -286,4 +286,101 @@ describe('SprintRetroBoard Component', () => {
       expect(await findByText('Good team communication.')).toBeTruthy();
     });
   });
+
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decisions #1/#2/#3).
+  describe('"post on behalf of" (feature 9, phantom members)', () => {
+    const adminUser = { id: 12, username: 'adminuser' };
+    const teamWithTarget = {
+      id: 1,
+      name: 'Core Team',
+      members: [
+        { userId: 12, isAdmin: true, role: 'TEAM_LEADER', user: { username: 'adminuser', firstName: 'Admin', lastName: 'Istrator' } },
+        { userId: 77, isAdmin: false, role: 'DEVELOPER', user: { username: 'phantom_abc', firstName: 'Phanto', lastName: 'Mm' } },
+      ],
+    };
+
+    const postOnBehalfButtonLabel = Strings.retroBoard.postOnBehalfOtherOption;
+
+    beforeEach(() => {
+      mockedAxios.get.mockResolvedValue({ data: [] });
+      mockedAxios.post.mockResolvedValue({ data: {} });
+    });
+
+    it('is not rendered at all for a plain (non-admin, non-leader) team member', async () => {
+      const plainMemberTeam = {
+        id: 2,
+        name: 'Core Team',
+        members: [
+          { userId: 12, isAdmin: false, role: 'DEVELOPER', user: { username: 'adminuser' } },
+          { userId: 77, isAdmin: false, role: 'DEVELOPER', user: { username: 'phantom_abc' } },
+        ],
+      };
+
+      const { queryByText, findByText } = await render(
+        <SprintRetroBoard sprint={mockSprint} team={plainMemberTeam} token={mockToken} user={adminUser} onBack={jest.fn()} />
+      );
+      await findByText(Strings.retroBoard.writeNoteHeader);
+
+      expect(queryByText(postOnBehalfButtonLabel, { exact: false })).toBeNull();
+    });
+
+    it('lets an admin pick a target, sends onBehalfOfUserId, and hides the anonymous toggle once a target is chosen', async () => {
+      const { getByText, getByLabelText, queryByLabelText, getByPlaceholderText, findByText } = await render(
+        <SprintRetroBoard sprint={mockSprint} team={teamWithTarget} token={mockToken} user={adminUser} onBack={jest.fn()} />
+      );
+      await findByText(Strings.retroBoard.writeNoteHeader);
+
+      // Default state ("אני"): the anonymous toggle is present.
+      expect(getByLabelText(Strings.retroBoard.anonymousToggleHint)).toBeTruthy();
+
+      await fireEvent.press(getByText(postOnBehalfButtonLabel));
+      await fireEvent.press(getByText('Phanto Mm'));
+
+      // Selecting a target removes the anonymous toggle from the tree entirely (not just disabled).
+      expect(queryByLabelText(Strings.retroBoard.anonymousToggleHint)).toBeNull();
+
+      const input = getByPlaceholderText(Strings.retroBoard.notePlaceholderKeep);
+      await fireEvent.changeText(input, 'Entered on their behalf.');
+      await fireEvent.press(getByText(Strings.retroBoard.postNoteButton));
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        expect.stringContaining('/sprints/5/comments'),
+        expect.objectContaining({
+          content: 'Entered on their behalf.',
+          isAnonymous: false,
+          onBehalfOfUserId: 77,
+        }),
+        expect.objectContaining({ headers: { Authorization: 'Bearer mock-token' } })
+      );
+    });
+
+    it('renders the "posted on behalf of X by Y" indicator naming the specific admin, visible to any team member', async () => {
+      const onBehalfComment = {
+        id: 301,
+        content: 'A comment entered on behalf of a phantom member.',
+        type: 'KEEP',
+        isAnonymous: false,
+        createdAt: '2026-08-04T12:00:00.000Z',
+        author: { username: 'phantom_abc', firstName: 'Phanto', lastName: 'Mm' },
+        postedByAdmin: { id: 12, username: 'adminuser', firstName: 'Admin', lastName: 'Istrator' },
+      };
+      mockedAxios.get.mockResolvedValue({ data: [onBehalfComment] });
+
+      // A plain, non-admin/non-leader member — the indicator must still be visible to them
+      // (product-backlog/09-phantom-members.md §9.0 decision #2: never masked, unlike isAnonymous).
+      const plainMember = { id: 999, username: 'plainmember' };
+      const teamWithPlainViewer = {
+        id: 3,
+        name: 'Core Team',
+        members: [{ userId: 999, isAdmin: false, role: 'DEVELOPER', user: { username: 'plainmember' } }],
+      };
+
+      const { findByText } = await render(
+        <SprintRetroBoard sprint={mockSprint} team={teamWithPlainViewer} token={mockToken} user={plainMember} onBack={jest.fn()} />
+      );
+
+      expect(await findByText('A comment entered on behalf of a phantom member.')).toBeTruthy();
+      expect(await findByText(Strings.retroBoard.postedOnBehalfIndicator('Phanto Mm', 'Admin Istrator'))).toBeTruthy();
+    });
+  });
 });

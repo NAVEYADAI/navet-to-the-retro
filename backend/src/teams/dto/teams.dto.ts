@@ -15,3 +15,10 @@ export class UpdateMemberDto {
   role?: TeamRole;
   isAdmin?: boolean;
 }
+
+// Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.1).
+export class CreatePhantomMemberDto {
+  firstName!: string;
+  lastName?: string;
+  role?: TeamRole;
+}

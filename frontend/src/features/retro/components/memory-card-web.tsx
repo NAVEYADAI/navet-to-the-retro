@@ -4,7 +4,7 @@ import { Box, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { getCommentCategoryLabel, getCommentAuthorName } from '../comment-display';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
 import { useMemoryCardFlip, type MemoryCardComment } from '../memory-card-flip';
 
 /**
@@ -43,6 +43,7 @@ export function MemoryCardWeb({ comment }: MemoryCardWebProps) {
   // (sprint-retro-board-native.tsx) — see comment-display.ts.
   const categoryLabel = getCommentCategoryLabel(comment);
   const authorName = getCommentAuthorName(comment);
+  const postedByAdminLabel = getPostedByAdminLabel(comment);
   const { isFlipped, isEnlarged, size, flip, flipAndEnlarge } = useMemoryCardFlip(comment);
 
   const handleClick = () => {
@@ -170,6 +171,11 @@ export function MemoryCardWeb({ comment }: MemoryCardWebProps) {
                 <Typography sx={{ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 600, color: t.color.textSecondary }}>
                   <bdi>{authorName}</bdi>
                 </Typography>
+                {postedByAdminLabel ? (
+                  <Typography sx={{ ...t.type.caption, fontSize: 10, fontWeight: 600, color: t.color.accent.base }}>
+                    <bdi>{postedByAdminLabel}</bdi>
+                  </Typography>
+                ) : null}
                 <Typography sx={{ ...t.type.caption, color: t.color.textMuted, fontSize: 10 }}>
                   <bdi>
                     {new Date(comment.createdAt).toLocaleDateString('he-IL')} · {new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}

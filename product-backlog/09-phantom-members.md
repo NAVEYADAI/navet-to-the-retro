@@ -1,11 +1,11 @@
-## פיצ'ר 9: חברי צוות פנטום (Phantom Members) — מאופיין במלואו, מוכן למימוש — טרם הותחל
+## פיצ'ר 9: חברי צוות פנטום (Phantom Members) — מומש ✅ (Backend §9.1 + Frontend §9.2 + בדיקות §9.3 כולם סגורים)
 
 ### נקודות מרכזיות (touchpoints)
 
 - **מודלים (Prisma):** `User.isPhantom Boolean @default(false)` (חדש — פנטום הוא שורת `User` אמיתית עם `password:null`, לא `TeamMember.userId` nullable); `Comment.postedByAdminId Int?` (FK ל-`User`, `onDelete: SetNull`); `TeamInvite.convertsMemberId Int?` (FK ל-`TeamMember`, cascade).
 - **Backend:** `backend/src/teams/teams.service.ts` (יצירת פנטום), `backend/src/comments/comments.service.ts::create` (פרסום "בשם", `postedByAdminId` + `isAnonymous:false` נכפה), `backend/src/invites/invites.service.ts` (endpoint המרה חדש `consume-phantom-conversion`, נפרד מ-`consumeInvite` הקיים), guard אחיד — `assertCanManageTeamContent` (`team-permissions.util.ts`) לשלושת הפעולות.
-- **Frontend:** `team-card.tsx`, `add-member-form.tsx`, `invite-links-panel.tsx`, `sprint-retro-board-web.tsx`/`-native.tsx` (UI פרסום-בשם).
-- **Endpoints:** חדשים (טרם ממומשים) — יצירת פנטום, פרסום-בשם, `POST /invites/:token/consume-phantom-conversion`.
+- **Frontend:** `team-card.tsx`+`team-member-row.tsx` (web+native), `add-phantom-member-form.tsx`+`phantom-conversion-link.tsx` חדשים (web+native), `invite/[token].tsx` (ענף המרה חדש), `sprint-retro-board-web.tsx`/`-native.tsx` (בורר "פרסם בשם"), `comment-card-web.tsx`/`renderCommentCard`/`memory-card-web.tsx`/`memory-card-native.tsx`+`comment-display.ts` (אינדיקציית "הוזן בשם").
+- **Endpoints:** ממומשים — `POST /teams/:teamId/phantom-members`, `POST /teams/:teamId/phantom-members/:memberId/conversion-invite`, `POST /invites/:token/consume-phantom-conversion`, `POST /sprints/:sprintId/comments` (עם `onBehalfOfUserId`).
 - **נוגע ישירות ב-`Comment` וב-`User`** — כל פיצ'ר שקורא/מציג תגובות (1, 2, 3, 8) צריך להתחשב בשדה `postedByAdminId` החדש והאינדיקציה הנלווית אליו; כל פיצ'ר שקורא `User` (7 — Google sign-in) צריך להיות מודע לכך ש-`isPhantom:true` הוא עוד מצב "משתמש בלי סיסמה אמיתית" נוסף על משתמשי-Google.
 
 
@@ -163,145 +163,156 @@
 
 ### 9.1 Backend
 
-- [ ] `backend/prisma/schema.prisma`: `User.isPhantom Boolean @default(false)`; `Comment.
-      postedByAdminId Int?` + יחס בשם מפורש (`@relation("CommentPostedByAdmin", fields:
-      [postedByAdminId], references: [id], onDelete: SetNull)`, וגם לשנות את היחס הקיים
-      `author`/`authorId` לשם מפורש כמו `@relation("CommentAuthor", ...)` כי יש עכשיו שני
-      יחסים בין `Comment` ל-`User`); `TeamInvite.convertsMemberId Int?` + `@relation(fields:
-      [convertsMemberId], references: [id], onDelete: Cascade)` אל `TeamMember` (וגם רלציית
-      `convertInvites TeamInvite[]` הפוכה ב-`TeamMember`). `npx prisma db push` מול
-      `postgres-test` ישירות מותר; מול Neon האמיתי — **לבקש אישור מפורש מנוה קודם** (ר'
-      `backend/AGENTS.md` "Database").
-- [ ] `backend/src/teams/teams.service.ts`: מתודה חדשה `createPhantomMember(teamId, dto:
-      {firstName, lastName?, role?}, requesterId)` — guard `assertCanManageTeamContent`
-      (החלטה מוצרית #1); יוצרת `User` חדש (`username: 'phantom_' + crypto.randomBytes(8).
-      toString('hex')`, `email: \`${username}@phantom.local\`` — **חובה, ר' ברירת מחדל
-      טכנית #1 למעלה, בלי זה `prisma.user.create` יזרוק** —, `password: null`,
-      `isPhantom: true`, `firstName`, `lastName`) **וגם**
-      `TeamMember` (`role: dto.role || 'DEVELOPER'`, `isAdmin: false`, `status: 'ACTIVE'`) —
-      nested write אחד כמו `POST /teams` היום עושה ל-creator (`teams.service.ts::create`).
-      Endpoint חדש: `POST /teams/:teamId/phantom-members` (`teams.controller.ts`).
-- [ ] `backend/src/comments/dto/comments.dto.ts`: `CreateCommentDto.onBehalfOfUserId?:
-      number` חדש.
-- [ ] `backend/src/comments/comments.service.ts::create`: אם `dto.onBehalfOfUserId` קיים —
-      guard `assertCanManageTeamContent` (החלטה מוצרית #1, אותו guard בדיוק כמו יצירת
-      פנטום), לוודא ש-`onBehalfOfUserId` הוא `TeamMember` באותו `teamId` של הספרינט (כמו
-      הבדיקה הקיימת על `authorId` היום, שורות 19-30), ואז `data: {..., authorId:
-      dto.onBehalfOfUserId, postedByAdminId: requesterId, isAnonymous: false}` (**`isAnonymous`
-      נכפה ל-`false` בשרת, בלי קשר למה שנשלח בגוף הבקשה** — החלטה מוצרית #2: פרסום-בשם לא
-      יכול להיות אנונימי, האכיפה חייבת להיות server-side, לא רק frontend שלא מציג את
-      הצ'קבוקס) במקום `authorId: requesterId`. תגובה רגילה (בלי `onBehalfOfUserId`) ממשיכה
-      בדיוק כמו היום, כולל `isAnonymous` הרגיל.
-- [ ] `getCommentsForSprint`: להוסיף `postedByAdmin` (`select: {id, username, firstName,
-      lastName}`, אותו shape כמו `author`) ו-`author.isPhantom` ל-`select`/`include` הקיים.
-      **בלי שום היגיון מיסוך נוסף** — החלטה מוצרית #2 מבטיחה שאין מצב של `postedByAdminId`
-      מלא יחד עם `isAnonymous===true` על אותה תגובה, כך שהמיסוך הקיים ל-`isAnonymous`
-      (שורות 94-108) ממשיך לעבוד בדיוק כמו היום, בלי לגעת בו. `postedByAdmin` מוחזר תמיד
-      כשקיים, גלוי לכל חברי הצוות (החלטה מוצרית #2).
-- [ ] `backend/src/invites/dto/invites.dto.ts` + `invites.service.ts`: מתודה חדשה
-      `createPhantomConversionInvite(teamId, phantomMemberId, requesterId)` — guard
-      `assertCanManageTeamContent` (החלטה מוצרית #1); יוצרת `TeamInvite{token, teamId,
-      convertsMemberId: phantomMemberId, email: null, maxUses: 1, createdById: requesterId,
-      expiresAt: לפי קלט אופציונלי כמו קישורים רגילים}`. Endpoint: `POST /teams/:teamId/
-      phantom-members/:memberId/conversion-invite` (או דומה — לתעד את הבחירה הסופית
-      ב-controller).
-- [ ] מתודה חדשה `consumePhantomConversionInvite(token, dto: {username, email, password,
-      firstName?, lastName?})` ב-`invites.service.ts` — **לא** להרחיב את `consumeInvite`
-      הקיים. שימוש חוזר ב-`reasonForInvalidity()` הקיים לבדיקת תוקף. מוודא
-      `invite.convertsMemberId` קיים ושה-`TeamMember`/`User` המקושרים עדיין `isPhantom:
-      true` (לא הומר כבר — אחרת `ConflictException`). בודק ייחודיות `username`/`email` **תוך
-      החרגת שורת הפנטום עצמה** (`NOT: {id: phantomUserId}` — ר' החלטה 9.0.4, שונה מ-
-      `auth.service.ts::register` הקיים ששם אין החרגה כזו כי הוא תמיד `create`, לא `update`).
-      `prisma.user.update({where:{id: phantomUserId}, data: {username, email, password:
-      await bcrypt.hash(dto.password, 10), firstName: dto.firstName ?? existing, lastName:
-      dto.lastName ?? existing, isPhantom: false}})`, מסמן את ה-invite כמנוצל (`useCount:
-      {increment:1}` כמו `consumeInvite`), ומחזיר `{accessToken, user}` באותו shape בדיוק כמו
-      `auth.service.ts::register`/`login` (JWT `{sub, username, email}`, `expiresIn:'12h'`,
-      `jwtSecret` זהה). Endpoint: `POST /invites/:token/consume-phantom-conversion` (בלי
-      `Authorization` header — אין עדיין חשבון מחובר).
-- [ ] `GET /invites/:token` (`getInvite`, `invites.service.ts:84-100`): להרחיב את התשובה עם
-      `type: 'join' | 'phantomConversion'` ו-(אם `phantomConversion`) `prefill: {firstName,
-      lastName}` נשלף מה-`User`/`TeamMember` המקושרים — כדי שה-frontend ידע להציג את הענף
-      הנכון (ר' ממצאי מחקר על `[token].tsx`).
+- [x] `backend/prisma/schema.prisma`: `User.isPhantom Boolean @default(false)`; `Comment.
+      postedByAdminId Int?` + יחס בשם מפורש (`@relation("CommentPostedByAdmin", ...)`), וגם
+      שינוי היחס הקיים `author`/`authorId` לשם מפורש `@relation("CommentAuthor", ...)`;
+      `TeamInvite.convertsMemberId Int?` + `@relation(..., onDelete: Cascade)` אל `TeamMember`
+      + רלציית `convertInvites TeamInvite[]` הפוכה ב-`TeamMember`. `npx prisma db push`
+      **הורץ מול `postgres-test` בלבד** (מותר ישירות) — **לא** הורץ מול Neon האמיתי; זה עדיין
+      ממתין לאישור מפורש של נוה לפני שה-frontend/e2e האמיתיים יכולים לרוץ מול הדאטהבייס
+      האמיתי.
+- [x] `backend/src/teams/teams.service.ts::createPhantomMember` — guard
+      `assertCanManageTeamContent`; יוצרת `User` (`username: phantom_<16-hex>`,
+      `email: <username>@phantom.local`, `password: null`, `isPhantom: true`, `firstName`,
+      `lastName`) **וגם** `TeamMember` (`role: dto.role || 'DEVELOPER'`, `isAdmin: false`,
+      `status: 'ACTIVE'`) בכתיבה מקוננת אחת. Endpoint חדש `POST /teams/:teamId/phantom-members`
+      (`teams.controller.ts`). DTO: `CreatePhantomMemberDto` (`teams/dto/teams.dto.ts`).
+- [x] `backend/src/comments/dto/comments.dto.ts`: `CreateCommentDto.onBehalfOfUserId?: number`.
+- [x] `backend/src/comments/comments.service.ts::create`: כשיש `dto.onBehalfOfUserId` —
+      `assertCanManageTeamContent`, בדיקת `TeamMember` יעד באותו `teamId`
+      (`NotFoundException` אם לא נמצא), `authorId: onBehalfOfUserId, postedByAdminId:
+      requesterId, isAnonymous: false` (נכפה server-side בלי קשר לגוף הבקשה). זרימה רגילה
+      (בלי `onBehalfOfUserId`) לא שונתה.
+- [x] `getCommentsForSprint`: הוספת `postedByAdmin` (select זהה ל-`author`) ו-`author.
+      isPhantom` ל-`select`. תגובה אנונימית ממשיכה למסך את ה-`author` בדיוק כמו קודם (הוספתי
+      `isPhantom: false` גם לאובייקט ה-Anonymous הממוסך, לעקביות טיפוסים).
+- [x] `backend/src/invites/dto/invites.dto.ts` + `invites.service.ts::
+      createPhantomConversionInvite(teamId, phantomMemberId, dto, requesterId)` — guard
+      `assertCanManageTeamContent`, מוודא שהחבר היעד קיים בצוות וש-`user.isPhantom===true`
+      (אחרת `ConflictException`), יוצרת `TeamInvite{token, teamId, convertsMemberId, email:
+      null, maxUses: 1, createdById, expiresAt}`. Endpoint: `POST /teams/:teamId/
+      phantom-members/:memberId/conversion-invite` (`invites.controller.ts`).
+- [x] `invites.service.ts::consumePhantomConversionInvite(token, dto)` — מתודה נפרדת, **לא**
+      הרחבה של `consumeInvite`. `reasonForInvalidity()` הקיים לבדיקת תוקף; `ConflictException`
+      אם לא קישור-המרה או אם הפנטום כבר הומר; בדיקת ייחודיות username/email עם `NOT:
+      {id: phantomUserId}`; `prisma.user.update` על שורת הפנטום הקיימת (לא `create`),
+      `isPhantom: false`, `password` מוצפן; `useCount: {increment:1}` על ה-invite; מחזיר
+      `{accessToken, user}` באותו shape כמו `register`/`login`. Endpoint: `POST
+      /invites/:token/consume-phantom-conversion` (`invites.controller.ts`, בלי
+      `Authorization` header).
+- [x] `GET /invites/:token` (`getInvite`): מחזיר עכשיו גם `type: 'join' | 'phantomConversion'`
+      ו-`prefill: {firstName, lastName} | undefined` (מ-`convertsMember.user` כשמדובר בקישור
+      המרה).
+
+  Jest (backend) נכתבו/עודכנו כחלק מהמימוש (ר' 9.3 למטה): `teams.service.spec.ts`
+  (`createPhantomMember`), `comments.service.spec.ts` (`create` עם `onBehalfOfUserId`),
+  `invites.service.spec.ts` (`createPhantomConversionInvite`/`consumePhantomConversionInvite`
+  + `getInvite` עם `type`/`prefill`) — כולם ירוקים, וגם כל שאר הסוויטה (`npm test`: 239/239,
+  `npm run test:e2e`: 47/47, מול `postgres-test`).
 
 ### 9.2 Frontend
 
-- [ ] `team-card.tsx` (web+native): כפתור/פאנל "הוסף חבר פנטום" חדש. מוצג לפי `canManageTeamContent
-      = myMembership?.isAdmin || myMembership?.role === 'TEAM_LEADER'` (**לא** `isTeamAdmin`
-      הקיים לבדו, שהוא רק `isAdmin` — צריך משתנה חדש, אותו דפוס בדיוק כמו `canHighlight`
-      ב-`sprint-retro-board-web.tsx` שורות 124-125, כדי לעמוד בהחלטה מוצרית #1) — דפוס דומה
-      ל-`AddMemberForm` (טופס מוטבע/Collapse), שדות: שם פרטי (חובה)+שם משפחה (אופציונלי)+
-      `RoleSelectorChips` קיים. `POST /teams/:teamId/phantom-members` בהצלחה מרענן את רשימת
-      החברים (`onAddMemberSuccess` הקיים, אותו pattern כמו `AddMemberForm`).
-- [ ] `TeamMemberRow` (`frontend/src/features/teams/components/team-list-web/
-      team-member-row.tsx` + מקבילת native): badge חדש "לא רשום"/"פנטום" כש-`member.user.
-      isPhantom === true` — דורש ש-`isPhantom` יגיע בפועל ב-`GET /teams/user/me`/`GET
-      /teams/:id/members` (לוודא שאין `select` מצומצם על `User` ששומט את השדה, בדומה
-      לבדיקה שנעשתה בפיצ'ר 2 על `isHighlighted`).
-- [ ] כפתור "שלח קישור הרשמה" בכרטיס/שורת הפנטום (`TeamMemberRow` או קומפוננטה חדשה
-      דומה ל-`InviteLinksPanel` אך ממוקדת לפנטום ספציפי אחד), מוצג לפי אותו `canManageTeamContent`
-      (החלטה מוצרית #1) — `POST /teams/:teamId/phantom-members/:memberId/conversion-invite`,
-      מציג/מעתיק את הקישור המתקבל (אותו `inviteUrl()`/UX-דפוס כמו `invite-links-panel.tsx`
-      שורות 16-18, 94-111).
-- [ ] `frontend/src/app/invite/[token].tsx`: ענף חדש כש-`GET /invites/:token` מחזיר
-      `type: 'phantomConversion'` — **לא** מציג `<AuthForm>` הרגיל; במקום זה טופס ייעודי
-      (username/email/password חדשים, עם `firstName`/`lastName` **מוצגים כ-prefill מתוך
-      `prefill`** שחוזר מהשרת, לפי הבקשה המקורית) ששולח `POST /invites/:token/
-      consume-phantom-conversion` (בלי `Authorization` header), ואז שומר את ה-`accessToken`
-      המוחזר דרך `useAuth().login(...)` (אותו pattern כמו הרשמה/התחברות רגילה) ומנווט הביתה
-      (אותו דפוס `window.location.href = '/'`/`router.replace('/')` שכבר קיים בקובץ, שורות
-      54-61).
-- [ ] `sprint-retro-board-web.tsx`/`-native.tsx`: `canPostOnBehalf` מחושב מ-`myMembership`
-      (אותו דפוס בדיוק כמו `canHighlight`, שורות 124-125: `myMembership?.isAdmin ||
-      myMembership?.role === 'TEAM_LEADER'`, החלטה מוצרית #1). כש-`true`, בורר נוסף בטופס
-      כתיבת התגובה ("פרסם בשם:" — ברירת מחדל "אני", אחרת רשימת `team.members` כולל פנטומים,
-      לפי שם) — נשלח כ-`onBehalfOfUserId` ב-`handlePostComment` (`POST
-      /sprints/:sprintId/comments`). **כשנבחר יעד שונה מ"אני" (כלומר `onBehalfOfUserId`
-      מוגדר), צ'קבוקס "אנונימי" הקיים בטופס מוסתר/מנוטרל לגמרי** (החלטה מוצרית #2 — פרסום-בשם
-      לא יכול להיות אנונימי; ה-UI לא אמור אפילו להציע את זה, מעבר לאכיפה ב-backend).
-- [ ] `comment-card-web.tsx` + `renderCommentCard` (native): badge/אינדיקציה חדשה, **תמיד
-      גלויה לכל חברי הצוות** (החלטה מוצרית #2) כש-`comment.postedByAdmin` מוחזר מה-API —
-      מציגה את שם המזין הספציפי (`getCommentAuthorName`-style על `postedByAdmin`, אותו דפוס
-      תצוגה כמו `author` היום), למשל "הוזן/ה בשם {authorName} על ידי {postedByAdminName}"
-      (ניסוח מדויק לבחור בזמן המימוש, אבל **חייב לנקוב בשם המזין הספציפי**, לא ניסוח גנרי —
-      החלטה מוצרית #3). אין תלות ב-`isAnonymous` כאן כלל (לא רלוונטי לתגובות מהזרימה הזו).
-- [ ] **[הוסף 2026-09-14, ביקורת חוצה-פיצ'רים עם פיצ'ר 8]: אותה אינדיקציה חייבת להגיע גם
-      ללוח הזיכרון** (`memory-card-web.tsx`/`memory-card-native.tsx`,
-      `frontend/src/features/retro/comment-display.ts`) — אלה נתיב תצוגה תקף לאותו `Comment`
-      בדיוק, ופיצ'ר 8 (לוח זיכרון) לא מסונן לפי סוג-תגובה. החלטה מוצרית #3 קובעת "תמיד
-      גלויה" בלי הגבלה לנתיב תצוגה מסוים — לכן `getCommentAuthorName`/הפונקציה המשותפת
-      ב-`comment-display.ts` היא המקום הנכון להוסיף את הלוגיקה פעם אחת, כדי ששני נתיבי
-      התצוגה (`comment-card-web.tsx` ולוח הזיכרון) ישתמשו באותה מקור-אמת ולא יסטו זה מזה.
-- [ ] `Strings.teamList.*`/`Strings.retroBoard.*`/`Strings.invites.*`: מחרוזות עבריות חדשות
-      (כותרת טופס יצירת פנטום, badge "לא רשום", כפתור "שלח קישור הרשמה", בורר "פרסם בשם",
-      טקסט אינדיקציית "הוזן בשם {authorName} על ידי {postedByAdminName}", מסך ההמרה בעמוד
-      ה-invite).
-- [ ] `trackEvent()` על: יצירת חבר פנטום, שליחת קישור המרה, פרסום תגובה "בשם" מישהו, השלמת
-      המרת פנטום לחשבון אמיתי — לפי הכלל הקבוע בפרויקט (ר' `feedback-frontend-track-events-
-      required`).
+- [x] `team-card.tsx` (web+native): `canManageTeamContent = !!myMembership && (myMembership.
+      isAdmin || myMembership.role === 'TEAM_LEADER')` חדש (נפרד מ-`isTeamAdmin` הקיים, שנשאר
+      isAdmin-בלבד ומשמש רק את `AddMemberForm`/`InviteLinksPanel` הקיימים כפי שהם). כפתור/פאנל
+      "הוסף חבר פנטום" חדש (`add-phantom-member-form.tsx`, web+native) — דפוס מוטבע/Collapse
+      זהה ל-`AddMemberForm`, שדות שם פרטי (חובה)+שם משפחה (אופציונלי)+`RoleSelectorChips`
+      קיים. `POST /teams/:teamId/phantom-members` בהצלחה מרענן דרך `onAddMemberSuccess` הקיים.
+- [x] `TeamMemberRow` (web+native): badge "לא רשום" כש-`member.user.isPhantom === true`.
+      **תוקן ב-backend כחלק מהמשימה הזו** — `teams.service.ts::TEAM_MEMBER_USER_SELECT` לא
+      כלל `isPhantom` (רק שני המקומות שהוסיף פיצ'ר 9.1 עצמו כללו אותו); עודכן קבוע ה-select
+      המשותף לכלול `isPhantom`+`email`, והוחלפו אליו כל שאר בלוקי ה-`select` הידניים שכפלו
+      אותו (`getTeamMembers`, `addMember`, `acceptMemberInvite`, `updateMember`) — כך ש-badge
+      הפנטום יעבוד בכל מסך שמציג חברי צוות, לא רק בתשובת היצירה עצמה.
+- [x] כפתור "שלח קישור הרשמה" — קומפוננטה חדשה `phantom-conversion-link.tsx` (web+native,
+      דפוס `inviteUrl()`/העתקה זהה ל-`invite-links-panel.tsx`), מוצגת בתוך `TeamMemberRow` רק
+      כש-`member.user.isPhantom && canManageTeamContent`. `POST /teams/:teamId/
+      phantom-members/:memberId/conversion-invite`, מציגה/מעתיקה (web: clipboard; native:
+      `Share.share`) את הקישור המתקבל.
+- [x] `frontend/src/app/invite/[token].tsx`: ענף חדש (`PhantomConversionForm`) כש-`GET
+      /invites/:token` מחזיר `type: 'phantomConversion'` — **לא** מציג `<AuthForm>`; טופס
+      ייעודי (username/email/password חדשים, firstName/lastName prefill-ים מ-`prefill`,
+      עדיין ניתנים לעריכה) ששולח `POST /invites/:token/consume-phantom-conversion` (בלי
+      `Authorization`), ואז `useAuth().login(accessToken, user)` וניווט הביתה באותו דפוס
+      reload קיים. אפקט ה-auto-consume הרגיל (`consumeInvite`) מדולג במפורש כש-
+      `type==='phantomConversion'`. נבנה עם רכיבי RN גולמיים (`TextInput`/`TouchableOpacity`
+      + טוקני `t.*`) ולא `@/components/ui` — קובץ ה-route הזה משותף ל-web+native באותו קובץ
+      (לא מפוצל `-web`/`-native`), ו-`Button`/`Field` הם MUI-בלבד בלי מקבילת native (בניגוד
+      ל-`Icon` שיש לו `icon.native.tsx`) — ייבוא שלהם היה שובר build native.
+- [x] `sprint-retro-board-web.tsx`/`-native.tsx`: `canPostOnBehalf` (= `canHighlight`, אותו
+      חישוב בדיוק). בורר "פרסם בשם:" חדש בטופס כתיבת התגובה (web: `Field type="select"`;
+      native: כפתור+Modal/FlatList זהה בדפוסו לבורר הקטגוריה הקיים) — ברירת מחדל "אני" (`''`),
+      אחרת `team.members` (כולל פנטומים, שכבר מגיעים דרך אותו `include` קיים) ממוינים לפי שם
+      תצוגה, נשלח כ-`onBehalfOfUserId` (מספרי) ב-`POST /sprints/:sprintId/comments`. כשנבחר
+      יעד שונה מ"אני" — צ'קבוקס/Segmented "אנונימי" **מוסר לגמרי מה-render** (לא רק מנוטרל)
+      גם ב-web וגם ב-native, ו-`isAnonymous` נשלח כ-`false` תמיד מהקליינט במצב הזה.
+- [x] `comment-card-web.tsx` + `renderCommentCard` (native): badge/אינדיקציה חדשה (web:
+      `<Badge tone="accent">`; native: `View` בסגנון badge זהה לשאר התג-ים הקיימים בקובץ),
+      תמיד גלויה כש-`comment.postedByAdmin` קיים — טקסט "הוזן/ה בשם {authorName} על ידי
+      {postedByAdminName}" (`Strings.retroBoard.postedOnBehalfIndicator`), נוקב בשם המזין
+      הספציפי. אין תלות ב-`isAnonymous`.
+- [x] **[הוסף 2026-09-14]: אותה אינדיקציה הגיעה גם ללוח הזיכרון** — `getPostedByAdminLabel`
+      חדש ב-`frontend/src/features/retro/comment-display.ts` (שיתוף-קוד עם
+      `getCommentAuthorName`/`formatUserDisplayName` פנימי חדש), נצרך משני נתיבי התצוגה:
+      `comment-card-web.tsx`/`renderCommentCard` למעלה, וגם `memory-card-web.tsx`/
+      `memory-card-native.tsx` (שורת caption נוספת על צד הקדמי של הקלף בלבד — הגב ממשיך
+      לא להראות מידע, לפי §8.0 default #4). `MemoryCardComment`
+      (`frontend/src/features/retro/memory-card-flip.ts`) הורחב עם `postedByAdmin?`.
+- [x] `Strings.teamList.*`/`Strings.retroBoard.*`/`Strings.invites.*`: כל המחרוזות העבריות
+      החדשות נוספו (badge "לא רשום", כותרת/שדות טופס יצירת פנטום, כפתור "שלח קישור הרשמה"
+      וטקסטי הקישור, בורר "פרסם בשם:"/"אני", `postedOnBehalfIndicator`, כותרת/תת-כותרת/כפתור
+      מסך ההמרה ב-invite). שדות username/email/password/firstName/lastName בטופס ההמרה עשו
+      שימוש חוזר ב-`Strings.auth.*` הקיימים במקום כפילות.
+- [x] `trackEvent()`: `phantom_member_created` (יצירת פנטום), `phantom_conversion_link_created`
+      (שליחת קישור המרה), `retro_comment_posted_on_behalf` (בנוסף ל-`retro_comment_added`
+      הקיים, כשנבחר יעד "בשם" — web+native), `phantom_conversion_completed` (השלמת המרה
+      בעמוד ה-invite).
 
 ### 9.3 בדיקות
 
-- [ ] Playwright e2e: מנהל/ראש-צוות (`isAdmin` או `role==='TEAM_LEADER'`, החלטה מוצרית #1)
-      יוצר חבר פנטום → מופיע ברשימת החברים עם badge מבחין; מפרסם תגובת KEEP/IMPROVE "בשמו"
-      (בלי אפשרות לסמן אנונימי בטופס — לוודא שהצ'קבוקס מוסתר/מנוטרל, החלטה מוצרית #2) →
-      התגובה מופיעה עם אינדיקציית "הוזן בשם" **שנוקבת בשם המנהל/ת הספציפי/ת שהזין** (החלטה
-      מוצרית #3), גלויה גם למשתמש שני שהוא חבר-צוות רגיל (לא רק למנהלים — החלטה מוצרית #2);
-      שולח קישור המרה מתוך כרטיס הפנטום, פותח את הקישור בהקשר דפדפן נקי (`browser.
-      newContext()`, לא מחובר), ממלא טופס המרה (שם פרטי מוצג כ-prefill) → מועבר לחשבון אמיתי
-      מחובר, והתגובות הישנות שהוזנו בשמו עדיין מוצגות תחת אותו שם (`authorId` לא השתנה) עם
-      אותה אינדיקציית "הוזן בשם" כמו לפני ההמרה. חבר צוות רגיל (`DEVELOPER`, לא admin/leader)
-      **לא** רואה את כפתורי יצירת פנטום/פרסום-בשם/שליחת קישור המרה בכלל (לא רק מוסתרים-אבל-
-      קיימים).
-- [ ] Jest (backend): `teams.service.spec.ts` (`createPhantomMember` — guard, יצירת
+- [x] Playwright e2e (`frontend/e2e/phantom-members.spec.ts`, Desktop+Mobile Chrome): מנהל/ת
+      (leader, `isAdmin`+`role==='TEAM_LEADER'` דרך יצירת הצוות) יוצר חבר פנטום → מופיע ברשימת
+      החברים עם badge "לא רשום"; מפרסם תגובת KEEP "בשמו" — נבדק שצ'קבוקס/אינדיקציית "אנונימי"
+      **מוסר לגמרי מה-DOM** (`toHaveCount(0)`, לא רק `not.toBeVisible()`) ברגע שנבחר יעד שאינו
+      "אני" → התגובה מוצגת עם אינדיקציית "הוזן/ה בשם Phanto Mm על ידי {שם המשתמש הספציפי של
+      ה-leader}"; אותה אינדיקציה נבדקה **גם** בהתחברות כחבר-צוות רגיל (DEVELOPER) שני — גלויה לו
+      במלואה (החלטה מוצרית #2), בעוד שכפתורי "הוסף חבר פנטום"/בורר "פרסם בשם"/"שלח קישור הרשמה"
+      נבדקו **נעדרים לחלוטין מה-DOM** עבורו (`toHaveCount(0)`, לא viewport-hidden). לאחר מכן
+      נשלח קישור המרה מתוך כרטיס הפנטום (leader), נפתח בהקשר דפדפן נקי (`browser.newContext()`,
+      לא מחובר) — טופס ההמרה מציג `firstName`/`lastName` כ-prefill, לאחר שליחה המשתמש נכנס
+      אוטומטית לחשבון האמיתי, והתגובה הישנה שהוזנה בשמו עדיין מוצגת תחת אותו שם עם אותה
+      אינדיקציית "הוזן בשם" (`authorId` לא השתנה). רץ ירוק, Desktop+Mobile Chrome (הועלה
+      `test.setTimeout(60_000)` — הזרימה המלאה קרובה לגבול ברירת המחדל של 30 שנ' על ריצה קרה,
+      אותו דפוס כמו `memory-board.spec.ts`). **באג אמיתי שנמצא (לא בפיצ'ר הזה עצמו, בקומפוננטת
+      `Field` המשותפת, `frontend/src/components/ui/field.tsx`):** כש-`type="select"` וערך
+      ה-`MenuItem` הנבחר הוא מחרוזת ריקה (`value: ''`) — בדיוק ברירת המחדל של בורר "פרסם בשם:"
+      ("אני") וגם של בורר הקטגוריה הקיים ("ללא קטגוריה") — ה-combobox **לא** מציג את תווית
+      ה-option הנבחרת בתוכו (טקסט ריק/zero-width space בפועל, אומת ידנית ב-DOM); MUI לא מספק
+      `renderValue` מותאם ב-`Field`, ורק `comment-filter-bar-web.tsx` (שימוש נפרד, לא דרך
+      `Field`) עוקף את זה עם `displayEmpty`+`renderValue` משלו. לא חוסם פונקציונלית (הבחירה
+      עצמה עובדת) אבל פוגע בבהירות ה-UI — המשתמש לא יכול לראות בוודאות "אני" בתיבה. לא תוקן
+      כאן (קומפוננטה משותפת, מחוץ להיקף פיצ'ר 9) — מומלץ פיצ'ר/תיקון נפרד ב-`Field`.
+- [x] Jest (backend): `teams.service.spec.ts` (`createPhantomMember` — guard, יצירת
       User+TeamMember יחד, username ייחודי-אוטומטי), `comments.service.spec.ts`
       (`create` עם `onBehalfOfUserId` — guard, שיוך נכון של `authorId`/`postedByAdminId`,
       בדיקת שהמטרה חברה בצוות), `invites.service.spec.ts`
       (`createPhantomConversionInvite`/`consumePhantomConversionInvite` — תוקף/מיצוי/כפל-המרה
-      חסום, ייחודיות username/email תוך החרגת הפנטום עצמו, `accessToken` מוחזר תקין).
-- [ ] Jest (frontend) לרכיבי ה-UI החדשים (badge פנטום, בורר "פרסם בשם" כולל ניטרול צ'קבוקס
-      "אנונימי" כשנבחר יעד שאינו "אני", אינדיקציית "הוזן בשם" עם שם המזין הספציפי).
-- [ ] בדיקת מובייל — `Mobile Chrome` project ב-Playwright, עקבי עם כל שאר הפיצ'רים בבאקלוג.
+      חסום, ייחודיות username/email תוך החרגת הפנטום עצמו, `accessToken` מוחזר תקין). נכתב
+      כחלק ממימוש ה-Backend (סעיף 9.1); אומת מחדש כאן — כל הכיסוי הדרוש קיים, לא נדרשו תוספות.
+      `npm test`: 239/239 ירוק, `npm run test:e2e`: 47/47 ירוק (מול `postgres-test` אחרי ניקוי
+      נתוני-שאריות מריצה קודמת שנקטעה — `TRUNCATE` ישיר על ה-DB המבודד, לא על Neon).
+- [x] Jest (frontend) לרכיבי ה-UI החדשים — כבר נכתבו כחלק מהמימוש, אומתו ירוקות כאן (`npm test`:
+      95 עברו/3 דולגו, 12 חבילות): badge פנטום + גילוי/הסתרה מלאה של "שלח קישור הרשמה" לפי
+      `canManageTeamContent`
+      (`team-list-native/__tests__/team-member-row.test.tsx`); טופס יצירת פנטום כולל טיפול
+      ב-lastName ריק (`team-list-native/__tests__/add-phantom-member-form.test.tsx`); בורר
+      "פרסם בשם" כולל היעלמות מוחלטת של צ'קבוקס "אנונימי" מה-DOM כשנבחר יעד שאינו "אני", ואי-
+      רינדור הבורר כלל לחבר רגיל (`components/__tests__/sprint-retro-board.test.tsx`);
+      אינדיקציית "הוזן בשם" — פונקציית `getPostedByAdminLabel` הטהורה, כולל fallback
+      ל-username וזיהוי מזין שונה per-comment
+      (`features/retro/__tests__/comment-display.test.ts`).
+- [x] בדיקת מובייל — `Mobile Chrome` project ב-Playwright, אותו קובץ spec (שני הפרויקטים רצים
+      מאותו `test()` יחיד לפי קונפיגורציית ה-e2e הקיימת) — ירוק.
 
 ### לא בטיפול (פיצ'ר 9)
 

@@ -33,11 +33,17 @@ model User {
   firstName                 String?
   lastName                  String?
   role                      String                     @default("DEVELOPER")
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decision #1): a
+  // phantom is a real `User` row (password: null, no googleId) standing in for a real person who
+  // won't register. `TeamMember.userId`/`Comment.authorId` are deliberately left untouched — a
+  // phantom is a `TeamMember`/comment author like any other, this flag is purely informational.
+  isPhantom                 Boolean                    @default(false)
   createdAt                 DateTime                   @default(now())
   createdTeams              Team[]                     @relation("TeamCreator")
   pendingApprovals          Team[]                     @relation("TeamPendingApprover")
   members                   TeamMember[]
-  comments                  Comment[]
+  comments                  Comment[]                  @relation("CommentAuthor")
+  commentsPostedAsAdmin     Comment[]                  @relation("CommentPostedByAdmin")
   createdInvites            TeamInvite[]
   googleCalendarConnections GoogleCalendarConnection[]
 }
@@ -61,15 +67,15 @@ enum TeamMemberStatus {
 }
 
 model Team {
-  id                Int          @id @default(autoincrement())
+  id                Int                          @id @default(autoincrement())
   name              String
   mainOffice        String?
-  status            TeamStatus   @default(PENDING_APPROVAL)
-  createdAt         DateTime     @default(now())
+  status            TeamStatus                   @default(PENDING_APPROVAL)
+  createdAt         DateTime                     @default(now())
   creatorId         Int
   pendingApproverId Int?
-  creator           User         @relation("TeamCreator", fields: [creatorId], references: [id], onDelete: Cascade)
-  pendingApprover   User?        @relation("TeamPendingApprover", fields: [pendingApproverId], references: [id], onDelete: SetNull)
+  creator           User                         @relation("TeamCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  pendingApprover   User?                        @relation("TeamPendingApprover", fields: [pendingApproverId], references: [id], onDelete: SetNull)
   members           TeamMember[]
   comments          Comment[]
   sprints           Sprint[]
@@ -78,21 +84,26 @@ model Team {
 }
 
 model TeamInvite {
-  id          Int       @id @default(autoincrement())
-  token       String    @unique
-  teamId      Int
-  name        String? // admin-facing label for a generic link, e.g. "לינק לצוות פיתוח"
-  email       String? // set = personal invite locked to this address; null = generic link
-  role        TeamRole  @default(DEVELOPER)
-  createdById Int
-  expiresAt   DateTime?
-  maxUses     Int?
-  useCount    Int       @default(0)
-  isRevoked   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
+  id               Int       @id @default(autoincrement())
+  token            String    @unique
+  teamId           Int
+  name             String? // admin-facing label for a generic link, e.g. "לינק לצוות פיתוח"
+  email            String? // set = personal invite locked to this address; null = generic link
+  role             TeamRole  @default(DEVELOPER)
+  createdById      Int
+  expiresAt        DateTime?
+  maxUses          Int?
+  useCount         Int       @default(0)
+  isRevoked        Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  // Feature 9 (phantom members, §9.0 decision #3): when set, this invite is a one-time
+  // phantom -> real-account conversion link, not a regular join link — consumed via a separate
+  // `consumePhantomConversionInvite` flow (`invites.service.ts`), never `consumeInvite`.
+  convertsMemberId Int?
 
-  team      Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  createdBy User @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  team           Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy      User        @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  convertsMember TeamMember? @relation(fields: [convertsMemberId], references: [id], onDelete: Cascade)
 }
 
 // Personal Google Calendar connection — one per user (not per team, see
@@ -108,7 +119,7 @@ model GoogleCalendarConnection {
   isRevoked          Boolean  @default(false)
   createdAt          DateTime @default(now())
 
-  user          User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
   events        SprintGoogleEvent[]
   teamCalendars GoogleCalendarTeamCalendar[]
 }
@@ -158,8 +169,12 @@ model TeamMember {
   status    TeamMemberStatus @default(ACTIVE)
   createdAt DateTime         @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team           Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  // Feature 9 (phantom members, §9.0 decision #3): reverse side of TeamInvite.convertsMemberId —
+  // normally empty/one-element (a phantom has at most one live conversion invite at a time, but
+  // nothing in the schema enforces that).
+  convertInvites TeamInvite[]
 
   @@unique([userId, teamId])
 }
@@ -200,18 +215,24 @@ model Sprint {
 }
 
 model Comment {
-  id            Int              @id @default(autoincrement())
-  content       String
-  type          CommentType
-  category      CommentCategory?
-  isAnonymous   Boolean          @default(false)
-  isHighlighted Boolean          @default(false)
-  createdAt     DateTime         @default(now())
-  authorId      Int
-  teamId        Int
-  sprintId      Int
+  id              Int              @id @default(autoincrement())
+  content         String
+  type            CommentType
+  category        CommentCategory?
+  isAnonymous     Boolean          @default(false)
+  isHighlighted   Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  authorId        Int
+  teamId          Int
+  sprintId        Int
+  // Feature 9 (phantom members, §9.0 decision #2): set only when a team admin/leader posted this
+  // comment "on behalf of" `authorId` (a phantom, or a real member) — `authorId` always keeps its
+  // existing meaning ("who the comment is attributed to"), this is purely who actually typed it.
+  // SetNull (not Cascade) so a comment survives if the posting admin's account is later deleted.
+  postedByAdminId Int?
 
-  author User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  sprint Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  author        User   @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  postedByAdmin User?  @relation("CommentPostedByAdmin", fields: [postedByAdminId], references: [id], onDelete: SetNull)
+  team          Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sprint        Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
 }

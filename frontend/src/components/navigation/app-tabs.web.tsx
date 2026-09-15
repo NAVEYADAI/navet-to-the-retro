@@ -73,6 +73,8 @@ export function TabButton({ children, isFocused, icon, onDoubleClick, onPress, .
           backgroundColor: isFocused ? t.color.accent.subtle : 'transparent',
           transition: `background-color ${t.motion.fast}`,
           cursor: 'pointer',
+          flexShrink: 0,
+          whiteSpace: 'nowrap',
         }}
       >
         {icon && <Icon name={icon} size="sm" tone={isFocused ? 'accent' : 'muted'} />}
@@ -83,7 +85,8 @@ export function TabButton({ children, isFocused, icon, onDoubleClick, onPress, .
             fontSize: t.type.label.fontSize,
             fontWeight: isFocused ? '700' : '500',
             letterSpacing: -0.2,
-          }}
+            whiteSpace: 'nowrap',
+          } as any}
         >
           {children}
         </ThemedText>

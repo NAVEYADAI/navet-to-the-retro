@@ -24,7 +24,7 @@ export function RoleSelectorChips({ role, onSelectRole }: RoleSelectorChipsProps
       >
         תפקיד מקצועי
       </Typography>
-      <Box sx={{ display: 'flex', gap: `${t.space[2]}px`, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+      <Box sx={{ display: 'flex', gap: `${t.space[2]}px`, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
         {ROLES.map((r) => {
           const isSelected = role === r.value;
           return (

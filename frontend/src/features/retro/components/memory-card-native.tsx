@@ -3,7 +3,7 @@ import { View, Text, Image, Animated, Platform, LayoutAnimation, UIManager } fro
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { getCommentCategoryLabel, getCommentAuthorName } from '../comment-display';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
 import { useMemoryCardFlip, type MemoryCardComment } from '../memory-card-flip';
 
 /**
@@ -41,6 +41,7 @@ export function MemoryCardNative({ comment }: MemoryCardNativeProps) {
   // (sprint-retro-board-native.tsx) — see comment-display.ts.
   const categoryLabel = getCommentCategoryLabel(comment);
   const authorName = getCommentAuthorName(comment);
+  const postedByAdminLabel = getPostedByAdminLabel(comment);
 
   const animateFlip = (toFlipped: boolean) => {
     Animated.spring(flipAnim, { toValue: toFlipped ? 1 : 0, useNativeDriver: Platform.OS !== 'web', speed: 14, bounciness: 8 }).start();
@@ -145,6 +146,11 @@ export function MemoryCardNative({ comment }: MemoryCardNativeProps) {
           <Text style={{ color: t.color.textSecondary, fontSize: 10, fontWeight: comment.isAnonymous ? '400' : '700', textAlign: 'right' }}>
             {authorName}
           </Text>
+          {!!postedByAdminLabel && (
+            <Text style={{ color: t.color.accent.base, fontSize: 9, fontWeight: '700', textAlign: 'right' }}>
+              {postedByAdminLabel}
+            </Text>
+          )}
           <Text style={{ color: t.color.textMuted, fontSize: 9, textAlign: 'right' }}>
             {`${new Date(comment.createdAt).toLocaleDateString('he-IL')} · ${new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`}
           </Text>

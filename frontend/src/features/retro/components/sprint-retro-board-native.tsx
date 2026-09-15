@@ -22,7 +22,7 @@ import { CommentFilterBarNative } from './comment-filter-bar-native';
 import { SprintSummary } from '@/features/sprint-summary';
 import { MemoryBoard } from './memory-board';
 import { trackEvent } from '@/lib/analytics';
-import { getCommentCategoryLabel, getCommentAuthorName } from '../comment-display';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
 
 interface SprintRetroBoardProps {
   sprint: any;
@@ -88,6 +88,11 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   const [category, setCategory] = useState('');
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.2): '' means "post as
+  // me" (the default) — any other value is the target TeamMember's userId, sent as
+  // onBehalfOfUserId. Never both this AND isAnonymous — see the render guard below.
+  const [onBehalfOfUserId, setOnBehalfOfUserId] = useState('');
+  const [isPostAsPickerOpen, setIsPostAsPickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,7 +137,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
         content: content.trim(),
         type,
         category: category || undefined,
-        isAnonymous
+        isAnonymous: onBehalfOfUserId ? false : isAnonymous,
+        onBehalfOfUserId: onBehalfOfUserId ? Number(onBehalfOfUserId) : undefined
       }, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -143,6 +149,10 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
       setCategory('');
       setIsAnonymous(false);
       trackEvent('retro_comment_added', { type });
+      if (onBehalfOfUserId) {
+        trackEvent('retro_comment_posted_on_behalf', { type });
+      }
+      setOnBehalfOfUserId('');
       await fetchComments();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'שגיאה בשליחת ההערה.');
@@ -177,6 +187,22 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   // Only team admins and team leads may highlight — see product-backlog/02-comment-highlighting.md §2.0.
   const myMembership = team.members?.find((m: any) => m.userId === user.id);
   const canHighlight = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
+  // Same guard as canHighlight — Feature 9 (phantom members) §9.0 decision #1: posting "on
+  // behalf of" someone (a phantom or a real member) is an admin/team-leader-only action.
+  const canPostOnBehalf = canHighlight;
+  const postOnBehalfOptions: [string, string, boolean][] = [
+    ['', Strings.retroBoard.postOnBehalfMeOption, false],
+    ...((team.members || [])
+      .filter((m: any) => m.userId !== user.id && m.status !== 'PENDING')
+      .map((m: any): [string, string, boolean] => [
+        String(m.userId),
+        m.user?.firstName || m.user?.lastName
+          ? `${m.user?.firstName || ''} ${m.user?.lastName || ''}`.trim()
+          : (m.user?.username || ''),
+        m.user?.isPhantom === true,
+      ])),
+  ];
+  const postOnBehalfSelectedLabel = postOnBehalfOptions.find(([value]) => value === onBehalfOfUserId)?.[1];
 
   const handleToggleHighlight = async (commentId: number, nextValue: boolean) => {
     setComments(prev => prev.map(c => (c.id === commentId ? { ...c, isHighlighted: nextValue } : c)));
@@ -198,6 +224,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
     const categoryLabel = getCommentCategoryLabel(comment);
     const isHighlighted = !!comment.isHighlighted;
     const authorName = getCommentAuthorName(comment);
+    const postedByAdminLabel = getPostedByAdminLabel(comment);
 
     return (
       <View
@@ -241,6 +268,27 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             ) : isHighlighted ? (
               <Icon name="star" size="sm" tone="accent" />
             ) : null}
+          </View>
+        )}
+        {!!postedByAdminLabel && (
+          <View
+            style={{
+              flexDirection: 'row-reverse',
+              alignSelf: 'flex-end',
+              alignItems: 'center',
+              gap: 6,
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              borderRadius: t.radius.pill,
+              backgroundColor: t.color.accent.subtle,
+              borderWidth: 1,
+              borderColor: t.color.accent.border,
+            }}
+          >
+            <Icon name="ghost" size="sm" tone="accent" />
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base, textAlign: 'right' }]}>
+              {postedByAdminLabel}
+            </Text>
           </View>
         )}
         <Text style={[rnText(t.type.body), { color: t.color.text, textAlign: 'right' }]}>
@@ -571,22 +619,94 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             numberOfLines={3}
           />
 
-          <TouchableOpacity
-            onPress={() => setIsCategoryPickerOpen(true)}
-            activeOpacity={0.8}
-            style={{
-              alignSelf: 'flex-end',
-              paddingVertical: t.space[1] + 2,
-              paddingHorizontal: t.space[3] + 2,
-              borderRadius: t.radius.pill,
-              borderTopRightRadius: t.radius.badge,
-              backgroundColor: category ? t.color.accent.subtle : t.color.surfaceSubtle,
-            }}
+          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2], alignSelf: 'flex-end' }}>
+            {canPostOnBehalf && (
+              <TouchableOpacity
+                onPress={() => setIsPostAsPickerOpen(true)}
+                activeOpacity={0.8}
+                style={{
+                  flexDirection: 'row-reverse',
+                  alignItems: 'center',
+                  gap: 4,
+                  paddingVertical: t.space[1] + 2,
+                  paddingHorizontal: t.space[3] + 2,
+                  borderRadius: t.radius.pill,
+                  borderTopRightRadius: t.radius.badge,
+                  backgroundColor: onBehalfOfUserId ? t.color.accent.subtle : t.color.surfaceSubtle,
+                  borderWidth: onBehalfOfUserId ? 1 : 0,
+                  borderColor: t.color.accent.border,
+                }}
+              >
+                <Icon name="ghost" size="sm" tone={onBehalfOfUserId ? 'accent' : 'muted'} />
+                <Text style={[rnText({ ...t.type.label, fontWeight: onBehalfOfUserId ? 700 : 400 }), { color: onBehalfOfUserId ? t.color.accent.base : t.color.textSecondary }]}>
+                  {onBehalfOfUserId ? `${Strings.retroBoard.postOnBehalfLabel} ${postOnBehalfSelectedLabel}` : Strings.retroBoard.postOnBehalfOtherOption}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              onPress={() => setIsCategoryPickerOpen(true)}
+              activeOpacity={0.8}
+              style={{
+                paddingVertical: t.space[1] + 2,
+                paddingHorizontal: t.space[3] + 2,
+                borderRadius: t.radius.pill,
+                borderTopRightRadius: t.radius.badge,
+                backgroundColor: category ? t.color.accent.subtle : t.color.surfaceSubtle,
+              }}
+            >
+              <Text style={[rnText({ ...t.type.label, fontWeight: category ? 700 : 400 }), { color: category ? t.color.accent.base : t.color.textSecondary }]}>
+                {category ? Strings.retroBoard.categories[category] : Strings.retroBoard.categoryLabel}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <Modal
+            visible={isPostAsPickerOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setIsPostAsPickerOpen(false)}
           >
-            <Text style={[rnText({ ...t.type.label, fontWeight: category ? 700 : 400 }), { color: category ? t.color.accent.base : t.color.textSecondary }]}>
-              {category ? Strings.retroBoard.categories[category] : Strings.retroBoard.categoryLabel}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: t.color.overlay, justifyContent: 'flex-end' }}
+              activeOpacity={1}
+              onPress={() => setIsPostAsPickerOpen(false)}
+            >
+              <TouchableOpacity
+                activeOpacity={1}
+                style={{
+                  backgroundColor: t.color.surface,
+                  borderTopLeftRadius: t.radius.card + 8,
+                  borderTopRightRadius: t.radius.card + 8,
+                  maxHeight: '70%',
+                  paddingVertical: t.space[2],
+                }}
+              >
+                <FlatList
+                  data={postOnBehalfOptions}
+                  keyExtractor={([value]) => value || 'me'}
+                  renderItem={({ item: [value, label, isPhantom] }) => (
+                    <TouchableOpacity
+                      onPress={() => { setOnBehalfOfUserId(value); setIsPostAsPickerOpen(false); }}
+                      style={{
+                        flexDirection: 'row-reverse',
+                        alignItems: 'center',
+                        gap: t.space[2],
+                        paddingVertical: t.space[3] + 2,
+                        paddingHorizontal: t.space[5],
+                        backgroundColor: onBehalfOfUserId === value ? t.color.surfaceSubtle : 'transparent',
+                      }}
+                    >
+                      {isPhantom && <Icon name="ghost" size="sm" tone="muted" />}
+                      <Text style={[rnText({ ...t.type.body, fontWeight: onBehalfOfUserId === value ? 700 : 400 }), { color: t.color.text, textAlign: 'right' }]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </Modal>
 
           <Modal
             visible={isCategoryPickerOpen}
@@ -632,27 +752,37 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
           </Modal>
 
           <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2], marginTop: t.space[1] }}>
-            <TouchableOpacity
-              onPress={() => setIsAnonymous(prev => !prev)}
-              activeOpacity={0.8}
-              accessibilityLabel={Strings.retroBoard.anonymousToggleHint}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: isAnonymous }}
-              style={{
-                height: t.layout.minTouchTarget,
-                paddingHorizontal: t.space[3],
-                borderRadius: t.radius.pill,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: isAnonymous ? t.color.accent.subtle : t.color.surfaceSubtle,
-                borderWidth: isAnonymous ? 1 : 0,
-                borderColor: t.color.accent.border,
-              }}
-            >
-              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: isAnonymous ? t.color.accent.base : t.color.textSecondary }]}>
-                {isAnonymous ? Strings.retroBoard.anonymousToggleLabel : Strings.retroBoard.identifiedToggleLabel}
-              </Text>
-            </TouchableOpacity>
+            {/* Feature 9 §9.0 decision #2: "on behalf of" comments can never be anonymous — the
+                UI doesn't even offer the choice once a target other than "me" is selected, on
+                top of the server-side enforcement. */}
+            {!onBehalfOfUserId ? (
+              <TouchableOpacity
+                onPress={() => setIsAnonymous(prev => !prev)}
+                activeOpacity={0.8}
+                accessibilityLabel={Strings.retroBoard.anonymousToggleHint}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: isAnonymous }}
+                style={{
+                  flexDirection: 'row-reverse',
+                  height: t.layout.minTouchTarget,
+                  paddingHorizontal: t.space[3],
+                  borderRadius: t.radius.pill,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                  backgroundColor: isAnonymous ? t.color.accent.subtle : t.color.surfaceSubtle,
+                  borderWidth: isAnonymous ? 1 : 0,
+                  borderColor: t.color.accent.border,
+                }}
+              >
+                <Icon name={isAnonymous ? 'eye-off' : 'eye'} size="sm" tone={isAnonymous ? 'accent' : 'muted'} />
+                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: isAnonymous ? t.color.accent.base : t.color.textSecondary }]}>
+                  {isAnonymous ? Strings.retroBoard.anonymousToggleLabel : Strings.retroBoard.identifiedToggleLabel}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View />
+            )}
 
             <TouchableOpacity
               style={{

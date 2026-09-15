@@ -57,7 +57,10 @@ test.describe('Team invites — email invites for unregistered users + shareable
     // Drive the real dashboard UI as the creator/admin to generate the invite link.
     await loginViaLocalStorage(page, creator.token);
     await page.getByText(teamName).waitFor();
-    await page.getByText(Strings.invites.manageLinksToggle).click();
+    // Invite links now live inside "הוסף חבר צוות" as a mode switch, not a separate standalone
+    // toggle — open the add-member panel first, then switch it to link mode.
+    await page.getByText(Strings.teamList.addMemberToggle).click();
+    await page.getByText(Strings.teamList.addMemberModeLinkLabel).click();
     // The "show form" button and the form's submit button reuse the same label, so clicking
     // this text twice back-to-back is a race: on a slower render (e.g. Mobile Chrome) the second
     // click can fire before the form (and its real submit button) has mounted, and the click never
@@ -154,7 +157,10 @@ test.describe('Team invites — email invites for unregistered users + shareable
 
     await loginViaLocalStorage(page, creator.token);
     await page.getByText(teamName).waitFor();
-    await page.getByText(Strings.invites.manageLinksToggle).click();
+    // Invite links now live inside "הוסף חבר צוות" as a mode switch, not a separate standalone
+    // toggle — open the add-member panel first, then switch it to link mode.
+    await page.getByText(Strings.teamList.addMemberToggle).click();
+    await page.getByText(Strings.teamList.addMemberModeLinkLabel).click();
     await page.getByText(Strings.invites.createLinkButton).click();
     await page.getByPlaceholder(Strings.invites.namePlaceholder).waitFor();
     await page.getByText(Strings.invites.createLinkButton).click();
@@ -167,7 +173,8 @@ test.describe('Team invites — email invites for unregistered users + shareable
     // the only place a copy action used to exist. The persisted list row must offer one too.
     await page.reload();
     await page.getByText(teamName).waitFor();
-    await page.getByText(Strings.invites.manageLinksToggle).click();
+    await page.getByText(Strings.teamList.addMemberToggle).click();
+    await page.getByText(Strings.teamList.addMemberModeLinkLabel).click();
     await page.getByText(Strings.invites.copyLinkButton).click();
 
     const clipboardText = await page.evaluate(() => navigator.clipboard.readText());

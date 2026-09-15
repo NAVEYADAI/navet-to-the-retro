@@ -30,6 +30,7 @@ describe('TeamsService', () => {
       findMany: jest.fn(),
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+      create: jest.fn(),
     },
     team: {
       create: jest.fn(),
@@ -455,6 +456,75 @@ describe('TeamsService', () => {
 
       expect(mockPrismaService.teamMember.delete).toHaveBeenCalledWith({ where: { id: targetAdmin.id } });
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('createPhantomMember', () => {
+    const admin = { userId: creator.id, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER' };
+    const nonAdmin = { userId: approver.id, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER' };
+    const dto = { firstName: 'Phanto', lastName: 'Mm' };
+
+    it('throws NotFoundException when the team does not exist', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(null);
+
+      await expect(service.createPhantomMember(mockTeam.id, dto as any, creator.id)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when the requester is neither admin nor team leader', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(nonAdmin);
+
+      await expect(service.createPhantomMember(mockTeam.id, dto as any, approver.id)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+    });
+
+    it('creates a User (isPhantom, password:null, auto-generated username/email) and a TeamMember in one nested write', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.user.create.mockImplementation(({ data }: any) => Promise.resolve({
+        id: 500,
+        username: data.username,
+        email: data.email,
+        password: data.password,
+        isPhantom: data.isPhantom,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        members: [{ id: 55, teamId: mockTeam.id, role: data.members.create.role, isAdmin: false, status: 'ACTIVE' }],
+      }));
+
+      const result = await service.createPhantomMember(mockTeam.id, dto as any, admin.userId);
+
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            username: expect.stringMatching(/^phantom_[0-9a-f]{16}$/),
+            email: expect.stringMatching(/^phantom_[0-9a-f]{16}@phantom\.local$/),
+            password: null,
+            isPhantom: true,
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            members: { create: expect.objectContaining({ teamId: mockTeam.id, role: 'DEVELOPER', isAdmin: false, status: 'ACTIVE' }) },
+          }),
+        })
+      );
+      expect(result.isPhantom).toBe(true);
+      expect((result as any).password).toBeUndefined();
+    });
+
+    it('honors an explicit role instead of defaulting to DEVELOPER', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.user.create.mockResolvedValue({ id: 501, isPhantom: true, members: [] });
+
+      await service.createPhantomMember(mockTeam.id, { ...dto, role: 'TESTER' } as any, admin.userId);
+
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            members: { create: expect.objectContaining({ role: 'TESTER' }) },
+          }),
+        })
+      );
     });
   });
 });

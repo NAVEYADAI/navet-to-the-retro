@@ -80,6 +80,34 @@ export function Field({
                   ),
                 },
               }
+            : type === 'select'
+            ? {
+                select: {
+                  displayEmpty: true,
+                  renderValue: (selected: unknown) => {
+                    const opt = options.find((o) => o.value === selected);
+                    return (
+                      <Box component="span" sx={{ color: opt ? t.color.text : t.color.textMuted }}>
+                        {opt ? opt.label : placeholder || label}
+                      </Box>
+                    );
+                  },
+                  MenuProps: {
+                    slotProps: {
+                      paper: {
+                        sx: {
+                          marginTop: '4px',
+                          borderRadius: `${t.radius.field}px`,
+                          border: `1px solid ${t.color.border}`,
+                          boxShadow: t.shadow.md,
+                          maxHeight: 320,
+                        },
+                      },
+                      list: { sx: { padding: '4px' } },
+                    },
+                  },
+                },
+              }
             : undefined
         }
         sx={{
@@ -91,6 +119,7 @@ export function Field({
             paddingBlock: '2px',
           },
           '& .MuiInputBase-input': { textAlign: 'start', paddingBlock: '9px' },
+          '& .MuiSelect-icon': { color: t.color.textMuted },
           '& fieldset': { borderColor },
           '&:hover fieldset': { borderColor: error ? t.color.status.danger.fg : t.color.textMuted },
           '& .Mui-focused fieldset': {
@@ -101,11 +130,28 @@ export function Field({
         }}
       >
         {type === 'select'
-          ? options.map((o) => (
-              <MenuItem key={o.value} value={o.value} sx={{ ...t.type.body }}>
-                {o.label}
-              </MenuItem>
-            ))
+          ? options.map((o) => {
+              const selected = o.value === value;
+              return (
+                <MenuItem
+                  key={o.value}
+                  value={o.value}
+                  sx={{
+                    ...t.type.body,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: `${t.space[2]}px`,
+                    borderRadius: `${t.radius.badge}px`,
+                    color: selected ? t.color.accent.base : t.color.text,
+                    fontWeight: selected ? 600 : 400,
+                    backgroundColor: selected ? `${t.color.accent.subtle} !important` : 'transparent',
+                  }}
+                >
+                  {o.label}
+                  {selected && <Icon name="check" size="sm" tone="accent" />}
+                </MenuItem>
+              );
+            })
           : null}
       </TextField>
 

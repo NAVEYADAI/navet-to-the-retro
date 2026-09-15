@@ -3,7 +3,7 @@ import { Box, Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
-import { getCommentCategoryLabel, getCommentAuthorName } from '../comment-display';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
 
 interface CommentCardWebProps {
   comment: {
@@ -14,6 +14,9 @@ interface CommentCardWebProps {
     isAnonymous: boolean;
     isHighlighted?: boolean;
     author: { username: string; firstName?: string | null; lastName?: string | null };
+    // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.2): always visible
+    // when present — see comment-display.ts::getPostedByAdminLabel.
+    postedByAdmin?: { id: number; username: string; firstName?: string | null; lastName?: string | null } | null;
     createdAt: string;
   };
   index: number;
@@ -29,6 +32,7 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight }: Com
   const isHighlighted = !!comment.isHighlighted;
   const categoryLabel = getCommentCategoryLabel(comment);
   const authorName = getCommentAuthorName(comment);
+  const postedByAdminLabel = getPostedByAdminLabel(comment);
 
   return (
     <Box
@@ -93,6 +97,27 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight }: Com
             ) : isHighlighted ? (
               <Icon name="star" size="sm" tone="accent" />
             ) : null}
+          </Box>
+        )}
+
+        {postedByAdminLabel && (
+          <Box
+            sx={{
+              display: 'inline-flex',
+              alignSelf: 'flex-start',
+              alignItems: 'center',
+              gap: '6px',
+              paddingInline: '8px',
+              paddingBlock: '4px',
+              borderRadius: `${t.radius.pill}px`,
+              backgroundColor: t.color.accent.subtle,
+              border: `1px solid ${t.color.accent.border}`,
+            }}
+          >
+            <Icon name="ghost" size="sm" tone="accent" />
+            <Typography sx={{ ...t.type.caption, fontWeight: 700, color: t.color.accent.base }}>
+              <bdi>{postedByAdminLabel}</bdi>
+            </Typography>
           </Box>
         )}
 

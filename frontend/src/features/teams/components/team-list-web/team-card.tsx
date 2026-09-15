@@ -8,7 +8,7 @@ import { useTheme } from '@/design/theme-context';
 import { Card, Button, Badge, Icon } from '@/components/ui';
 import { TeamMemberRow } from './team-member-row';
 import { AddMemberForm } from './add-member-form';
-import { InviteLinksPanel } from './invite-links-panel';
+import { AddPhantomMemberForm } from './add-phantom-member-form';
 import { getMemberRank } from './roles';
 
 interface TeamCardProps {
@@ -22,11 +22,15 @@ interface TeamCardProps {
 export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSprint }: TeamCardProps) {
   const t = useTheme();
   const [isAddMemberFormVisible, setIsAddMemberFormVisible] = useState(false);
+  const [isAddPhantomFormVisible, setIsAddPhantomFormVisible] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
   const myMembership = team.members?.find((m: any) => m.userId === userId);
   const isTeamAdmin = myMembership?.isAdmin || false;
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decision #1) —
+  // `isAdmin || role === 'TEAM_LEADER'`, distinct from `isTeamAdmin` above (isAdmin-only).
+  const canManageTeamContent = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
   const sortedMembers = [...(team.members || [])].sort((a: any, b: any) =>
     getMemberRank(a, userId) - getMemberRank(b, userId)
   );
@@ -94,11 +98,18 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
           <Typography sx={{ ...t.type.bodyStrong, color: t.color.text, minWidth: 0 }}>
             {Strings.teamList.membersHeader(team.members?.length || 0)}
           </Typography>
-          {isTeamAdmin && !isPending && (
-            <Button size="sm" variant="secondary" icon={isAddMemberFormVisible ? undefined : 'plus'} onPress={() => setIsAddMemberFormVisible(v => !v)}>
-              {isAddMemberFormVisible ? Strings.dashboard.closeButton : Strings.teamList.addMemberToggle}
-            </Button>
-          )}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
+            {isTeamAdmin && !isPending && (
+              <Button size="sm" variant="secondary" icon={isAddMemberFormVisible ? undefined : 'plus'} onPress={() => setIsAddMemberFormVisible(v => !v)}>
+                {isAddMemberFormVisible ? Strings.dashboard.closeButton : Strings.teamList.addMemberToggle}
+              </Button>
+            )}
+            {canManageTeamContent && !isPending && (
+              <Button size="sm" variant="secondary" icon={isAddPhantomFormVisible ? undefined : 'user-plus'} onPress={() => setIsAddPhantomFormVisible(v => !v)}>
+                {isAddPhantomFormVisible ? Strings.dashboard.closeButton : Strings.teamList.addPhantomMemberToggle}
+              </Button>
+            )}
+          </Box>
         </Box>
 
         <List sx={{ padding: 0, display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
@@ -111,6 +122,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
               isTeamAdmin={isTeamAdmin}
               isMe={member.userId === userId}
               onChanged={onAddMemberSuccess}
+              canManageTeamContent={canManageTeamContent}
             />
           ))}
         </List>
@@ -126,9 +138,15 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
         }}
       />
 
-      {isTeamAdmin && !isPending && (
-        <InviteLinksPanel teamId={team.id} token={token} />
-      )}
+      <AddPhantomMemberForm
+        teamId={team.id}
+        token={token}
+        isVisible={isAddPhantomFormVisible && !isPending}
+        onCreated={() => {
+          setIsAddPhantomFormVisible(false);
+          onAddMemberSuccess();
+        }}
+      />
 
       {!isPending && (
         <TeamSprintsManager

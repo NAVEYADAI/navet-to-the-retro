@@ -35,7 +35,6 @@ function inviteStatus(invite: any, t: AppTheme): { label: string; fg: string; bg
 
 export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   const t = useTheme();
-  const [isExpanded, setIsExpanded] = useState(false);
   const [invites, setInvites] = useState<any[]>([]);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -58,8 +57,8 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   }, [teamId, token]);
 
   useEffect(() => {
-    if (isExpanded) fetchInvites();
-  }, [isExpanded, fetchInvites]);
+    fetchInvites();
+  }, [fetchInvites]);
 
   const handleCreateLink = async () => {
     setCreateError(null);
@@ -121,16 +120,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
 
   return (
     <View style={{ gap: t.space[2] }}>
-      <TouchableOpacity style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }} onPress={() => setIsExpanded((v) => !v)}>
-        <Icon name="chevron-down" size="sm" tone="muted" rotate={isExpanded ? 180 : 0} />
-        <Text style={[rnText(t.type.bodyStrong), { color: t.color.textSecondary, textAlign: 'right' }]}>
-          {Strings.invites.manageLinksToggle}
-        </Text>
-      </TouchableOpacity>
-
-      {isExpanded && (
-        <View style={{ gap: t.space[2] }}>
-          {newLinkToken && (
+      {newLinkToken && (
             <View
               style={{
                 backgroundColor: t.color.status.success.bg,
@@ -388,8 +378,6 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
               );
             })
           )}
-        </View>
-      )}
     </View>
   );
 }

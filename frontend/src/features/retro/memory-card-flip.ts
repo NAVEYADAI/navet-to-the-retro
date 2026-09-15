@@ -15,6 +15,10 @@ export interface MemoryCardComment {
   category?: string | null;
   isAnonymous: boolean;
   author: { username: string; firstName?: string | null; lastName?: string | null };
+  // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.2, 2026-09-14
+  // cross-feature addendum): the memory board is a valid display path for the same `Comment`,
+  // so it needs the same "posted on behalf of" indicator as the regular board.
+  postedByAdmin?: { id: number; username: string; firstName?: string | null; lastName?: string | null } | null;
   createdAt: string;
 }
 

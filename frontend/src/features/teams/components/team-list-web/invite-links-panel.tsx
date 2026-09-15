@@ -2,9 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { getBackendUrl, getFrontendUrl } from '@/api/config';
 import { Strings } from '@/constants/strings';
-import { Box, Typography, Alert, Collapse } from '@mui/material';
+import { Box, Typography, Alert } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
-import { Button, Field, Badge, Icon } from '@/components/ui';
+import { Button, Field, Badge } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 
@@ -26,7 +26,6 @@ function inviteStatus(invite: any): { label: string; tone: Tone } {
 
 export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   const t = useTheme();
-  const [isExpanded, setIsExpanded] = useState(false);
   const [invites, setInvites] = useState<any[]>([]);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -51,8 +50,8 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   }, [teamId, token]);
 
   useEffect(() => {
-    if (isExpanded) fetchInvites();
-  }, [isExpanded, fetchInvites]);
+    fetchInvites();
+  }, [fetchInvites]);
 
   const handleCreateLink = async () => {
     setCreateError(null);
@@ -112,15 +111,6 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
-      <Button size="sm" variant="ghost" onPress={() => setIsExpanded((v) => !v)}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px` }}>
-          <Icon name="chevron-down" size="sm" tone="muted" rotate={isExpanded ? 180 : 0} />
-          {Strings.invites.manageLinksToggle}
-        </Box>
-      </Button>
-
-      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
           {newLinkToken && (
             <Box
               sx={{
@@ -253,8 +243,6 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
               );
             })
           )}
-        </Box>
-      </Collapse>
     </Box>
   );
 }

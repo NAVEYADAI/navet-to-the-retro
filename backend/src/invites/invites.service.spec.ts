@@ -14,7 +14,7 @@ describe('InvitesService', () => {
 
   const mockPrismaService = {
     team: { findUnique: jest.fn() },
-    teamMember: { findUnique: jest.fn(), create: jest.fn() },
+    teamMember: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
     teamInvite: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
@@ -22,7 +22,7 @@ describe('InvitesService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
-    user: { findUnique: jest.fn() },
+    user: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     $transaction: jest.fn(),
   };
 
@@ -165,7 +165,10 @@ describe('InvitesService', () => {
 
       const result = await service.getInvite('tok');
 
-      expect(result).toEqual({ teamName: 'Core Team', email: 'x@example.com', valid: true, reason: undefined });
+      expect(result).toEqual({
+        teamName: 'Core Team', email: 'x@example.com', valid: true, reason: undefined,
+        type: 'join', prefill: undefined,
+      });
     });
 
     it.each([
@@ -179,6 +182,19 @@ describe('InvitesService', () => {
 
       expect(result.valid).toBe(false);
       expect(result.reason).toBe(expectedReason);
+    });
+
+    it('reports type:phantomConversion with a firstName/lastName prefill for a conversion link', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({
+        isRevoked: false, expiresAt: null, maxUses: 1, useCount: 0, email: null,
+        convertsMemberId: 7, team: { name: 'Core Team' },
+        convertsMember: { user: { firstName: 'Phanto', lastName: 'Mm' } },
+      });
+
+      const result = await service.getInvite('tok');
+
+      expect(result.type).toBe('phantomConversion');
+      expect(result.prefill).toEqual({ firstName: 'Phanto', lastName: 'Mm' });
     });
   });
 
@@ -277,6 +293,132 @@ describe('InvitesService', () => {
         where: { id: 7 },
         data: { isRevoked: true },
       });
+    });
+  });
+
+  describe('createPhantomConversionInvite', () => {
+    const phantomMember = { id: 50, teamId: team.id, userId: 500, user: { id: 500, isPhantom: true } };
+
+    it('throws NotFoundException when the team does not exist', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(null);
+
+      await expect(service.createPhantomConversionInvite(team.id, phantomMember.id, {}, admin.userId))
+        .rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when the requester is not an admin/team-leader', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(nonAdmin);
+
+      await expect(service.createPhantomConversionInvite(team.id, phantomMember.id, {}, nonAdmin.userId))
+        .rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when the target member is not in this team', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.teamMember.findFirst.mockResolvedValue(null);
+
+      await expect(service.createPhantomConversionInvite(team.id, 999, {}, admin.userId))
+        .rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ConflictException when the target member is not (or no longer) a phantom', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.teamMember.findFirst.mockResolvedValue({ ...phantomMember, user: { id: 500, isPhantom: false } });
+
+      await expect(service.createPhantomConversionInvite(team.id, phantomMember.id, {}, admin.userId))
+        .rejects.toThrow(ConflictException);
+      expect(mockPrismaService.teamInvite.create).not.toHaveBeenCalled();
+    });
+
+    it('creates a single-use, email-less conversion invite linked to the phantom member', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.teamMember.findFirst.mockResolvedValue(phantomMember);
+      mockPrismaService.teamInvite.create.mockResolvedValue({ id: 1, token: 'convtok' });
+
+      await service.createPhantomConversionInvite(team.id, phantomMember.id, {}, admin.userId);
+
+      expect(mockPrismaService.teamInvite.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          teamId: team.id,
+          convertsMemberId: phantomMember.id,
+          email: null,
+          maxUses: 1,
+          createdById: admin.userId,
+          expiresAt: null,
+        }),
+      });
+    });
+  });
+
+  describe('consumePhantomConversionInvite', () => {
+    const conversionInvite = {
+      id: 8, token: 'convtok', teamId: team.id, convertsMemberId: 50,
+      isRevoked: false, expiresAt: null, maxUses: 1, useCount: 0,
+    };
+    const phantomMember = { id: 50, teamId: team.id, userId: 500 };
+    const phantomUser = { id: 500, username: 'phantom_abc', email: 'phantom_abc@phantom.local', isPhantom: true, firstName: 'Phanto', lastName: null };
+    const conversionDto = { username: 'realuser', email: 'real@example.com', password: 'pw123456' };
+
+    it('throws NotFoundException when the token does not exist', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue(null);
+
+      await expect(service.consumePhantomConversionInvite('missing', conversionDto)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ConflictException when the invite is no longer valid', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({ ...conversionInvite, isRevoked: true });
+
+      await expect(service.consumePhantomConversionInvite('convtok', conversionDto)).rejects.toThrow(ConflictException);
+    });
+
+    it('throws ConflictException when the invite is not a conversion invite', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({ ...conversionInvite, convertsMemberId: null });
+
+      await expect(service.consumePhantomConversionInvite('convtok', conversionDto)).rejects.toThrow(ConflictException);
+    });
+
+    it('throws ConflictException when the phantom has already been converted (double-conversion blocked)', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue(conversionInvite);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(phantomMember);
+      mockPrismaService.user.findUnique.mockResolvedValue({ ...phantomUser, isPhantom: false });
+
+      await expect(service.consumePhantomConversionInvite('convtok', conversionDto)).rejects.toThrow(ConflictException);
+    });
+
+    it('throws ConflictException when username/email is taken by someone other than the phantom itself', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue(conversionInvite);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(phantomMember);
+      mockPrismaService.user.findUnique.mockResolvedValue(phantomUser);
+      mockPrismaService.user.findFirst.mockResolvedValue({ id: 999 });
+
+      await expect(service.consumePhantomConversionInvite('convtok', conversionDto)).rejects.toThrow(ConflictException);
+      expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ username: conversionDto.username }, { email: conversionDto.email }], NOT: { id: phantomUser.id } },
+      });
+    });
+
+    it('converts the phantom in place, increments useCount, and returns a valid accessToken', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue(conversionInvite);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(phantomMember);
+      mockPrismaService.user.findUnique.mockResolvedValue(phantomUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.$transaction.mockResolvedValue([
+        { ...phantomUser, username: conversionDto.username, email: conversionDto.email, password: 'hashed', isPhantom: false },
+        { id: conversionInvite.id, useCount: 1 },
+      ]);
+
+      const result = await service.consumePhantomConversionInvite('convtok', conversionDto);
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalled();
+      expect(result.accessToken).toEqual(expect.any(String));
+      expect(result.user).toEqual(
+        expect.objectContaining({ username: conversionDto.username, email: conversionDto.email, isPhantom: false })
+      );
+      expect((result.user as any).password).toBeUndefined();
     });
   });
 });

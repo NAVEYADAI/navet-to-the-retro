@@ -41,6 +41,16 @@ export class SprintsController {
     return this.sprintsService.update(teamId, sprintId, dto, user.id);
   }
 
+  @Get(':sprintId/length-history')
+  async getLengthHistory(
+    @Headers('authorization') authHeader: string,
+    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('sprintId', ParseIntPipe) sprintId: number
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.sprintsService.getLengthHistory(teamId, sprintId, user.id);
+  }
+
   @Get(':sprintId/summary/export')
   async exportSummary(
     @Headers('authorization') authHeader: string,

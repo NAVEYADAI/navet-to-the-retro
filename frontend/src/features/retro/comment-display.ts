@@ -17,7 +17,10 @@ export interface DisplayableComment {
   postedByAdmin?: { id: number; username: string; firstName?: string | null; lastName?: string | null } | null;
 }
 
-function formatUserDisplayName(user: { username: string; firstName?: string | null; lastName?: string | null }): string {
+// Exported (not just used internally) so other per-user display needs — e.g. SprintLengthHistoryPanel
+// (product-backlog/05-sprint-length-audit-log.md §5.2, `changedBy`) — reuse the same name-formatting
+// rule instead of re-deriving "firstName + lastName, fall back to username" a third time.
+export function formatUserDisplayName(user: { username: string; firstName?: string | null; lastName?: string | null }): string {
   return `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username;
 }
 

@@ -43,6 +43,11 @@ describe('SprintsService', () => {
     comment: {
       findMany: jest.fn(),
     },
+    sprintLengthChange: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
 
   const mockGoogleCalendarService = {
@@ -60,6 +65,14 @@ describe('SprintsService', () => {
     }).compile();
 
     service = module.get<SprintsService>(SprintsService);
+
+    // `create`/`update` now wrap their DB writes in `prisma.$transaction` (product-backlog/
+    // 05-sprint-length-audit-log.md §5.1) — the mock just invokes the callback with the same
+    // mock prisma object standing in for `tx`, so every existing `mockPrismaService.sprint.*`
+    // assertion below keeps working unchanged.
+    mockPrismaService.$transaction.mockImplementation((callback: (tx: typeof mockPrismaService) => unknown) =>
+      callback(mockPrismaService)
+    );
   });
 
   afterEach(() => {
@@ -122,6 +135,35 @@ describe('SprintsService', () => {
       await expect(service.create(activeTeam.id, dto, admin.userId)).resolves.toEqual(
         expect.objectContaining({ id: 1 })
       );
+    });
+
+    // product-backlog/05-sprint-length-audit-log.md §5.0 decision #4 / §5.3
+    it('creates a baseline SprintLengthChange row alongside the sprint, inside the same transaction', async () => {
+      const created = {
+        id: 1,
+        name: dto.name,
+        startDate: new Date(dto.startDate),
+        endDate: new Date(dto.endDate),
+        teamId: activeTeam.id,
+      };
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.create.mockResolvedValue(created);
+
+      await service.create(activeTeam.id, dto, admin.userId);
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.sprintLengthChange.create).toHaveBeenCalledWith({
+        data: {
+          sprintId: created.id,
+          changedById: admin.userId,
+          previousStartDate: null,
+          previousEndDate: null,
+          newStartDate: created.startDate,
+          newEndDate: created.endDate,
+          reason: null,
+        },
+      });
     });
   });
 
@@ -250,6 +292,146 @@ describe('SprintsService', () => {
       await expect(
         service.update(activeTeam.id, existingSprint.id, { startDate: '2026-02-01', endDate: '2026-02-14' }, admin.userId)
       ).resolves.toEqual(updatedSprint);
+    });
+
+    // product-backlog/05-sprint-length-audit-log.md §5.1 / §5.3
+    it('creates a SprintLengthChange row with the old/new values and reason when dates actually change', async () => {
+      const updatedSprint = { ...existingSprint, startDate: new Date('2026-02-01'), endDate: new Date('2026-02-14') };
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(existingSprint);
+      mockPrismaService.sprint.update.mockResolvedValue(updatedSprint);
+
+      await service.update(
+        activeTeam.id,
+        existingSprint.id,
+        { startDate: '2026-02-01', endDate: '2026-02-14', reason: 'לקוח ביקש דחייה' },
+        admin.userId
+      );
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.sprintLengthChange.create).toHaveBeenCalledWith({
+        data: {
+          sprintId: existingSprint.id,
+          changedById: admin.userId,
+          previousStartDate: existingSprint.startDate,
+          previousEndDate: existingSprint.endDate,
+          newStartDate: updatedSprint.startDate,
+          newEndDate: updatedSprint.endDate,
+          reason: 'לקוח ביקש דחייה',
+        },
+      });
+    });
+
+    it('does not create a SprintLengthChange row when only name/description change', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(existingSprint);
+      mockPrismaService.sprint.update.mockResolvedValue({ ...existingSprint, name: 'New name' });
+
+      await service.update(activeTeam.id, existingSprint.id, { name: 'New name' }, admin.userId);
+
+      expect(mockPrismaService.sprintLengthChange.create).not.toHaveBeenCalled();
+    });
+
+    it('does not create a SprintLengthChange row when a date is sent but is identical to the existing one', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(existingSprint);
+      mockPrismaService.sprint.update.mockResolvedValue({ ...existingSprint });
+
+      await service.update(
+        activeTeam.id,
+        existingSprint.id,
+        { startDate: existingSprint.startDate.toISOString(), endDate: existingSprint.endDate.toISOString() },
+        admin.userId
+      );
+
+      expect(mockPrismaService.sprintLengthChange.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getLengthHistory', () => {
+    const sprint = { id: 5, teamId: activeTeam.id, name: 'Sprint 1' };
+    const teamLeader = { userId: 30, teamId: activeTeam.id, isAdmin: false, role: 'TEAM_LEADER' };
+    const regularMember = { userId: 40, teamId: activeTeam.id, isAdmin: false, role: 'DEVELOPER' };
+    const changer = { id: admin.userId, username: 'admin-user', password: 'hashed', firstName: 'A', lastName: 'B' };
+
+    const records = [
+      {
+        id: 2,
+        sprintId: sprint.id,
+        changedById: admin.userId,
+        previousStartDate: new Date('2026-01-01'),
+        previousEndDate: new Date('2026-01-14'),
+        newStartDate: new Date('2026-02-01'),
+        newEndDate: new Date('2026-02-14'),
+        reason: null,
+        createdAt: new Date('2026-02-01T00:00:00Z'),
+        changedBy: changer,
+      },
+      {
+        id: 1,
+        sprintId: sprint.id,
+        changedById: admin.userId,
+        previousStartDate: null,
+        previousEndDate: null,
+        newStartDate: new Date('2026-01-01'),
+        newEndDate: new Date('2026-01-14'),
+        reason: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        changedBy: changer,
+      },
+    ];
+
+    it('throws NotFoundException when the sprint does not belong to the team', async () => {
+      mockPrismaService.sprint.findFirst.mockResolvedValue(null);
+
+      await expect(service.getLengthHistory(activeTeam.id, 999, admin.userId)).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.teamMember.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('blocks a regular team member with ForbiddenException (403)', async () => {
+      mockPrismaService.sprint.findFirst.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(regularMember);
+
+      await expect(service.getLengthHistory(activeTeam.id, sprint.id, regularMember.userId)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.sprintLengthChange.findMany).not.toHaveBeenCalled();
+    });
+
+    it('allows a team admin', async () => {
+      mockPrismaService.sprint.findFirst.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprintLengthChange.findMany.mockResolvedValue(records);
+
+      await expect(service.getLengthHistory(activeTeam.id, sprint.id, admin.userId)).resolves.toBeDefined();
+    });
+
+    it('allows a TEAM_LEADER who is not an admin', async () => {
+      mockPrismaService.sprint.findFirst.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(teamLeader);
+      mockPrismaService.sprintLengthChange.findMany.mockResolvedValue(records);
+
+      await expect(service.getLengthHistory(activeTeam.id, sprint.id, teamLeader.userId)).resolves.toBeDefined();
+    });
+
+    it('sorts by createdAt desc, strips password from changedBy, and includes baseline + updates', async () => {
+      mockPrismaService.sprint.findFirst.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprintLengthChange.findMany.mockResolvedValue(records);
+
+      const result = await service.getLengthHistory(activeTeam.id, sprint.id, admin.userId);
+
+      expect(mockPrismaService.sprintLengthChange.findMany).toHaveBeenCalledWith({
+        where: { sprintId: sprint.id },
+        orderBy: { createdAt: 'desc' },
+        include: { changedBy: true },
+      });
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe(2);
+      expect(result[1].id).toBe(1);
+      expect(result[1].previousStartDate).toBeNull();
+      expect(result[0].changedBy).not.toHaveProperty('password');
     });
   });
 

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma.service';
 import { CreateSprintDto, UpdateSprintDto } from './dto/sprints.dto';
 import { buildSprintSummaryPptx, buildExportFileName, resolveTemplateId } from './sprint-summary.builder';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
+import { assertCanManageTeamContent } from '../teams/team-permissions.util';
 
 @Injectable()
 export class SprintsService {
@@ -38,15 +39,34 @@ export class SprintsService {
       throw new ForbiddenException('Only team admins can create sprints');
     }
 
-    // 3. Create sprint
-    const sprint = await this.prisma.sprint.create({
-      data: {
-        name: dto.name,
-        description: dto.description,
-        startDate: new Date(dto.startDate),
-        endDate: new Date(dto.endDate),
-        teamId: teamId
-      }
+    // 3. Create the sprint, plus its baseline SprintLengthChange row (product-backlog/
+    // 05-sprint-length-audit-log.md §5.0 decision #4) in the same transaction — the history for
+    // a sprint always starts with a "row zero" of who created it and with what dates, never
+    // empty until the first edit.
+    const sprint = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.sprint.create({
+        data: {
+          name: dto.name,
+          description: dto.description,
+          startDate: new Date(dto.startDate),
+          endDate: new Date(dto.endDate),
+          teamId: teamId
+        }
+      });
+
+      await tx.sprintLengthChange.create({
+        data: {
+          sprintId: created.id,
+          changedById: requesterId,
+          previousStartDate: null,
+          previousEndDate: null,
+          newStartDate: created.startDate,
+          newEndDate: created.endDate,
+          reason: null
+        }
+      });
+
+      return created;
     });
 
     // 4. Best-effort sync to every team member's connected Google Calendar
@@ -89,24 +109,48 @@ export class SprintsService {
       throw new NotFoundException('Sprint not found');
     }
 
-    // 4. Update only the fields actually provided
-    const updated = await this.prisma.sprint.update({
-      where: { id: sprintId },
-      data: {
-        ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.description !== undefined && { description: dto.description }),
-        ...(dto.startDate !== undefined && { startDate: new Date(dto.startDate) }),
-        ...(dto.endDate !== undefined && { endDate: new Date(dto.endDate) })
+    // 4. Update only the fields actually provided, plus (product-backlog/
+    // 05-sprint-length-audit-log.md §5.1) a SprintLengthChange row if the dates actually
+    // changed — both writes share one `$transaction` so a history row is never created without
+    // the update itself succeeding, or vice versa. `datesChanged` here is the single source of
+    // truth reused below for the (non-transactional) Google Calendar sync decision, per feature
+    // 5's cross-feature note — not recomputed a second time.
+    const { updated, datesChanged } = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.sprint.update({
+        where: { id: sprintId },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.description !== undefined && { description: dto.description }),
+          ...(dto.startDate !== undefined && { startDate: new Date(dto.startDate) }),
+          ...(dto.endDate !== undefined && { endDate: new Date(dto.endDate) })
+        }
+      });
+
+      const changed =
+        result.startDate.getTime() !== sprint.startDate.getTime() ||
+        result.endDate.getTime() !== sprint.endDate.getTime();
+
+      if (changed) {
+        await tx.sprintLengthChange.create({
+          data: {
+            sprintId: result.id,
+            changedById: requesterId,
+            previousStartDate: sprint.startDate,
+            previousEndDate: sprint.endDate,
+            newStartDate: result.startDate,
+            newEndDate: result.endDate,
+            reason: dto.reason ?? null
+          }
+        });
       }
+
+      return { updated: result, datesChanged: changed };
     });
 
     // 5. If the dates actually changed, patch the existing Google Calendar event(s) for this
     // sprint (product-backlog/06-google-calendar-integration.md §6.0.4) rather than deleting/recreating — best-effort, same
-    // pattern as `create` above.
-    const datesChanged =
-      updated.startDate.getTime() !== sprint.startDate.getTime() ||
-      updated.endDate.getTime() !== sprint.endDate.getTime();
-
+    // pattern as `create` above. Deliberately outside the `$transaction` above (external HTTP
+    // call, not a DB write — see feature 5's cross-feature note).
     if (datesChanged) {
       try {
         await this.googleCalendarService.syncSprintUpdated({
@@ -123,6 +167,32 @@ export class SprintsService {
     }
 
     return updated;
+  }
+
+  // Feature 5 (product-backlog/05-sprint-length-audit-log.md §5.1): read-only history of a
+  // sprint's startDate/endDate changes, gated by `assertCanManageTeamContent` (admin or
+  // TEAM_LEADER — a *viewing* permission, deliberately broader than the admin-only write path
+  // above, see §5.0 decision #2 there).
+  async getLengthHistory(teamId: number, sprintId: number, requesterId: number) {
+    const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId } });
+    if (!sprint) {
+      throw new NotFoundException('Sprint not found');
+    }
+
+    await assertCanManageTeamContent(this.prisma, teamId, requesterId);
+
+    const records = await this.prisma.sprintLengthChange.findMany({
+      where: { sprintId },
+      orderBy: { createdAt: 'desc' },
+      include: { changedBy: true }
+    });
+
+    // Every User-shaped response strips `password` manually — no @Exclude in this codebase
+    // (see backend/AGENTS.md §"Passwords & JWT").
+    return records.map(({ changedBy, ...record }) => {
+      const { password, ...safeChangedBy } = changedBy;
+      return { ...record, changedBy: safeChangedBy };
+    });
   }
 
   async findAll(teamId: number, requesterId: number) {

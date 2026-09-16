@@ -131,65 +131,108 @@ endDate` — אין `Team.sprintLengthDays` ואין `Sprint.length`/`Sprint.dur
 
 ### 5.1 Backend
 
-- [ ] מודל Prisma חדש `SprintLengthChange`: `id, sprintId (FK ל-Sprint, cascade),
+- [x] מודל Prisma חדש `SprintLengthChange`: `id, sprintId (FK ל-Sprint, cascade),
       changedById (FK ל-User, cascade — עקבי עם TeamInvite.createdBy/Comment.author),
       previousStartDate DateTime?, previousEndDate DateTime?, newStartDate DateTime, newEndDate
       DateTime, reason String?, createdAt DateTime @default(now())`. `previous*` הן nullable
       כדי לתמוך ברשומת ה-baseline (יצירת ספרינט — אין "קודם"); ברשומות עדכון רגילות שתיהן
-      תמיד ממולאות.
-- [ ] `npx prisma db push` מול `postgres-test` (בטוח לביצוע ישיר) — **לא** מול Neon
-      dev/prod בלי אישור מפורש של נוה קודם (ר' `backend/AGENTS.md` §Database).
-- [ ] `sprints.service.ts::update`: לפני העדכון בפועל, להשוות
+      תמיד ממולאות. (`backend/prisma/schema.prisma` — מודל חדש + `Sprint.lengthChanges` /
+      `User.sprintLengthChanges` relations.)
+- [x] `npx prisma db push` מול `postgres-test` (בטוח לביצוע ישיר) — **לא** מול Neon
+      dev/prod בלי אישור מפורש של נוה קודם (ר' `backend/AGENTS.md` §Database). **בוצע מול
+      postgres-test בלבד** (localhost:5433) — **לא** רץ מול Neon dev/prod, נדרש אישור נוה
+      מפורש לפני שמריצים שם.
+- [x] `sprints.service.ts::update`: לפני העדכון בפועל, להשוות
       `sprint.startDate`/`sprint.endDate` (הערכים הישנים, כבר נטענים בקוד הקיים שורה 64) מול
       `dto.startDate`/`dto.endDate` שסופקו בפועל — אם יש שינוי אמיתי באחד מהם, ליצור רשומת
       `SprintLengthChange` (`previousStartDate/previousEndDate` = הערכים הישנים,
       `newStartDate/newEndDate` = הערכים אחרי העדכון, `reason` = `dto.reason` אם סופק) בתוך
       `prisma.$transaction` יחד עם ה-`update` עצמו, כדי שלא תיווצר רשומת היסטוריה בלי שהעדכון
-      עצמו הצליח או להפך.
-- [ ] `sprints.service.ts::create`: לאחר יצירת הספרינט, ליצור גם רשומת `SprintLengthChange`
+      עצמו הצליח או להפך. מומש: ה-`$transaction` מחזיר `{ updated, datesChanged }` — אותו
+      `datesChanged` שכבר קיים מפיצ'ר 6 (לא מחושב פעמיים), משמש גם להחלטה על רשומת ההיסטוריה
+      וגם (אחרי ה-commit) להחלטה על סנכרון Google Calendar, שנשאר **מחוץ** לטרנזקציה.
+- [x] `sprints.service.ts::create`: לאחר יצירת הספרינט, ליצור גם רשומת `SprintLengthChange`
       ראשונה (baseline) — `previousStartDate/previousEndDate = null`,
       `newStartDate/newEndDate` = ערכי היצירה, `changedById = requesterId`, `reason = null`.
       גם זה בתוך אותה `$transaction` שיוצרת את הספרינט.
-- [ ] הוספת `reason String?` ל-`UpdateSprintDto` (`backend/src/sprints/dto/sprints.dto.ts`).
-- [ ] `GET /teams/:teamId/sprints/:sprintId/length-history` — endpoint חדש ב-
+- [x] הוספת `reason String?` ל-`UpdateSprintDto` (`backend/src/sprints/dto/sprints.dto.ts`).
+- [x] `GET /teams/:teamId/sprints/:sprintId/length-history` — endpoint חדש ב-
       `sprints.controller.ts`/`sprints.service.ts`. Guard: **`assertCanManageTeamContent`**
       (`backend/src/teams/team-permissions.util.ts`, ייבוא ישיר — לא guard חדש) — admin או
       TEAM_LEADER בלבד. מחזיר רשימה ממוינת `createdAt desc`, כולל שם/שם-משתמש של `changedBy`
       (לא רק `changedById`, `include: { changedBy: true }`) — **לא** לשמור/להחזיר מספר ימים
-      כעמודת DB, האורך מחושב בזמן תצוגה בצד הלקוח (ר' ברירת מחדל 5.0.1).
+      כעמודת DB, האורך מחושב בזמן תצוגה בצד הלקוח (ר' ברירת מחדל 5.0.1). מומש: `password`
+      של `changedBy` נשלף ידנית (אין `@Exclude` בפרויקט, ר' `backend/AGENTS.md`
+      §"Passwords & JWT"); 404 אם הספרינט לא שייך לצוות נבדק **לפני** בדיקת ה-permission
+      (עקבי עם דפוס `comments.service.ts`).
+
+Jest ב-`sprints.service.spec.ts` שמכסים את כל הפריטים למעלה (baseline ב-`create`, רשומה עם
+ערכים נכונים + `reason` ב-`update` ששינה תאריכים, אין רשומה בשינוי `name`/`description` בלבד,
+אין רשומה כשתאריך נשלח אבל זהה לישן, `getLengthHistory` — 404 לספרינט לא קיים, 403 לחבר צוות
+רגיל, מותר ל-admin/TEAM_LEADER, מיון `createdAt desc`, `password` לא מודלף) נכתבו כחלק מהריצה
+הזו (חלק מ-§5.3, לא כפילות — לא נמצאו טסטים קיימים לתחום הזה). Playwright e2e (§5.3) לא נכתב
+כאן — מחוץ לסקופ של סוכן ה-backend.
 
 ### 5.2 Frontend
 
-- [ ] פאנל מתקפל בלוח הרטרו, בהעתקה ישירה של מבנה `invite-links-panel.tsx`
+- [x] פאנל מתקפל בלוח הרטרו, בהעתקה ישירה של מבנה `invite-links-panel.tsx`
       (`isExpanded` state + `useEffect(() => { if (isExpanded) fetch...() }, [isExpanded])` —
-      נשלף רק בפתיחה, לא ב-mount) — גם web (`frontend/src/features/teams/components/
-      team-list-web/`) וגם native (`team-list-native/`), ליד/בתוך לוח הרטרו הקיים.
-- [ ] הצגת כל רשומה: תאריך/שעת השינוי (`createdAt`), שם מבצע השינוי (`changedBy`), אורך ישן
+      נשלף רק בפתיחה, לא ב-mount). מומש כקומפוננטות חדשות
+      `frontend/src/features/retro/components/sprint-length-history-panel-web.tsx`
+      ו-`sprint-length-history-panel-native.tsx` (ליד לוח הרטרו עצמו, לא תחת
+      `team-list-web`/`team-list-native` — אלה רק מיקום דפוס-הייחוס `InviteLinksPanel`
+      שהועתק, הפאנל החדש הוא per-sprint ושייך ל-`features/retro`, לא ל-`features/teams`),
+      מורכבות ב-`sprint-retro-board-web.tsx`/`-native.tsx` מיד אחרי בלוק פרטי הספרינט.
+- [x] הצגת כל רשומה: תאריך/שעת השינוי (`createdAt`), שם מבצע השינוי (`changedBy`, דרך
+      `formatUserDisplayName` המשותפת מ-`comment-display.ts`, יוצאה עכשיו גם היא), אורך ישן
       → אורך חדש בימים (מחושב בצד הלקוח מהתאריכים שחוזרים מה-API — `previousStartDate` null
       ברשומת ה-baseline מוצג כ"נוצר לראשונה" ולא כ"שינוי מ-X ל-Y"), תאריכי ההתחלה/סיום
       הישנים והחדשים בפועל, וה-`reason` אם קיים.
-- [ ] הפאנל מוצג רק למי שעומד ב-`assertCanManageTeamContent` (admin/TEAM_LEADER) — עקבי עם
-      ה-guard בצד השרת; חבר צוות רגיל לא רואה את כפתור/פאנל ההיסטוריה בכלל.
-- [ ] `Field` טקסט חופשי אופציונלי "סיבה לשינוי" בטופס עריכת הספרינט הקיים
-      (`sprint-retro-board-web.tsx`/`-native.tsx`, ליד `editStartDate`/`editEndDate`), נשלח
-      כ-`reason` ב-PATCH.
-- [ ] כפתור פתיחת הפאנל מקבל `trackEvent()` חדש, לפי הכלל הקבוע בפרויקט (ר' ממצאי מחקר —
-      track events נפרד מה-audit log עצמו, לא תחליף).
-- [ ] `Strings.retroBoard.*` — מחרוזות עבריות חדשות: כותרת הפאנל, "נוצר לראשונה", תוויות
-      "אורך קודם"/"אורך חדש", תווית שדה "סיבה לשינוי (אופציונלי)".
+- [x] הפאנל (וכפתור הפתיחה שלו) מוצגים רק כש-`canViewLengthHistory` אמת — אותו תנאי בדיוק
+      כמו `canHighlight` הקיים (`isAdmin || role === 'TEAM_LEADER'`), שכבר תואם
+      ל-`assertCanManageTeamContent` בצד השרת; חבר צוות רגיל לא רואה את כפתור/פאנל ההיסטוריה
+      בכלל (web + native).
+- [x] `Field` טקסט חופשי אופציונלי "סיבה לשינוי" בטופס עריכת הספרינט הקיים
+      (`sprint-retro-board-web.tsx`: `<Field>`; `-native.tsx`: `TextInput` עם `editFieldStyle`
+      הקיים, עקבי עם שאר שדות הטופס באותו קובץ), ליד `editStartDate`/`editEndDate`, נשלח
+      כ-`reason` ב-PATCH (מתאפס לריק בכל פתיחת עריכה מחדש).
+- [x] כפתור פתיחת הפאנל שולח `trackEvent('sprint_length_history_opened', { sprintId })` בכל
+      פתיחה (web + native) — בנוסף לרשומות ה-audit log ב-DB, לא תחליף.
+- [x] `Strings.retroBoard.*` — מחרוזות עבריות חדשות: `lengthHistoryShowButton`/
+      `lengthHistoryHideButton`, `lengthHistoryTitle`, `lengthHistoryCreatedInitiallyText`
+      ("נוצר לראשונה"), `lengthHistoryPreviousLengthLabel`/`lengthHistoryNewLengthLabel`
+      ("אורך קודם"/"אורך חדש"), `lengthHistoryDaysLabel`, `lengthHistoryDatesLabel`,
+      `lengthHistoryReasonLabel`, `lengthHistoryEmptyText`/`lengthHistoryLoadingText`/
+      `lengthHistoryErrorText`, ו-`editReasonLabel`/`editReasonPlaceholder` לשדה הטופס.
+      אייקון חדש `history` נוסף ל-`IconName`/`REGISTRY` (web + native), שימוש אמיתי בלבד
+      (כפתור פתיחת הפאנל).
 
 ### 5.3 בדיקות
 
-- [ ] Jest ב-`sprints.service.spec.ts` (מורחב): `create` יוצר גם רשומת `SprintLengthChange`
+- [x] Jest ב-`sprints.service.spec.ts` (מורחב): `create` יוצר גם רשומת `SprintLengthChange`
       baseline אחת (`previousStartDate/previousEndDate = null`); PATCH ששינה תאריכים בפועל
       יוצר רשומה נוספת עם הערכים הישנים/חדשים הנכונים ו-`reason` אם סופק; PATCH ששינה רק
       `name`/`description` **לא** יוצר רשומה (ר' 5.0.4); PATCH עם תאריך זהה לישן (נשלח אבל
-      לא השתנה בפועל) גם לא יוצר רשומה.
-- [ ] Jest ל-endpoint הקריאה החדש: `assertCanManageTeamContent` חוסם חבר-צוות רגיל
+      לא השתנה בפועל) גם לא יוצר רשומה. **אומת** — הטסטים כבר נכתבו כחלק מריצת ה-backend
+      (`describe('create')`: `'creates a baseline SprintLengthChange row alongside the sprint,
+      inside the same transaction'`; `describe('update')`: `'creates a SprintLengthChange row
+      with the old/new values and reason when dates actually change'`,
+      `'does not create a SprintLengthChange row when only name/description change'`,
+      `'does not create a SprintLengthChange row when a date is sent but is identical to the
+      existing one'`), ורצו ירוק (`NODE_OPTIONS=--experimental-vm-modules jest
+      src/sprints.service.spec.ts` — 34/34 עברו).
+- [x] Jest ל-endpoint הקריאה החדש: `assertCanManageTeamContent` חוסם חבר-צוות רגיל
       (403), מאפשר admin ו-TEAM_LEADER; מיון `createdAt desc`; כולל baseline + כל העדכונים.
-- [ ] Playwright e2e: admin יוצר ספרינט ואז עורך את תאריכיו פעמיים ברצף (עם ובלי `reason`)
-      → פותח את פאנל ההיסטוריה → רואה 3 רשומות (baseline + 2 עדכונים) בסדר כרונולוגי הפוך עם
-      הערכים הנכונים; חבר-צוות רגיל (לא admin, לא TEAM_LEADER) נכנס לאותו ספרינט ו**לא** רואה
-      את כפתור/פאנל ההיסטוריה בכלל.
-- [ ] בדיקת מובייל — אותו e2e תחת `Mobile Chrome` project (עקבי עם כל שאר הפיצ'רים בבאקלוג
-      הזה).
+      **אומת** — `describe('getLengthHistory')` ב-`sprints.service.spec.ts` מכסה 404 לספרינט
+      לא-שייך, 403 לחבר רגיל, הצלחה ל-admin ול-TEAM_LEADER, ומיון+תוכן+`password` לא מודלף —
+      ירוק.
+- [x] Playwright e2e (`frontend/e2e/sprint-length-audit-log.spec.ts`): admin יוצר ספרינט
+      (baseline, אורך 14 ימים) ואז עורך את תאריכיו פעמיים ברצף — פעם ראשונה עם `reason` (אורך
+      14→21), פעם שנייה בלי `reason` (אורך 21→28, ומוודא ששדה הסיבה התאפס לריק בפתיחה
+      מחדש) → פותח את פאנל ההיסטוריה → מוודא 3 רשומות עם שם המבצע, ערכי אורך ישן/חדש נכונים,
+      וסדר כרונולוגי הפוך (לפי `boundingBox().y` של סמנים ייחודיים לכל רשומה — לא רק ספירה);
+      חבר-צוות רגיל (role `DEVELOPER`, לא admin ולא TEAM_LEADER) נכנס לאותו ספרינט ומוודא
+      שכפתורי הפתיחה/סגירה וכותרת הפאנל **נעדרים לגמרי מה-DOM** (`toHaveCount(0)`), לא רק
+      מוסתרים. ירוק.
+- [x] בדיקת מובייל — אותו e2e תחת `Mobile Chrome` project (עקבי עם כל שאר הפיצ'רים בבאקלוג
+      הזה) — ירוק, גם ברצף אחרי ריצת Desktop Chrome (suffix ייחודי per-run מונע התנגשות DB).

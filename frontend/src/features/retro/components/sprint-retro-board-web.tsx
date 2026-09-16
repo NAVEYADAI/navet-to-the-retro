@@ -10,6 +10,7 @@ import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
 import { SprintSummary } from '@/features/sprint-summary';
 import { MemoryBoard } from './memory-board';
+import { SprintLengthHistoryPanelWeb } from './sprint-length-history-panel-web';
 import { trackEvent } from '@/lib/analytics';
 
 interface SprintRetroBoardWebProps {
@@ -36,6 +37,11 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   const [editDescription, setEditDescription] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
+  // Feature 5 (product-backlog/05-sprint-length-audit-log.md §5.2): optional free-text reason,
+  // sent as `reason` in the PATCH body and persisted onto the SprintLengthChange row the backend
+  // creates only when startDate/endDate actually change — irrelevant otherwise, so always reset
+  // to empty on each fresh edit rather than carried over from a previous edit session.
+  const [editReason, setEditReason] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -133,6 +139,10 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   // Only team admins and team leads may highlight — see product-backlog/02-comment-highlighting.md §2.0.
   const myMembership = team.members?.find((m: any) => m.userId === user.id);
   const canHighlight = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
+  // Same predicate as canHighlight — mirrors the backend's assertCanManageTeamContent guard on
+  // GET .../length-history (product-backlog/05-sprint-length-audit-log.md §5.2): admin or
+  // TEAM_LEADER only, a regular team member never even sees the button/panel.
+  const canViewLengthHistory = canHighlight;
   // Same guard as canHighlight — Feature 9 (phantom members) §9.0 decision #1: posting "on
   // behalf of" someone (a phantom or a real member) is an admin/team-leader-only action.
   const canPostOnBehalf = canHighlight;
@@ -184,6 +194,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
     setEditDescription(sprintData.description || '');
     setEditStartDate(new Date(sprintData.startDate).toISOString().slice(0, 10));
     setEditEndDate(new Date(sprintData.endDate).toISOString().slice(0, 10));
+    setEditReason('');
     setEditError(null);
     setIsEditingSprint(true);
   };
@@ -198,7 +209,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
     try {
       const response = await axios.patch(
         `${getBackendUrl()}/teams/${team.id}/sprints/${sprintData.id}`,
-        { name: editName.trim(), description: editDescription || undefined, startDate: editStartDate, endDate: editEndDate },
+        { name: editName.trim(), description: editDescription || undefined, startDate: editStartDate, endDate: editEndDate, reason: editReason.trim() || undefined },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSprintData(response.data);
@@ -279,6 +290,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
             <Field label={Strings.sprints.endDateLabel} placeholder={Strings.sprints.endDateLabel} value={editEndDate} onChangeText={setEditEndDate} type="date" required />
           </Box>
 
+          <Field label={Strings.retroBoard.editReasonLabel} placeholder={Strings.retroBoard.editReasonPlaceholder} value={editReason} onChangeText={setEditReason} />
+
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px`, justifyContent: 'flex-end' }}>
             <Button variant="primary" onPress={handleSaveSprintEdit} disabled={isSavingEdit} loading={isSavingEdit}>
               {Strings.teamList.saveButton}
@@ -303,6 +316,10 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
             </Typography>
           )}
         </>
+      )}
+
+      {canViewLengthHistory && (
+        <SprintLengthHistoryPanelWeb teamId={team.id} sprintId={sprintData.id} token={token} />
       )}
 
       {/* Compose form */}

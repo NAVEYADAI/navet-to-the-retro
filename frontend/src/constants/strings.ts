@@ -186,6 +186,23 @@ export const Strings = {
     postOnBehalfMeOption: 'אני',
     postOnBehalfOtherOption: 'בשם מישהו אחר',
     postedOnBehalfIndicator: (authorName: string, adminName: string) => `הוזן/ה בשם ${authorName} על ידי ${adminName}`,
+    // Feature 5 (sprint length audit log, product-backlog/05-sprint-length-audit-log.md §5.2):
+    // history panel visible only to admin/TEAM_LEADER (assertCanManageTeamContent, mirrored
+    // client-side the same way canHighlight/canPostOnBehalf already are).
+    editReasonLabel: 'סיבה לשינוי (אופציונלי)',
+    editReasonPlaceholder: 'למשל: דחיית תאריך הסיום בעקבות חג',
+    lengthHistoryShowButton: 'היסטוריית שינויי אורך',
+    lengthHistoryHideButton: 'הסתר היסטוריית שינויים',
+    lengthHistoryTitle: 'היסטוריית שינויי אורך ספרינט',
+    lengthHistoryLoadingText: 'טוען היסטוריה...',
+    lengthHistoryErrorText: 'טעינת ההיסטוריה נכשלה.',
+    lengthHistoryEmptyText: 'אין עדיין שינויים מתועדים.',
+    lengthHistoryCreatedInitiallyText: 'נוצר לראשונה',
+    lengthHistoryPreviousLengthLabel: 'אורך קודם',
+    lengthHistoryNewLengthLabel: 'אורך חדש',
+    lengthHistoryDaysLabel: (days: number) => (days === 1 ? 'יום אחד' : `${days} ימים`),
+    lengthHistoryDatesLabel: (start: string, end: string) => `${start} – ${end}`,
+    lengthHistoryReasonLabel: 'סיבה:',
   },
   settings: {
     pageTitle: 'הגדרות מערכת',

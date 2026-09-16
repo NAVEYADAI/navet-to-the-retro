@@ -49,7 +49,7 @@ Backend-Frontend-בדיקות / "לא בטיפול".
 | 2 | [הדגשת הערות](./02-comment-highlighting.md) | מומש ✅ |
 | 3 | [קטגוריות מותאמות לצוות](./03-team-comment-categories.md) | מאופיין במלואו, מוכן למימוש — טרם הותחל |
 | 4 | [עריכת ספרינט לאחר יצירה](./04-sprint-editing.md) | מומש ✅ |
-| 5 | [תיעוד היסטוריית שינויי אורך ספרינט (Audit Log)](./05-sprint-length-audit-log.md) | מאופיין במלואו, מוכן למימוש — טרם הותחל |
+| 5 | [תיעוד היסטוריית שינויי אורך ספרינט (Audit Log)](./05-sprint-length-audit-log.md) | מומש ✅ — Backend+Frontend+בדיקות (§5.1/5.2/5.3) כולם סגורים; Jest (`sprints.service.spec.ts`) + Playwright e2e (Desktop+Mobile Chrome, `sprint-length-audit-log.spec.ts`) ירוקים; `db push` רץ בהצלחה מול `postgres-test` וגם מול Neon dev/prod |
 | 6 | [שילוב עם יומן Google — שלב א'](./06-google-calendar-integration.md) | מומש ✅ — Backend+Frontend+בדיקות (§6.1/6.2/6.3) כולם סגורים; `db push` רץ בהצלחה מול Neon האמיתי (2026-09-11); e2e ל-connect/disconnect עם stub (seed DB ישיר, לא OAuth אמיתי — ר' §6.3 למגבלה המפורשת); זרימת ה-connect/callback הספציפית של היומן מול Google האמיתי עדיין לא נלחצה ידנית ב-UI |
 | 7 | [התחברות/הרשמה עם Google (Sign in with Google)](./07-google-sign-in.md) | Backend+Frontend מומשו (ר' §7.1/7.2), כולל §7.4 (אימות אימייל+הגנה על שינוי) ו-§7.5 (בחירת תפקיד בהרשמה דרך Google + מסלול login→register אוטומטי + login_hint ליומן, 2026-09-13) — `db push` רץ בהצלחה מול Neon; login/register/Google sign-in עובדים; **זרימת ה-role-picker (§7.5) לא נבדקה ידנית מקצה-לקצה עדיין**; ה-backfill החד-פעמי ל-`emailVerifiedAt` — טרם הורץ; זרימת OAuth על native היא best-effort; בדיקות (§7.3) טרם הותחלו |
 | 8 | [תצוגת "משחק זיכרון" ללוח הרטרו](./08-memory-board.md) — **עדיפות מיידית** | מומש ✅ |

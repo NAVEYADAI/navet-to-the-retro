@@ -21,6 +21,7 @@ import { Icon } from '@/components/ui';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
 import { SprintSummary } from '@/features/sprint-summary';
 import { MemoryBoard } from './memory-board';
+import { SprintLengthHistoryPanelNative } from './sprint-length-history-panel-native';
 import { trackEvent } from '@/lib/analytics';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
 
@@ -74,6 +75,11 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   const [editDescription, setEditDescription] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
+  // Feature 5 (product-backlog/05-sprint-length-audit-log.md §5.2): optional free-text reason,
+  // sent as `reason` in the PATCH body and persisted onto the SprintLengthChange row the backend
+  // creates only when startDate/endDate actually change — irrelevant otherwise, so always reset
+  // to empty on each fresh edit rather than carried over from a previous edit session.
+  const [editReason, setEditReason] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -187,6 +193,10 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   // Only team admins and team leads may highlight — see product-backlog/02-comment-highlighting.md §2.0.
   const myMembership = team.members?.find((m: any) => m.userId === user.id);
   const canHighlight = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
+  // Same predicate as canHighlight — mirrors the backend's assertCanManageTeamContent guard on
+  // GET .../length-history (product-backlog/05-sprint-length-audit-log.md §5.2): admin or
+  // TEAM_LEADER only, a regular team member never even sees the button/panel.
+  const canViewLengthHistory = canHighlight;
   // Same guard as canHighlight — Feature 9 (phantom members) §9.0 decision #1: posting "on
   // behalf of" someone (a phantom or a real member) is an admin/team-leader-only action.
   const canPostOnBehalf = canHighlight;
@@ -317,6 +327,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
     setEditDescription(sprintData.description || '');
     setEditStartDate(new Date(sprintData.startDate).toISOString().slice(0, 10));
     setEditEndDate(new Date(sprintData.endDate).toISOString().slice(0, 10));
+    setEditReason('');
     setIsEditingSprint(true);
   };
 
@@ -331,6 +342,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
           description: editDescription.trim(),
           startDate: editStartDate,
           endDate: editEndDate,
+          reason: editReason.trim() || undefined,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -481,6 +493,13 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
                   placeholderTextColor={t.color.textSecondary}
                 />
               </View>
+              <TextInput
+                style={editFieldStyle(t)}
+                value={editReason}
+                onChangeText={setEditReason}
+                placeholder={Strings.retroBoard.editReasonLabel}
+                placeholderTextColor={t.color.textSecondary}
+              />
               {!!editError && (
                 <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
                   {editError}
@@ -527,6 +546,10 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             </View>
           )}
         </View>
+
+        {canViewLengthHistory && (
+          <SprintLengthHistoryPanelNative teamId={team.id} sprintId={sprintData.id} token={token} />
+        )}
 
         {/* Main form for posting (RTL formatted) */}
         <View

@@ -46,6 +46,7 @@ model User {
   commentsPostedAsAdmin     Comment[]                  @relation("CommentPostedByAdmin")
   createdInvites            TeamInvite[]
   googleCalendarConnections GoogleCalendarConnection[]
+  sprintLengthChanges       SprintLengthChange[]
 }
 
 enum TeamRole {
@@ -212,6 +213,28 @@ model Sprint {
   team         Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
   comments     Comment[]
   googleEvents SprintGoogleEvent[]
+  lengthChanges SprintLengthChange[]
+}
+
+// Feature 5 (product-backlog/05-sprint-length-audit-log.md §5.0 decision #2): append-only audit
+// log of every startDate/endDate change on a Sprint — built on the same shape as `TeamInvite`
+// (FK cascade to the owning entity, FK cascade to the acting User). One baseline row is created
+// alongside the Sprint itself (`previousStartDate/previousEndDate = null`); every subsequent
+// `PATCH` that actually changes a date adds another row. Never updated/deleted — there is no
+// mutating endpoint for this model, by design (see §5.0 decision #2).
+model SprintLengthChange {
+  id                Int       @id @default(autoincrement())
+  sprintId          Int
+  changedById       Int
+  previousStartDate DateTime?
+  previousEndDate   DateTime?
+  newStartDate      DateTime
+  newEndDate        DateTime
+  reason            String?
+  createdAt         DateTime  @default(now())
+
+  sprint    Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  changedBy User   @relation(fields: [changedById], references: [id], onDelete: Cascade)
 }
 
 model Comment {

@@ -5,6 +5,7 @@ import { EmailService } from '../email/email.service';
 import { InvitesService } from '../invites/invites.service';
 import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto } from './dto/teams.dto';
 import { assertCanManageTeamContent } from './team-permissions.util';
+import { DEFAULT_CATEGORY_LABELS } from '../comments/comment-category-labels';
 
 // Feature 9 (phantom members, §9.2): `isPhantom` must be included everywhere a team member's
 // `User` is selected, or the frontend badge has nothing to key off of. This is the shared
@@ -99,6 +100,15 @@ export class TeamsService {
       include: {
         members: true
       }
+    });
+
+    // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.1):
+    // every new team gets the 13 default categories automatically — see
+    // scripts/backfill-team-comment-categories.js for the equivalent one-time seeding of
+    // pre-existing teams. A separate call (not nested inside the team.create above) so it doesn't
+    // require the team.create result before it can reference team.id.
+    await this.prisma.teamCommentCategory.createMany({
+      data: DEFAULT_CATEGORY_LABELS.map(label => ({ teamId: team.id, label, isDefault: true, isEnabled: true }))
     });
 
     const creatorName = creator?.firstName || creator?.lastName

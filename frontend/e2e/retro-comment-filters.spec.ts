@@ -67,10 +67,23 @@ test.describe('Sprint retro board — comment filters', () => {
     });
     const sprint = await sprintRes.json();
 
+    // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.1):
+    // comments are categorized by categoryId (FK into the team's own TeamCommentCategory rows),
+    // not a raw enum string anymore — look up each seeded default category's id by its label.
+    const categoriesRes = await request.get(`${BACKEND_URL}/teams/${team.id}/categories`, {
+      headers: { Authorization: `Bearer ${creator.token}` },
+    });
+    const teamCategories = await categoriesRes.json();
+    const categoryIdFor = (key: string) => {
+      const id = teamCategories.find((c: any) => c.label === Strings.retroBoard.categories[key])?.id;
+      expect(id).toBeTruthy();
+      return id;
+    };
+
     const commentDefs = [
-      { content: 'Great velocity this sprint!', type: 'KEEP', category: 'PLANNING' },
-      { content: 'Testing took too long.', type: 'IMPROVE', category: 'TESTING' },
-      { content: 'Good team communication.', type: 'KEEP', category: 'GENERAL' },
+      { content: 'Great velocity this sprint!', type: 'KEEP', categoryId: categoryIdFor('PLANNING') },
+      { content: 'Testing took too long.', type: 'IMPROVE', categoryId: categoryIdFor('TESTING') },
+      { content: 'Good team communication.', type: 'KEEP', categoryId: categoryIdFor('GENERAL') },
     ];
     for (const c of commentDefs) {
       await request.post(`${BACKEND_URL}/sprints/${sprint.id}/comments`, {

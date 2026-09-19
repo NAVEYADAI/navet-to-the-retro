@@ -47,7 +47,7 @@ Backend-Frontend-בדיקות / "לא בטיפול".
 |---|-------|-------|
 | 1 | [ייצוא ספרינט למצגת (Sprint Summary)](./01-sprint-summary-export.md) | מומש (MVP) — נשארו 3 פריטים תלויי-פיצ'ר 2/3 + אימות ידני מול תוכנת מצגות אמיתית |
 | 2 | [הדגשת הערות](./02-comment-highlighting.md) | מומש ✅ |
-| 3 | [קטגוריות מותאמות לצוות](./03-team-comment-categories.md) | מאופיין במלואו, מוכן למימוש — טרם הותחל |
+| 3 | [קטגוריות מותאמות לצוות](./03-team-comment-categories.md) | מומש ✅ — Backend+Frontend+בדיקות (§3.1/3.2/3.3) כולם סגורים; Playwright e2e (Desktop+Mobile Chrome, `team-comment-categories.spec.ts`) + Jest (native panel + board/filter-bar) ירוקים; `db push`+backfill רצו בהצלחה גם מול Neon האמיתי, אומת באופן עצמאי; תוך כדי הבדיקות נמצא ותוקן באג אמיתי (קריסת מסך סיכום ספרינט על הערה מקוטלגת, `sprint-summary/stats.ts`) וארבע בדיקות e2e ישנות שנשברו מהמעבר ל-`categoryId` תוקנו |
 | 4 | [עריכת ספרינט לאחר יצירה](./04-sprint-editing.md) | מומש ✅ |
 | 5 | [תיעוד היסטוריית שינויי אורך ספרינט (Audit Log)](./05-sprint-length-audit-log.md) | מומש ✅ — Backend+Frontend+בדיקות (§5.1/5.2/5.3) כולם סגורים; Jest (`sprints.service.spec.ts`) + Playwright e2e (Desktop+Mobile Chrome, `sprint-length-audit-log.spec.ts`) ירוקים; `db push` רץ בהצלחה מול `postgres-test` וגם מול Neon dev/prod |
 | 6 | [שילוב עם יומן Google — שלב א'](./06-google-calendar-integration.md) | מומש ✅ — Backend+Frontend+בדיקות (§6.1/6.2/6.3) כולם סגורים; `db push` רץ בהצלחה מול Neon האמיתי (2026-09-11); e2e ל-connect/disconnect עם stub (seed DB ישיר, לא OAuth אמיתי — ר' §6.3 למגבלה המפורשת); זרימת ה-connect/callback הספציפית של היומן מול Google האמיתי עדיין לא נלחצה ידנית ב-UI |

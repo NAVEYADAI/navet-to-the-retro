@@ -1,11 +1,14 @@
 import PptxGenJS from 'pptxgenjs';
-import { COMMENT_CATEGORY_LABELS, NO_CATEGORY_LABEL } from '../comments/comment-category-labels';
+import { NO_CATEGORY_LABEL } from '../comments/comment-category-labels';
 import { applySlideTransitions } from './pptx-post-process.util';
 
 type CommentForExport = {
   content: string;
   type: 'KEEP' | 'IMPROVE';
-  category: keyof typeof COMMENT_CATEGORY_LABELS | null;
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md): this is
+  // now the category's actual per-team `label` (joined by the caller, sprints.service.ts), not an
+  // enum key to look up — `Comment.category` (the old enum) no longer exists.
+  category: string | null;
 };
 
 // `layout` drives which decorative shapes each slide gets (see decorateTitleSlide/
@@ -86,7 +89,7 @@ export function buildExportFileName(sprintName: string): string {
 function groupByCategory(comments: CommentForExport[]): Map<string, CommentForExport[]> {
   const groups = new Map<string, CommentForExport[]>();
   for (const comment of comments) {
-    const label = comment.category ? COMMENT_CATEGORY_LABELS[comment.category] : NO_CATEGORY_LABEL;
+    const label = comment.category ?? NO_CATEGORY_LABEL;
     const existing = groups.get(label);
     if (existing) {
       existing.push(comment);

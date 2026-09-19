@@ -120,6 +120,44 @@ export const Strings = {
     phantomConversionSubmitButton: 'השלם הרשמה',
     phantomConversionError: 'השלמת ההרשמה נכשלה. נסה/י שוב.',
   },
+  // Team-settings panel (team-settings-panel.tsx) — admin/TEAM_LEADER-only, opens inline on a
+  // team's own card. Unifies what used to be split across this panel's category-only predecessor
+  // and the global /settings page's per-team name/office edit list (removed 2026-09-18 in favor
+  // of this single per-team entry point).
+  teamSettingsPanel: {
+    showButton: 'הגדרות צוות',
+    hideButton: 'סגור הגדרות צוות',
+    title: 'הגדרות צוות',
+    teamDetailsSectionTitle: 'פרטי הצוות',
+    teamNameLabel: 'שם הצוות',
+    teamNamePlaceholder: 'הכנס שם צוות',
+    teamOfficeLabel: 'משרד ראשי / מיקום',
+    teamOfficePlaceholder: 'הכנס מיקום/משרד ראשי',
+    editTeamDetailsButton: 'ערוך',
+    saveTeamDetailsButton: 'שמור שינויים',
+    teamNameRequiredError: 'שם צוות הוא שדה חובה.',
+    teamDetailsUpdatedText: 'פרטי הצוות עודכנו בהצלחה.',
+    teamDetailsUpdateErrorText: 'עדכון פרטי הצוות נכשל.',
+  },
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2):
+  // strings for the categories section of the team-settings panel (team-settings-panel.tsx).
+  categoryManagement: {
+    categorySectionTitle: 'קטגוריות הערות',
+    loadingText: 'טוען קטגוריות...',
+    loadErrorText: 'טעינת הקטגוריות נכשלה.',
+    emptyText: 'אין קטגוריות עדיין.',
+    defaultBadge: 'דיפולטית',
+    customBadge: 'מותאמת אישית',
+    createButton: '+ הוסף קטגוריה',
+    newCategoryLabel: 'שם הקטגוריה',
+    newCategoryPlaceholder: 'למשל: תיאום בין צוותים',
+    labelRequiredError: 'יש להזין שם קטגוריה.',
+    createErrorText: 'יצירת הקטגוריה נכשלה.',
+    usageCountLabel: (n: number) => n === 0 ? 'לא נעשה בה שימוש' : n === 1 ? 'שימוש אחד' : `${n} שימושים`,
+    sprintFilterAllLabel: 'כל הספרינטים',
+    sprintFilterSelectedLabel: (selected: number, total: number) => `${selected} מתוך ${total} ספרינטים`,
+    sprintFilterTitle: 'סנן ספירת שימושים לפי ספרינטים',
+  },
   sprints: {
     header: 'ספרינטים ולוחות רטרו',
     newSprintButton: '+ פתח ספרינט',
@@ -157,6 +195,12 @@ export const Strings = {
     notePlaceholderImprove: 'מה היית משנה בספרינט הבא?',
     categoryLabel: 'קטגוריה',
     categoryNone: 'ללא קטגוריה',
+    // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2,
+    // decision "לא בטיפול"/§3.2 last item): as of the per-team TeamCommentCategory table, this
+    // object is ONLY the default-seed list source for the backend (teams.service.ts::create +
+    // backfill-team-comment-categories.js) — it is no longer the UI's runtime source of truth.
+    // The category picker, filter bar, and comment card all read categories dynamically from
+    // GET /teams/:teamId/categories instead.
     categories: {
       SPRINT_SETUP: 'התארגנות לספרינט',
       PRE_PLANNING: 'פרה-פלנינג',

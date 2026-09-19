@@ -33,6 +33,19 @@ interface SprintRetroBoardProps {
   onBack: () => void;
 }
 
+// Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
+// team's own categories (default + custom), fetched from GET /teams/:teamId/categories. Replaces
+// the old static Strings.retroBoard.categories object as the runtime source of truth.
+interface TeamCategory {
+  id: number;
+  teamId: number;
+  label: string;
+  isDefault: boolean;
+  isEnabled: boolean;
+  createdById: number | null;
+  createdAt: string;
+}
+
 /** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
 function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
   return {
@@ -91,7 +104,9 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   // New comment state
   const [content, setContent] = useState('');
   const [type, setType] = useState<'KEEP' | 'IMPROVE'>('KEEP');
-  const [category, setCategory] = useState('');
+  // '' means "no category" — otherwise the string form of a TeamCommentCategory id.
+  const [categoryId, setCategoryId] = useState('');
+  const [teamCategories, setTeamCategories] = useState<TeamCategory[]>([]);
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
   // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.2): '' means "post as
@@ -130,6 +145,23 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
     fetchComments();
   }, [sprint.id]);
 
+  // Feature 3 §3.2: fetched once on mount (per this project's mount-only-fetch data-freshness
+  // rule — no auto-refetch-on-focus) — not re-fetched after posting a comment, since the category
+  // list itself doesn't change as a side effect of posting.
+  useEffect(() => {
+    const fetchTeamCategories = async () => {
+      try {
+        const response = await axios.get(`${getBackendUrl()}/teams/${team.id}/categories`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setTeamCategories(response.data);
+      } catch (err) {
+        console.error('Failed to fetch team categories:', err);
+      }
+    };
+    fetchTeamCategories();
+  }, [team.id, token]);
+
   const handlePostComment = async () => {
     setError(null);
     if (!content.trim()) {
@@ -142,7 +174,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
       await axios.post(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
         content: content.trim(),
         type,
-        category: category || undefined,
+        categoryId: categoryId ? Number(categoryId) : undefined,
         isAnonymous: onBehalfOfUserId ? false : isAnonymous,
         onBehalfOfUserId: onBehalfOfUserId ? Number(onBehalfOfUserId) : undefined
       }, {
@@ -152,7 +184,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
       });
 
       setContent('');
-      setCategory('');
+      setCategoryId('');
       setIsAnonymous(false);
       trackEvent('retro_comment_added', { type });
       if (onBehalfOfUserId) {
@@ -182,13 +214,25 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
   };
 
   const matchesFilters = (c: any) =>
-    (filterCategories.length === 0 || filterCategories.includes(c.category)) &&
+    (filterCategories.length === 0 || filterCategories.includes(String(c.categoryId))) &&
     (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase())) &&
     (!highlightedOnly || c.isHighlighted);
 
   const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
   const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
+
+  // Feature 3 §3.2: compose-form picker only offers enabled categories.
+  const categoryOptions = teamCategories.filter((c) => c.isEnabled).map((c) => ({ value: String(c.id), label: c.label }));
+  const selectedCategoryLabel = categoryOptions.find((o) => o.value === categoryId)?.label;
+
+  // Feature 3 §3.2: the filter bar must ALSO include a disabled category if some already-loaded
+  // comment is tagged with it — otherwise that comment becomes unfilterable the moment its
+  // category gets disabled.
+  const usedCategoryIds = new Set(comments.map((c) => c.categoryId).filter((id) => id != null));
+  const filterCategoryOptions = teamCategories
+    .filter((c) => c.isEnabled || usedCategoryIds.has(c.id))
+    .map((c) => ({ value: String(c.id), label: c.label }));
 
   // Only team admins and team leads may highlight — see product-backlog/02-comment-highlighting.md §2.0.
   const myMembership = team.members?.find((m: any) => m.userId === user.id);
@@ -675,11 +719,11 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
                 paddingHorizontal: t.space[3] + 2,
                 borderRadius: t.radius.pill,
                 borderTopRightRadius: t.radius.badge,
-                backgroundColor: category ? t.color.accent.subtle : t.color.surfaceSubtle,
+                backgroundColor: categoryId ? t.color.accent.subtle : t.color.surfaceSubtle,
               }}
             >
-              <Text style={[rnText({ ...t.type.label, fontWeight: category ? 700 : 400 }), { color: category ? t.color.accent.base : t.color.textSecondary }]}>
-                {category ? Strings.retroBoard.categories[category] : Strings.retroBoard.categoryLabel}
+              <Text style={[rnText({ ...t.type.label, fontWeight: categoryId ? 700 : 400 }), { color: categoryId ? t.color.accent.base : t.color.textSecondary }]}>
+                {categoryId ? selectedCategoryLabel : Strings.retroBoard.categoryLabel}
               </Text>
             </TouchableOpacity>
           </View>
@@ -753,18 +797,18 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
                 }}
               >
                 <FlatList
-                  data={[['', Strings.retroBoard.categoryNone] as [string, string], ...Object.entries(Strings.retroBoard.categories)]}
+                  data={[['', Strings.retroBoard.categoryNone] as [string, string], ...categoryOptions.map((o) => [o.value, o.label] as [string, string])]}
                   keyExtractor={([key]) => key || 'none'}
                   renderItem={({ item: [key, label] }) => (
                     <TouchableOpacity
-                      onPress={() => { setCategory(key); setIsCategoryPickerOpen(false); }}
+                      onPress={() => { setCategoryId(key); setIsCategoryPickerOpen(false); }}
                       style={{
                         paddingVertical: t.space[3] + 2,
                         paddingHorizontal: t.space[5],
-                        backgroundColor: category === key ? t.color.surfaceSubtle : 'transparent',
+                        backgroundColor: categoryId === key ? t.color.surfaceSubtle : 'transparent',
                       }}
                     >
-                      <Text style={[rnText({ ...t.type.body, fontWeight: category === key ? 700 : 400 }), { color: t.color.text, textAlign: 'right' }]}>
+                      <Text style={[rnText({ ...t.type.body, fontWeight: categoryId === key ? 700 : 400 }), { color: t.color.text, textAlign: 'right' }]}>
                         {label}
                       </Text>
                     </TouchableOpacity>
@@ -836,6 +880,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             <CommentFilterBarNative
               categories={filterCategories}
               onCategoriesChange={setFilterCategories}
+              categoryOptions={filterCategoryOptions}
               searchText={filterText}
               onSearchTextChange={setFilterText}
               highlightedOnly={highlightedOnly}

@@ -46,6 +46,10 @@ describe('TeamsService', () => {
       delete: jest.fn(),
       count: jest.fn(),
     },
+    // Feature 3 (team comment categories): seeded automatically on team creation.
+    teamCommentCategory: {
+      createMany: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 
@@ -157,6 +161,16 @@ describe('TeamsService', () => {
         expect.objectContaining({ to: approver.email, teamName: dto.name })
       );
       expect(result).toBe(mockTeam);
+
+      // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.1):
+      // the 13 defaults are seeded for every new team, not just pre-existing ones via the
+      // one-time backfill script.
+      expect(mockPrismaService.teamCommentCategory.createMany).toHaveBeenCalledWith({
+        data: expect.arrayContaining([
+          expect.objectContaining({ teamId: mockTeam.id, isDefault: true, isEnabled: true }),
+        ]),
+      });
+      expect(mockPrismaService.teamCommentCategory.createMany.mock.calls[0][0].data).toHaveLength(13);
     });
   });
 

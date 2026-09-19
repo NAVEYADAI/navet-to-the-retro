@@ -9,6 +9,7 @@ import { Card, Button, Badge, Icon } from '@/components/ui';
 import { TeamMemberRow } from './team-member-row';
 import { AddMemberForm } from './add-member-form';
 import { AddPhantomMemberForm } from './add-phantom-member-form';
+import { TeamSettingsPanelWeb } from './team-settings-panel';
 import { getMemberRank } from './roles';
 
 interface TeamCardProps {
@@ -31,6 +32,11 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
   // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decision #1) —
   // `isAdmin || role === 'TEAM_LEADER'`, distinct from `isTeamAdmin` above (isAdmin-only).
   const canManageTeamContent = !!myMembership && (myMembership.isAdmin || myMembership.role === 'TEAM_LEADER');
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.0
+  // decision #2): same predicate as canManageTeamContent above — a separate name is kept because
+  // the backlog calls it out explicitly as its own guard, matching the sprint-retro-board's
+  // canHighlight/canViewLengthHistory/canPostOnBehalf pattern of named aliases for readability.
+  const canManageCategories = canManageTeamContent;
   const sortedMembers = [...(team.members || [])].sort((a: any, b: any) =>
     getMemberRank(a, userId) - getMemberRank(b, userId)
   );
@@ -147,6 +153,17 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
           onAddMemberSuccess();
         }}
       />
+
+      {canManageCategories && !isPending && (
+        <TeamSettingsPanelWeb
+          teamId={team.id}
+          token={token}
+          isTeamAdmin={isTeamAdmin}
+          teamName={team.name}
+          teamOffice={team.mainOffice}
+          onTeamDetailsUpdated={onAddMemberSuccess}
+        />
+      )}
 
       {!isPending && (
         <TeamSprintsManager

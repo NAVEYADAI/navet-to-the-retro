@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Box, Typography, Alert } from '@mui/material';
 import { Button, Card, Page, PageHeader, Grid } from '@/components/ui';
 import { CreateTeamForm } from '@/features/teams';
-import { ProfileFormCard, AppearanceCard, AdminTeamsCard, GoogleCalendarCard } from '@/features/settings';
+import { ProfileFormCard, AppearanceCard, GoogleCalendarCard } from '@/features/settings';
 import { useProfileForm } from '@/features/settings/hooks/use-profile-form';
 import { useTeamsAdmin } from '@/features/settings/hooks/use-teams-admin';
 import { useTheme } from '@/design/theme-context';
@@ -24,19 +24,10 @@ export default function SettingsScreen() {
   } = useProfileForm(user, token, login);
 
   const {
-    adminTeams,
-    loadingTeams,
-    fetchAdminTeams,
     teamCreateLoading,
     teamMessage,
     handleCreateTeamSubmit,
-    editTeamId, setEditTeamId,
-    editTeamName, setEditTeamName,
-    editTeamOffice, setEditTeamOffice,
-    teamEditLoading,
-    teamEditMessage, setTeamEditMessage,
-    handleSaveTeamEdit,
-  } = useTeamsAdmin(token, user);
+  } = useTeamsAdmin(token);
 
   if (!user) return null;
 
@@ -83,22 +74,6 @@ export default function SettingsScreen() {
           />
         </Card>
       </Grid>
-
-      <AdminTeamsCard
-        adminTeams={adminTeams}
-        loadingTeams={loadingTeams}
-        onRefresh={fetchAdminTeams}
-        editTeamId={editTeamId}
-        setEditTeamId={setEditTeamId}
-        editTeamName={editTeamName}
-        setEditTeamName={setEditTeamName}
-        editTeamOffice={editTeamOffice}
-        setEditTeamOffice={setEditTeamOffice}
-        teamEditLoading={teamEditLoading}
-        teamEditMessage={teamEditMessage}
-        setTeamEditMessage={setTeamEditMessage}
-        onSaveTeamEdit={handleSaveTeamEdit}
-      />
     </Page>
   );
 }

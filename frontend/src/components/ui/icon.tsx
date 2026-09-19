@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pencil, Trash2, Copy, ChevronDown, Plus, Check, X, UserPlus, MapPin, Link, Wrench, Eye, EyeOff, Home, Settings, Star, Target, Code, ShieldCheck, Infinity, LogOut, Presentation, Download, RotateCw, Ghost, History } from 'lucide-react';
+import { Pencil, Trash2, Copy, ChevronDown, Plus, Check, X, UserPlus, MapPin, Link, Wrench, Eye, EyeOff, Home, Settings, Star, Target, Code, ShieldCheck, Infinity, LogOut, Presentation, Download, RotateCw, Ghost, History, Tag } from 'lucide-react';
 import { useTheme } from '@/design/theme-context';
 
 export type IconName =
@@ -28,7 +28,8 @@ export type IconName =
   | 'download'
   | 'refresh'
   | 'ghost'
-  | 'history';
+  | 'history'
+  | 'tag';
 
 export type IconSize = 'sm' | 'md' | 'lg';
 export type IconTone = 'default' | 'muted' | 'accent' | 'danger' | 'success' | 'inverse';
@@ -60,6 +61,7 @@ const REGISTRY: Record<IconName, React.ComponentType<React.SVGProps<SVGSVGElemen
   refresh: RotateCw,
   ghost: Ghost,
   history: History,
+  tag: Tag,
 };
 
 export interface IconProps {

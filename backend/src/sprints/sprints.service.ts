@@ -238,9 +238,12 @@ export class SprintsService {
       throw new NotFoundException('Sprint not found');
     }
 
+    // Feature 3 (team comment categories): `category` is now a relation, not a flat enum column
+    // — join the label directly so the builder never needs a separate categories lookup (same
+    // reasoning as getCommentsForSprint below).
     const comments = await this.prisma.comment.findMany({
       where: { sprintId },
-      select: { content: true, type: true, category: true }
+      select: { content: true, type: true, category: { select: { label: true } } }
     });
 
     const buffer = await buildSprintSummaryPptx({
@@ -248,7 +251,7 @@ export class SprintsService {
       teamName: team.name,
       startDate: sprint.startDate,
       endDate: sprint.endDate,
-      comments,
+      comments: comments.map(c => ({ content: c.content, type: c.type, category: c.category?.label ?? null })),
       templateId: resolveTemplateId(templateId)
     });
 

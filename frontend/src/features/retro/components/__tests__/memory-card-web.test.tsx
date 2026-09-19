@@ -66,11 +66,16 @@ afterAll(() => {
   consoleErrorSpy.mockRestore();
 });
 
+// Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
+// label comes straight off the API-joined category object now, not a Strings lookup by enum key —
+// reusing the seed label text here purely for readability, not because it's looked up that way.
+const categoryLabel = Strings.retroBoard.categories.TESTING;
+
 const baseComment: MemoryCardWebComment = {
   id: 1,
   content: 'The demo went really well this sprint.',
   type: 'KEEP',
-  category: 'TESTING',
+  category: { id: 5, label: categoryLabel },
   isAnonymous: false,
   author: { username: 'dev1', firstName: 'Dana', lastName: 'Levi' },
   createdAt: '2026-08-04T12:00:00.000Z',
@@ -114,7 +119,7 @@ describe('MemoryCardWeb', () => {
   it('starts face-down: no comment content, category or author text in the DOM', () => {
     mount(baseComment);
     expect(container.textContent).not.toContain(baseComment.content);
-    expect(container.textContent).not.toContain(Strings.retroBoard.categories.TESTING);
+    expect(container.textContent).not.toContain(categoryLabel);
     expect(container.textContent).not.toContain('Dana');
     expect(getCard().style.zIndex).toBe('1');
   });
@@ -125,7 +130,7 @@ describe('MemoryCardWeb', () => {
     await waitPastSingleClickWindow();
 
     expect(container.textContent).toContain(baseComment.content);
-    expect(container.textContent).toContain(Strings.retroBoard.categories.TESTING);
+    expect(container.textContent).toContain(categoryLabel);
     expect(container.textContent).toContain('Dana Levi');
     // Still compact-sized — a single click flips only, it does not enlarge.
     expect(getCard().style.zIndex).toBe('1');

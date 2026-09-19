@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCommentDto, UpdateHighlightDto } from './dto/comments.dto';
 import { assertCanManageTeamContent } from '../teams/team-permissions.util';
@@ -58,12 +58,28 @@ export class CommentsService {
       isAnonymous = false;
     }
 
-    // 4. Create comment
+    // 4. Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md
+    // §3.1): real validation, not just the DB's FK constraint — categoryId (if present) must
+    // belong to this same sprint's team AND be enabled, otherwise a clear 400/404 instead of an
+    // opaque Prisma FK-violation 500.
+    if (dto.categoryId !== undefined && dto.categoryId !== null) {
+      const category = await this.prisma.teamCommentCategory.findFirst({
+        where: { id: dto.categoryId, teamId: sprint.teamId }
+      });
+      if (!category) {
+        throw new NotFoundException('הקטגוריה שנבחרה לא נמצאה עבור צוות זה');
+      }
+      if (!category.isEnabled) {
+        throw new BadRequestException('לא ניתן לבחור בקטגוריה שהושבתה');
+      }
+    }
+
+    // 5. Create comment
     return this.prisma.comment.create({
       data: {
         content: dto.content,
         type: dto.type,
-        category: dto.category,
+        categoryId: dto.categoryId ?? null,
         isAnonymous,
         authorId,
         postedByAdminId,
@@ -85,6 +101,12 @@ export class CommentsService {
             username: true,
             firstName: true,
             lastName: true
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            label: true
           }
         }
       }
@@ -136,6 +158,17 @@ export class CommentsService {
             username: true,
             firstName: true,
             lastName: true
+          }
+        },
+        // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md
+        // §3.1): join the label directly so the frontend doesn't need a separate categories
+        // fetch just to display an existing comment's category name — works even if the
+        // category was since disabled (still has a label), unlike the enabledOnly-filtered
+        // GET /teams/:teamId/categories list.
+        category: {
+          select: {
+            id: true,
+            label: true
           }
         }
       }

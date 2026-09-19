@@ -7,6 +7,10 @@ import { Field, Button } from '@/components/ui';
 interface CommentFilterBarWebProps {
   categories: string[];
   onCategoriesChange: (values: string[]) => void;
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
+  // team's own categories, dynamically fetched by the caller — includes any disabled category
+  // that's still referenced by an already-loaded comment, so that comment stays filterable.
+  categoryOptions: { value: string; label: string }[];
   searchText: string;
   onSearchTextChange: (value: string) => void;
   highlightedOnly: boolean;
@@ -16,6 +20,7 @@ interface CommentFilterBarWebProps {
 export function CommentFilterBarWeb({
   categories,
   onCategoriesChange,
+  categoryOptions,
   searchText,
   onSearchTextChange,
   highlightedOnly,
@@ -62,9 +67,9 @@ export function CommentFilterBarWeb({
             '& .MuiOutlinedInput-notchedOutline': { borderColor: t.color.borderStrong },
           }}
         >
-          {Object.entries(Strings.retroBoard.categories).map(([key, label]) => (
-            <MenuItem key={key} value={key} sx={{ ...t.type.body }}>
-              <Checkbox checked={categories.includes(key)} />
+          {categoryOptions.map(({ value, label }) => (
+            <MenuItem key={value} value={value} sx={{ ...t.type.body }}>
+              <Checkbox checked={categories.includes(value)} />
               <ListItemText primary={label} />
             </MenuItem>
           ))}

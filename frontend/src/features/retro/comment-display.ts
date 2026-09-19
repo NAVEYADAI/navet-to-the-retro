@@ -7,7 +7,12 @@ import { Strings } from '@/constants/strings';
  * category-label/author-name logic has a single source instead of four copies drifting apart.
  */
 export interface DisplayableComment {
-  category?: string | null;
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2):
+  // the label comes straight from the API's joined `category` relation (comments.service.ts::
+  // getCommentsForSprint/create both `select: { id, label }`) — works even for a category that
+  // has since been disabled, since the label is still returned. No longer looked up by key in
+  // Strings.retroBoard.categories (that object is now only the backend's default-seed source).
+  category?: { id: number; label: string } | null;
   isAnonymous: boolean;
   author: { username: string; firstName?: string | null; lastName?: string | null };
   // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decisions #2/#3):
@@ -25,7 +30,7 @@ export function formatUserDisplayName(user: { username: string; firstName?: stri
 }
 
 export function getCommentCategoryLabel(comment: Pick<DisplayableComment, 'category'>): string | null {
-  return comment.category ? (Strings.retroBoard.categories as Record<string, string>)[comment.category] ?? null : null;
+  return comment.category?.label ?? null;
 }
 
 export function getCommentAuthorName(comment: Pick<DisplayableComment, 'isAnonymous' | 'author'>): string {

@@ -78,11 +78,21 @@ test.describe('Comment highlighting', () => {
     });
     const sprint = await sprintRes.json();
 
+    // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.1):
+    // comments are categorized by categoryId (FK into the team's own TeamCommentCategory rows),
+    // not a raw enum string anymore — look up the seeded default category's id by its label.
+    const categoriesRes = await request.get(`${BACKEND_URL}/teams/${team.id}/categories`, {
+      headers: { Authorization: `Bearer ${leader.token}` },
+    });
+    const teamCategories = await categoriesRes.json();
+    const testingCategoryId = teamCategories.find((c: any) => c.label === Strings.retroBoard.categories.TESTING)?.id;
+    expect(testingCategoryId).toBeTruthy();
+
     // Categorized on purpose: the comment card renders the category badge and the highlight
     // toggle in the same row, so this also exercises that the two coexist without collision.
     await request.post(`${BACKEND_URL}/sprints/${sprint.id}/comments`, {
       headers: { Authorization: `Bearer ${leader.token}` },
-      data: { content: 'Comment to highlight.', type: 'KEEP', category: 'TESTING', isAnonymous: false },
+      data: { content: 'Comment to highlight.', type: 'KEEP', categoryId: testingCategoryId, isAnonymous: false },
     });
     await request.post(`${BACKEND_URL}/sprints/${sprint.id}/comments`, {
       headers: { Authorization: `Bearer ${leader.token}` },

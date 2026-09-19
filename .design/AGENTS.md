@@ -37,7 +37,33 @@ This document outlines the strict design and localization rules enforced for UI 
     *   MUI components used on `web` must align with the theme colors using the `sx` prop.
     *   Form elements must specify helper tooltips or clear validation banners.
 
-## 3. Responsiveness & Overflow Protection
+## 3. Multi-Section Panels (Settings / Management)
+
+Lessons from a real redesign (`team-settings-panel.tsx`, 2026-09-18) after the first pass was
+functionally correct but visually flat — identical bordered boxes stacked with no hierarchy:
+
+*   **Editable content defaults to a display state, not an always-open form.** A field that rarely
+    changes (a name, an address) renders as plain text plus a small "edit" affordance; only clicking
+    it reveals the form. An always-open form for rarely-edited data is both visual noise and an
+    accidental-edit risk.
+*   **Repeated items (list rows) get one container with thin row dividers, not one bordered/shadowed
+    box per item.** Four or more identical boxes in a row read as a monotonous wall with no scan
+    rhythm — a single list container with `border-bottom` between rows reads as an intentional list.
+*   **Inactive/disabled items dim the whole row (~55% opacity), not just their toggle control** — so
+    "what's active" scans at a glance.
+*   **Section labels inside a multi-section panel are a distinct, quieter type style** (small,
+    muted, letter-spaced/uppercase eyebrow) — not the same weight as body text. Pair with generous
+    spacing *between* sections and tight spacing *within* one; that contrast IS the hierarchy, not
+    just font-size.
+*   **A filter control looks different from an action button** — e.g. a fully-rounded pill with a
+    lighter border, distinct from the app's standard button shape — so "this changes what's shown"
+    reads differently from "this does something."
+
+These are UX patterns, not new colors/tokens — always still pull actual color/spacing/type values
+from `frontend/src/design/tokens.ts` and `frontend/UI-GUIDELINES.md` (the real source of truth for
+the shipped app); this file's own palette above can drift from it over time.
+
+## 4. Responsiveness & Overflow Protection
 
 *   **Breakpoint Control**:
     *   Do NOT use platform checks (`Platform.OS === 'web'`) for column layouts or sizes.

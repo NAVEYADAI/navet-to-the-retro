@@ -7,6 +7,10 @@ import { Icon } from '@/components/ui';
 interface CommentFilterBarNativeProps {
   categories: string[];
   onCategoriesChange: (values: string[]) => void;
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
+  // team's own categories, dynamically fetched by the caller — includes any disabled category
+  // that's still referenced by an already-loaded comment, so that comment stays filterable.
+  categoryOptions: { value: string; label: string }[];
   searchText: string;
   onSearchTextChange: (value: string) => void;
   highlightedOnly: boolean;
@@ -25,6 +29,7 @@ function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: numbe
 export function CommentFilterBarNative({
   categories,
   onCategoriesChange,
+  categoryOptions,
   searchText,
   onSearchTextChange,
   highlightedOnly,
@@ -161,7 +166,7 @@ export function CommentFilterBarNative({
               </TouchableOpacity>
             </View>
             <FlatList
-              data={Object.entries(Strings.retroBoard.categories)}
+              data={categoryOptions.map(({ value, label }) => [value, label] as [string, string])}
               keyExtractor={([key]) => key}
               renderItem={({ item: [key, label] }) => {
                 const isSelected = categories.includes(key);

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CommentsService } from './comments.service';
 import { PrismaService } from '../prisma.service';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 
 describe('CommentsService', () => {
   let service: CommentsService;
@@ -25,6 +25,10 @@ describe('CommentsService', () => {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    // Feature 3 (team comment categories): categoryId validation in create().
+    teamCommentCategory: {
+      findFirst: jest.fn(),
     },
   };
 
@@ -70,6 +74,54 @@ describe('CommentsService', () => {
           data: expect.objectContaining({ content: createDto.content, teamId: sprint.teamId, sprintId: sprint.id, isAnonymous: false }),
         })
       );
+    });
+
+    describe('categoryId (feature 3, team comment categories)', () => {
+      const category = { id: 5, teamId: sprint.teamId, label: 'פלנינג', isEnabled: true };
+
+      it('creates the comment with categoryId when the category belongs to the team and is enabled', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.teamCommentCategory.findFirst.mockResolvedValue(category);
+        mockPrismaService.comment.create.mockResolvedValue({ id: 1 });
+
+        await service.create(sprint.id, { ...createDto, categoryId: category.id }, member.userId);
+
+        expect(mockPrismaService.teamCommentCategory.findFirst).toHaveBeenCalledWith({
+          where: { id: category.id, teamId: sprint.teamId },
+        });
+        expect(mockPrismaService.comment.create).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ categoryId: category.id }) })
+        );
+      });
+
+      it('throws NotFoundException when the category does not belong to this team', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.teamCommentCategory.findFirst.mockResolvedValue(null);
+
+        await expect(service.create(sprint.id, { ...createDto, categoryId: 999 }, member.userId)).rejects.toThrow(NotFoundException);
+        expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+      });
+
+      it('throws BadRequestException when the category is disabled', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.teamCommentCategory.findFirst.mockResolvedValue({ ...category, isEnabled: false });
+
+        await expect(service.create(sprint.id, { ...createDto, categoryId: category.id }, member.userId)).rejects.toThrow(BadRequestException);
+        expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+      });
+
+      it('skips category validation entirely when categoryId is omitted', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.comment.create.mockResolvedValue({ id: 1 });
+
+        await service.create(sprint.id, createDto, member.userId);
+
+        expect(mockPrismaService.teamCommentCategory.findFirst).not.toHaveBeenCalled();
+      });
     });
 
     describe('onBehalfOfUserId (feature 9, phantom members)', () => {

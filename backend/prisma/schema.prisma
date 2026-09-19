@@ -47,6 +47,7 @@ model User {
   createdInvites            TeamInvite[]
   googleCalendarConnections GoogleCalendarConnection[]
   sprintLengthChanges       SprintLengthChange[]
+  createdCommentCategories  TeamCommentCategory[]      @relation("TeamCommentCategoryCreator")
 }
 
 enum TeamRole {
@@ -82,6 +83,29 @@ model Team {
   sprints           Sprint[]
   invites           TeamInvite[]
   googleCalendars   GoogleCalendarTeamCalendar[]
+  commentCategories TeamCommentCategory[]
+}
+
+// Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.0): built
+// on the same shape as `TeamInvite` (see backend/AGENTS.md's "per-team-owned entities" pattern) —
+// `teamId` FK cascade, a boolean soft-disable flag instead of a hard delete (§3.0 decision #3).
+// `isDefault` distinguishes the 13 auto-seeded rows (every team gets these, see
+// teams.service.ts::create and scripts/backfill-team-comment-categories.js for pre-existing
+// teams) from admin/team-leader-created custom ones — both are disabled the same way, never
+// deleted, so old comments never lose their category label. `createdById` is null for the 13
+// seeded defaults (nobody "created" them) and set for a custom category.
+model TeamCommentCategory {
+  id          Int      @id @default(autoincrement())
+  teamId      Int
+  label       String
+  isDefault   Boolean  @default(false)
+  isEnabled   Boolean  @default(true)
+  createdById Int?
+  createdAt   DateTime @default(now())
+
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("TeamCommentCategoryCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  comments  Comment[]
 }
 
 model TeamInvite {
@@ -185,22 +209,6 @@ enum CommentType {
   IMPROVE
 }
 
-enum CommentCategory {
-  SPRINT_SETUP
-  PRE_PLANNING
-  PLANNING
-  ONGOING_WORK
-  TESTING
-  AVAILABILITY
-  ESTIMATIONS
-  SPECIFICATIONS
-  TASK_DISTRIBUTION
-  PERSONAL
-  FUN
-  GENERAL
-  TECHNICAL
-}
-
 model Sprint {
   id          Int      @id @default(autoincrement())
   name        String
@@ -238,13 +246,12 @@ model SprintLengthChange {
 }
 
 model Comment {
-  id              Int              @id @default(autoincrement())
+  id              Int          @id @default(autoincrement())
   content         String
   type            CommentType
-  category        CommentCategory?
-  isAnonymous     Boolean          @default(false)
-  isHighlighted   Boolean          @default(false)
-  createdAt       DateTime         @default(now())
+  isAnonymous     Boolean      @default(false)
+  isHighlighted   Boolean      @default(false)
+  createdAt       DateTime     @default(now())
   authorId        Int
   teamId          Int
   sprintId        Int
@@ -253,9 +260,18 @@ model Comment {
   // existing meaning ("who the comment is attributed to"), this is purely who actually typed it.
   // SetNull (not Cascade) so a comment survives if the posting admin's account is later deleted.
   postedByAdminId Int?
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.0):
+  // replaces the old `category` enum field — nullable exactly like `category` was. SetNull (not
+  // Cascade) so a comment never gets destroyed just because its category was disabled/removed —
+  // disabling is the only supported operation on a default category (§3.0 decision #3), so in
+  // practice this FK is never actually nulled by a delete, but the relation is modeled defensively
+  // the same way regardless. See scripts/backfill-team-comment-categories.js for how pre-existing
+  // teams' comments were migrated from the old `category` enum to this field.
+  categoryId      Int?
 
-  author        User   @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  postedByAdmin User?  @relation("CommentPostedByAdmin", fields: [postedByAdminId], references: [id], onDelete: SetNull)
-  team          Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  sprint        Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  author   User                 @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  postedByAdmin User?           @relation("CommentPostedByAdmin", fields: [postedByAdminId], references: [id], onDelete: SetNull)
+  team     Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sprint   Sprint               @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  category TeamCommentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }

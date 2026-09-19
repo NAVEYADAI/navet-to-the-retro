@@ -58,12 +58,23 @@ describe('SprintRetroBoard Component', () => {
     },
   ];
 
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
+  // team's dynamic category list, fetched from GET /teams/:teamId/categories — replaces the old
+  // static Strings.retroBoard.categories enum keys. Reuses the same seed label text purely for
+  // readability, not because it's looked up by key anymore.
+  const mockTeamCategories = [
+    { id: 10, teamId: 1, label: Strings.retroBoard.categories.PLANNING, isDefault: true, isEnabled: true, createdById: null, createdAt: '2026-01-01T00:00:00.000Z' },
+    { id: 11, teamId: 1, label: Strings.retroBoard.categories.TESTING, isDefault: true, isEnabled: true, createdById: null, createdAt: '2026-01-01T00:00:00.000Z' },
+    { id: 12, teamId: 1, label: Strings.retroBoard.categories.GENERAL, isDefault: true, isEnabled: true, createdById: null, createdAt: '2026-01-01T00:00:00.000Z' },
+  ];
+
   const mockCommentsForFilters = [
     {
       id: 201,
       content: 'Great velocity this sprint!',
       type: 'KEEP',
-      category: 'PLANNING',
+      categoryId: 10,
+      category: { id: 10, label: Strings.retroBoard.categories.PLANNING },
       isAnonymous: false,
       createdAt: '2026-08-04T12:00:00.000Z',
       author: { username: 'dev1' },
@@ -72,7 +83,8 @@ describe('SprintRetroBoard Component', () => {
       id: 202,
       content: 'Testing took too long.',
       type: 'IMPROVE',
-      category: 'TESTING',
+      categoryId: 11,
+      category: { id: 11, label: Strings.retroBoard.categories.TESTING },
       isAnonymous: false,
       createdAt: '2026-08-04T13:00:00.000Z',
       author: { username: 'dev2' },
@@ -81,15 +93,27 @@ describe('SprintRetroBoard Component', () => {
       id: 203,
       content: 'Good team communication.',
       type: 'KEEP',
-      category: 'GENERAL',
+      categoryId: 12,
+      category: { id: 12, label: Strings.retroBoard.categories.GENERAL },
       isAnonymous: false,
       createdAt: '2026-08-04T14:00:00.000Z',
       author: { username: 'dev3' },
     },
   ];
 
+  // Routes GET requests by URL — /categories gets the team's category list, everything else
+  // (/comments) gets the comment list. Needed because the retro board now fetches both on mount.
+  function mockGetResponses(comments: any[], categories: any[] = mockTeamCategories) {
+    mockedAxios.get.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/categories')) {
+        return Promise.resolve({ data: categories });
+      }
+      return Promise.resolve({ data: comments });
+    });
+  }
+
   beforeEach(() => {
-    mockedAxios.get.mockResolvedValue({ data: mockComments });
+    mockGetResponses(mockComments);
     mockedAxios.post.mockResolvedValue({ data: {} });
   });
 
@@ -198,12 +222,13 @@ describe('SprintRetroBoard Component', () => {
       })
     );
     expect(input.props.value).toBe('');
-    expect(mockedAxios.get).toHaveBeenCalledTimes(2);
+    // 2 GETs on mount (comments + team categories) + 1 more GET (fetchComments) after posting.
+    expect(mockedAxios.get).toHaveBeenCalledTimes(3);
   });
 
   describe('filtering comments', () => {
     async function renderWithFilterableComments() {
-      mockedAxios.get.mockResolvedValueOnce({ data: mockCommentsForFilters });
+      mockGetResponses(mockCommentsForFilters);
       const utils = await render(
         <SprintRetroBoard
           sprint={mockSprint}
@@ -287,6 +312,81 @@ describe('SprintRetroBoard Component', () => {
     });
   });
 
+  // Feature 3 §3.2, the "disabled but still in use" edge case this backlog item calls out
+  // explicitly: a category disabled after some comment was already tagged with it must stay
+  // filterable (so that comment doesn't become unreachable), while the compose form's own picker
+  // (which only ever offers *currently enabled* categories) must never offer it for new comments.
+  describe('disabled-category edge case (compose picker vs. filter bar)', () => {
+    const categoriesWithOneDisabledInUse = [
+      { id: 10, teamId: 1, label: Strings.retroBoard.categories.PLANNING, isDefault: true, isEnabled: true, createdById: null, createdAt: '2026-01-01T00:00:00.000Z' },
+      // Disabled, but a loaded comment below still references it.
+      { id: 11, teamId: 1, label: Strings.retroBoard.categories.TESTING, isDefault: true, isEnabled: false, createdById: null, createdAt: '2026-01-01T00:00:00.000Z' },
+      // Disabled AND unused by any loaded comment.
+      { id: 12, teamId: 1, label: Strings.retroBoard.categories.GENERAL, isDefault: true, isEnabled: false, createdById: null, createdAt: '2026-01-01T00:00:00.000Z' },
+    ];
+    const commentsWithDisabledCategoryInUse = [
+      {
+        id: 301,
+        content: 'Testing took too long.',
+        type: 'IMPROVE',
+        categoryId: 11,
+        category: { id: 11, label: Strings.retroBoard.categories.TESTING },
+        isAnonymous: false,
+        createdAt: '2026-08-04T13:00:00.000Z',
+        author: { username: 'dev2' },
+      },
+    ];
+
+    it('the compose-form category picker never offers a disabled category, used or not', async () => {
+      mockGetResponses(commentsWithDisabledCategoryInUse, categoriesWithOneDisabledInUse);
+      const { getByText, queryAllByText, findByText } = await render(
+        <SprintRetroBoard sprint={mockSprint} team={mockTeam} token={mockToken} user={mockUser} onBack={jest.fn()} />
+      );
+      await findByText('Testing took too long.');
+
+      // Baseline before the picker opens: TESTING's only occurrence is the loaded comment's own
+      // category badge; GENERAL doesn't appear anywhere (no comment uses it).
+      const testingBefore = queryAllByText(Strings.retroBoard.categories.TESTING).length;
+      const generalBefore = queryAllByText(Strings.retroBoard.categories.GENERAL).length;
+      expect(testingBefore).toBe(1);
+      expect(generalBefore).toBe(0);
+
+      await fireEvent.press(getByText(Strings.retroBoard.categoryLabel));
+
+      // PLANNING (enabled) is newly offered as a picker option; TESTING/GENERAL (both disabled)
+      // add no new occurrence — the picker itself never rendered them, used or not.
+      expect(getByText(Strings.retroBoard.categories.PLANNING)).toBeTruthy();
+      expect(queryAllByText(Strings.retroBoard.categories.TESTING)).toHaveLength(testingBefore);
+      expect(queryAllByText(Strings.retroBoard.categories.GENERAL)).toHaveLength(generalBefore);
+    });
+
+    it('the filter bar still offers a disabled category referenced by an already-loaded comment, but not an unused disabled one', async () => {
+      mockGetResponses(commentsWithDisabledCategoryInUse, categoriesWithOneDisabledInUse);
+      const { getByText, getAllByText, queryAllByText, findByText } = await render(
+        <SprintRetroBoard sprint={mockSprint} team={mockTeam} token={mockToken} user={mockUser} onBack={jest.fn()} />
+      );
+      await findByText('Testing took too long.');
+
+      const testingBefore = queryAllByText(Strings.retroBoard.categories.TESTING).length;
+      const generalBefore = queryAllByText(Strings.retroBoard.categories.GENERAL).length;
+      expect(testingBefore).toBe(1);
+      expect(generalBefore).toBe(0);
+
+      await fireEvent.press(getByText(Strings.retroBoard.filterAllCategoriesLabel));
+
+      // TESTING (disabled, but in use) gains exactly one new occurrence — the filter option
+      // itself, on top of the pre-existing comment badge. GENERAL (disabled, unused) stays absent.
+      expect(queryAllByText(Strings.retroBoard.categories.TESTING)).toHaveLength(testingBefore + 1);
+      expect(queryAllByText(Strings.retroBoard.categories.GENERAL)).toHaveLength(generalBefore);
+
+      // And it's actually usable: selecting the filter bar's option (rendered before the comment
+      // card in source order, so it's the first match) narrows the list down to that comment.
+      const testingMatches = getAllByText(Strings.retroBoard.categories.TESTING);
+      await fireEvent.press(testingMatches[0]);
+      expect(await findByText('Testing took too long.')).toBeTruthy();
+    });
+  });
+
   // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decisions #1/#2/#3).
   describe('"post on behalf of" (feature 9, phantom members)', () => {
     const adminUser = { id: 12, username: 'adminuser' };
@@ -302,7 +402,7 @@ describe('SprintRetroBoard Component', () => {
     const postOnBehalfButtonLabel = Strings.retroBoard.postOnBehalfOtherOption;
 
     beforeEach(() => {
-      mockedAxios.get.mockResolvedValue({ data: [] });
+      mockGetResponses([], []);
       mockedAxios.post.mockResolvedValue({ data: {} });
     });
 
@@ -364,7 +464,7 @@ describe('SprintRetroBoard Component', () => {
         author: { username: 'phantom_abc', firstName: 'Phanto', lastName: 'Mm' },
         postedByAdmin: { id: 12, username: 'adminuser', firstName: 'Admin', lastName: 'Istrator' },
       };
-      mockedAxios.get.mockResolvedValue({ data: [onBehalfComment] });
+      mockGetResponses([onBehalfComment], []);
 
       // A plain, non-admin/non-leader member — the indicator must still be visible to them
       // (product-backlog/09-phantom-members.md §9.0 decision #2: never masked, unlike isAnonymous).

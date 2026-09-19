@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Pencil, Trash2, Copy, ChevronDown, Plus, Check, X, UserPlus, MapPin, Link, Wrench, Eye, EyeOff, Home, Settings, Star, Target, Code, ShieldCheck, Infinity, LogOut, Presentation, Download, RotateCw, Ghost, History } from 'lucide-react-native';
+import { Pencil, Trash2, Copy, ChevronDown, Plus, Check, X, UserPlus, MapPin, Link, Wrench, Eye, EyeOff, Home, Settings, Star, Target, Code, ShieldCheck, Infinity, LogOut, Presentation, Download, RotateCw, Ghost, History, Tag } from 'lucide-react-native';
 import { useTheme } from '@/design/theme-context';
 import type { IconName, IconProps } from './icon';
 
@@ -33,6 +33,7 @@ const REGISTRY: Record<IconName, React.ComponentType<{ size?: number; color?: st
   refresh: RotateCw,
   ghost: Ghost,
   history: History,
+  tag: Tag,
 };
 
 /** האייקון היחיד באפליקציה. שם מתוך הרשימה המורשית בלבד — אין ייבוא ישיר של lucide-react-native מחוץ לקובץ הזה. */

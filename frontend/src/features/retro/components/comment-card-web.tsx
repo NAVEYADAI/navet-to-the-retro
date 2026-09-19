@@ -10,7 +10,7 @@ interface CommentCardWebProps {
     id: number;
     content: string;
     type: 'KEEP' | 'IMPROVE';
-    category?: string | null;
+    category?: { id: number; label: string } | null;
     isAnonymous: boolean;
     isHighlighted?: boolean;
     author: { username: string; firstName?: string | null; lastName?: string | null };

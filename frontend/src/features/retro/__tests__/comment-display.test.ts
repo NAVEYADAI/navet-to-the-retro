@@ -1,18 +1,21 @@
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
 import { Strings } from '@/constants/strings';
 
+// Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
+// label now comes directly from the API's joined `category: { id, label }` object, not a
+// Strings.retroBoard.categories lookup by enum key.
 describe('getCommentCategoryLabel', () => {
   it('returns null when there is no category', () => {
     expect(getCommentCategoryLabel({ category: null })).toBeNull();
     expect(getCommentCategoryLabel({ category: undefined })).toBeNull();
   });
 
-  it('maps a known category key to its Hebrew label', () => {
-    expect(getCommentCategoryLabel({ category: 'TESTING' })).toBe(Strings.retroBoard.categories.TESTING);
+  it("returns the category's own label from the API-joined object", () => {
+    expect(getCommentCategoryLabel({ category: { id: 5, label: 'בדיקות' } })).toBe('בדיקות');
   });
 
-  it('returns null for a category key not present in the strings map', () => {
-    expect(getCommentCategoryLabel({ category: 'NOT_A_REAL_CATEGORY' })).toBeNull();
+  it('reflects a custom (non-default) team category label the same way as a seeded one', () => {
+    expect(getCommentCategoryLabel({ category: { id: 42, label: 'תיאום בין צוותים' } })).toBe('תיאום בין צוותים');
   });
 });
 

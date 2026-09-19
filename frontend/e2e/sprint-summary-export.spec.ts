@@ -100,6 +100,19 @@ test.describe('Sprint summary export', () => {
     });
     const sprint = await sprintRes.json();
 
+    // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.1):
+    // comments are categorized by categoryId (FK into the team's own TeamCommentCategory rows),
+    // not a raw enum string anymore — look up each seeded default category's id by its label.
+    const categoriesRes = await request.get(`${BACKEND_URL}/teams/${team.id}/categories`, {
+      headers: { Authorization: `Bearer ${creator.token}` },
+    });
+    const teamCategories = await categoriesRes.json();
+    const categoryIdFor = (key: string) => {
+      const id = teamCategories.find((c: any) => c.label === Strings.retroBoard.categories[key])?.id;
+      expect(id).toBeTruthy();
+      return id;
+    };
+
     // Three comments across two categories + one uncategorized — exercises the "לפי קטגוריה"
     // breakdown on the summary screen, not just the KEEP/IMPROVE totals.
     await request.post(`${BACKEND_URL}/sprints/${sprint.id}/comments`, {
@@ -108,11 +121,11 @@ test.describe('Sprint summary export', () => {
     });
     await request.post(`${BACKEND_URL}/sprints/${sprint.id}/comments`, {
       headers: { Authorization: `Bearer ${creator.token}` },
-      data: { content: 'Planning ran smoothly.', type: 'KEEP', category: 'PLANNING', isAnonymous: false },
+      data: { content: 'Planning ran smoothly.', type: 'KEEP', categoryId: categoryIdFor('PLANNING'), isAnonymous: false },
     });
     await request.post(`${BACKEND_URL}/sprints/${sprint.id}/comments`, {
       headers: { Authorization: `Bearer ${creator.token}` },
-      data: { content: 'Testing took too long.', type: 'IMPROVE', category: 'TESTING', isAnonymous: false },
+      data: { content: 'Testing took too long.', type: 'IMPROVE', categoryId: categoryIdFor('TESTING'), isAnonymous: false },
     });
 
     // --- Browser, as the team creator: the export button is visible and downloads a file ---

@@ -85,12 +85,21 @@ async function setupTeamSprintAndComments(request: APIRequestContext, suffix: st
   });
   const sprint = await sprintRes.json();
 
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.1):
+  // comments are categorized by categoryId (FK into the team's own TeamCommentCategory rows),
+  // not a raw enum string anymore — look up the seeded default category's id by its label.
+  const categoriesRes = await request.get(`${BACKEND_URL}/teams/${team.id}/categories`, {
+    headers: { Authorization: `Bearer ${leader.token}` },
+  });
+  const teamCategories = await categoriesRes.json();
+  const testingCategoryId = teamCategories.find((c: any) => c.label === Strings.retroBoard.categories.TESTING)?.id;
+
   const keepContent = `Keep comment content ${suffix}`;
   const improveContent = `Improve comment content ${suffix}`;
   const leaderUsername = `e2e_pw_mem_leader_${suffix}`;
   await request.post(`${BACKEND_URL}/sprints/${sprint.id}/comments`, {
     headers: { Authorization: `Bearer ${leader.token}` },
-    data: { content: keepContent, type: 'KEEP', category: 'TESTING', isAnonymous: false },
+    data: { content: keepContent, type: 'KEEP', categoryId: testingCategoryId, isAnonymous: false },
   });
   await request.post(`${BACKEND_URL}/sprints/${sprint.id}/comments`, {
     headers: { Authorization: `Bearer ${member.token}` },

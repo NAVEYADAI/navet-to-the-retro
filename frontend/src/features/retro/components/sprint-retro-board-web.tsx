@@ -21,6 +21,19 @@ interface SprintRetroBoardWebProps {
   onBack: () => void;
 }
 
+// Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
+// team's own categories (default + custom), fetched from GET /teams/:teamId/categories. Replaces
+// the old static Strings.retroBoard.categories object as the runtime source of truth.
+interface TeamCategory {
+  id: number;
+  teamId: number;
+  label: string;
+  isDefault: boolean;
+  isEnabled: boolean;
+  createdById: number | null;
+  createdAt: string;
+}
+
 export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: SprintRetroBoardWebProps) {
   const t = useTheme();
   const [comments, setComments] = useState<any[]>([]);
@@ -53,7 +66,9 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   // New comment state
   const [content, setContent] = useState('');
   const [type, setType] = useState<'KEEP' | 'IMPROVE'>('KEEP');
-  const [category, setCategory] = useState('');
+  // '' means "no category" — otherwise the string form of a TeamCommentCategory id.
+  const [categoryId, setCategoryId] = useState('');
+  const [teamCategories, setTeamCategories] = useState<TeamCategory[]>([]);
   const [isAnonymous, setIsAnonymous] = useState(false);
   // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.2): '' means "post as
   // me" (the default) — any other value is the target TeamMember's userId, sent as
@@ -88,6 +103,23 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
     fetchComments();
   }, [sprint.id]);
 
+  // Feature 3 §3.2: fetched once on mount (per this project's mount-only-fetch data-freshness
+  // rule — no auto-refetch-on-focus) — not re-fetched after posting a comment, since the category
+  // list itself doesn't change as a side effect of posting.
+  useEffect(() => {
+    const fetchTeamCategories = async () => {
+      try {
+        const response = await axios.get(`${getBackendUrl()}/teams/${team.id}/categories`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setTeamCategories(response.data);
+      } catch (err) {
+        console.error('Failed to fetch team categories:', err);
+      }
+    };
+    fetchTeamCategories();
+  }, [team.id, token]);
+
   const handlePostComment = async () => {
     setError(null);
     if (!content.trim()) {
@@ -100,7 +132,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
       await axios.post(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
         content: content.trim(),
         type,
-        category: category || undefined,
+        categoryId: categoryId ? Number(categoryId) : undefined,
         isAnonymous: onBehalfOfUserId ? false : isAnonymous,
         onBehalfOfUserId: onBehalfOfUserId ? Number(onBehalfOfUserId) : undefined
       }, {
@@ -110,7 +142,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
       });
 
       setContent('');
-      setCategory('');
+      setCategoryId('');
       setIsAnonymous(false);
       trackEvent('retro_comment_added', { type });
       if (onBehalfOfUserId) {
@@ -132,7 +164,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   };
 
   const matchesFilters = (c: any) =>
-    (filterCategories.length === 0 || filterCategories.includes(c.category)) &&
+    (filterCategories.length === 0 || filterCategories.includes(String(c.categoryId))) &&
     (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase())) &&
     (!highlightedOnly || c.isHighlighted);
 
@@ -178,10 +210,19 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
   const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
 
+  // Feature 3 §3.2: compose-form picker only offers enabled categories.
   const categoryOptions = [
     { value: '', label: Strings.retroBoard.categoryNone },
-    ...Object.entries(Strings.retroBoard.categories).map(([value, label]) => ({ value, label })),
+    ...teamCategories.filter((c) => c.isEnabled).map((c) => ({ value: String(c.id), label: c.label })),
   ];
+
+  // Feature 3 §3.2: the filter bar must ALSO include a disabled category if some already-loaded
+  // comment is tagged with it — otherwise that comment becomes unfilterable the moment its
+  // category gets disabled.
+  const usedCategoryIds = new Set(comments.map((c) => c.categoryId).filter((id) => id != null));
+  const filterCategoryOptions = teamCategories
+    .filter((c) => c.isEnabled || usedCategoryIds.has(c.id))
+    .map((c) => ({ value: String(c.id), label: c.label }));
 
   // The team's creator OR any team admin can export a sprint summary — see product-backlog/01-sprint-summary-export.md §1.0.
   const canExportSummary = team.creatorId === user.id || !!myMembership?.isAdmin;
@@ -350,8 +391,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
             <Field
               type="select"
               label={Strings.retroBoard.categoryLabel}
-              value={category}
-              onChangeText={setCategory}
+              value={categoryId}
+              onChangeText={setCategoryId}
               options={categoryOptions}
             />
           </Box>
@@ -453,6 +494,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
         <CommentFilterBarWeb
           categories={filterCategories}
           onCategoriesChange={setFilterCategories}
+          categoryOptions={filterCategoryOptions}
           searchText={filterText}
           onSearchTextChange={setFilterText}
           highlightedOnly={highlightedOnly}

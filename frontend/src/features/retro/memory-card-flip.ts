@@ -12,7 +12,10 @@ export interface MemoryCardComment {
   id: number;
   content: string;
   type: 'KEEP' | 'IMPROVE';
-  category?: string | null;
+  // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): same
+  // API-joined shape as DisplayableComment (comment-display.ts) — the memory board fetches from
+  // the same GET /sprints/:sprintId/comments endpoint, so it gets the label for free.
+  category?: { id: number; label: string } | null;
   isAnonymous: boolean;
   author: { username: string; firstName?: string | null; lastName?: string | null };
   // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.2, 2026-09-14

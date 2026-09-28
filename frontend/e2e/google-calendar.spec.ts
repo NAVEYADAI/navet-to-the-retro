@@ -57,6 +57,15 @@ async function loginAndOpenSettings(page: Page, token: string) {
   await page.getByText(Strings.settings.pageTitle).waitFor();
 }
 
+// Since product-backlog/10-telegram-comment-ingestion.md §10.2, the Telegram card sitting right
+// below this one on the same Settings page reuses the exact same "לא מחובר" copy
+// (`Strings.settings.telegramNotConnectedText === Strings.settings.googleCalendarNotConnectedText`)
+// — an unscoped `page.getByText(...)` for that string is no longer unique on the page. Every
+// assertion about this card's own connected/disconnected copy must be scoped to the card itself.
+function googleCalendarCard(page: Page) {
+  return page.getByText(Strings.settings.googleCalendarCardTitle, { exact: true }).locator('xpath=../..');
+}
+
 // See file header — writes a `GoogleCalendarConnection` row directly into the isolated test DB,
 // standing in for a real OAuth round-trip that cannot run here.
 function seedGoogleConnection(userId: number, email: string) {
@@ -103,17 +112,18 @@ test.describe('Google Calendar integration — settings card (product-backlog/06
 
     await loginAndOpenSettings(page, member.token);
 
+    const card = googleCalendarCard(page);
     await expect(page.getByText(Strings.settings.googleCalendarCardTitle, { exact: true })).toBeVisible();
-    await expect(page.getByText(Strings.settings.googleCalendarNotConnectedText)).toBeVisible();
-    const connectButton = page.getByRole('button', { name: Strings.settings.googleCalendarConnectButton });
+    await expect(card.getByText(Strings.settings.googleCalendarNotConnectedText)).toBeVisible();
+    const connectButton = card.getByRole('button', { name: Strings.settings.googleCalendarConnectButton });
     await expect(connectButton).toBeVisible();
 
     // GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI are unset in backend/.env.test, so this is a real
     // (unmocked) 500 from the running e2e backend, not a simulated one.
     await connectButton.click();
-    await expect(page.getByText(Strings.settings.googleCalendarConnectError)).toBeVisible();
+    await expect(card.getByText(Strings.settings.googleCalendarConnectError)).toBeVisible();
     // Still not connected — the failed attempt didn't leave the UI in a stuck/inconsistent state.
-    await expect(page.getByText(Strings.settings.googleCalendarNotConnectedText)).toBeVisible();
+    await expect(card.getByText(Strings.settings.googleCalendarNotConnectedText)).toBeVisible();
   });
 
   test('a user with an existing connection (seeded — see file header) sees "connected" status and disconnecting through the real endpoint flips it back', async ({ page, request }) => {
@@ -126,17 +136,18 @@ test.describe('Google Calendar integration — settings card (product-backlog/06
 
     await loginAndOpenSettings(page, user.token);
 
-    await expect(page.getByText(Strings.settings.googleCalendarConnectedLabel(googleAccountEmail))).toBeVisible();
-    const disconnectButton = page.getByRole('button', { name: Strings.settings.googleCalendarDisconnectButton });
+    const card = googleCalendarCard(page);
+    await expect(card.getByText(Strings.settings.googleCalendarConnectedLabel(googleAccountEmail))).toBeVisible();
+    const disconnectButton = card.getByRole('button', { name: Strings.settings.googleCalendarDisconnectButton });
     await expect(disconnectButton).toBeVisible();
     // The "not connected" copy/connect button must not also be present while connected.
-    await expect(page.getByText(Strings.settings.googleCalendarNotConnectedText)).toHaveCount(0);
+    await expect(card.getByText(Strings.settings.googleCalendarNotConnectedText)).toHaveCount(0);
 
     await disconnectButton.click();
 
-    await expect(page.getByText(Strings.settings.googleCalendarDisconnectedMessage)).toBeVisible();
-    await expect(page.getByText(Strings.settings.googleCalendarNotConnectedText)).toBeVisible();
-    await expect(page.getByRole('button', { name: Strings.settings.googleCalendarDisconnectButton })).toHaveCount(0);
+    await expect(card.getByText(Strings.settings.googleCalendarDisconnectedMessage)).toBeVisible();
+    await expect(card.getByText(Strings.settings.googleCalendarNotConnectedText)).toBeVisible();
+    await expect(card.getByRole('button', { name: Strings.settings.googleCalendarDisconnectButton })).toHaveCount(0);
 
     // Confirm it's really persisted server-side (real endpoint, not just local state).
     const statusRes = await request.get(`${BACKEND_URL}/google-calendar/status`, {

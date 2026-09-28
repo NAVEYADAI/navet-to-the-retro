@@ -48,6 +48,52 @@ model User {
   googleCalendarConnections GoogleCalendarConnection[]
   sprintLengthChanges       SprintLengthChange[]
   createdCommentCategories  TeamCommentCategory[]      @relation("TeamCommentCategoryCreator")
+  messagingLinks            UserMessagingLink[]
+}
+
+// Feature 10 (telegram comment ingestion, product-backlog/10-telegram-comment-ingestion.md §10.0
+// decision #2 + default #1): generic per-channel identity link — deliberately NOT a
+// `telegramChatId` column on `User` — so a future WhatsApp adapter (`channel: WHATSAPP`) can reuse
+// the exact same resolve/conversation logic against the same model. Built on the closest existing
+// shape, `GoogleCalendarConnection` ("personal connection to an external identity, soft-revoke
+// instead of hard delete" — not the `TeamInvite`/per-team-owned-entity pattern, since this isn't
+// team-scoped). Also carries conversation *state*, not just identity: `activeTeamId`/
+// `activeSprintId` are the "sticky, no time-based expiry" active team+sprint context (§10.0
+// decision #5); `pendingCommentContent`/`pendingCommentType` hold the in-progress comment body
+// while waiting on the Keep/Improve + category round-trip (§10.0 decision #6);
+// `lastProcessedUpdateId` is the webhook idempotency guard against Telegram's at-least-once
+// delivery retries (notably right after a Fly suspend/resume, §10.0 default #8/#9).
+enum MessagingChannel {
+  TELEGRAM
+}
+
+model UserMessagingLink {
+  id                    Int               @id @default(autoincrement())
+  userId                Int
+  channel               MessagingChannel
+  externalId            String
+  isRevoked             Boolean           @default(false)
+  activeTeamId          Int?
+  activeSprintId        Int?
+  pendingCommentContent String?
+  pendingCommentType    CommentType?
+  lastProcessedUpdateId Int?
+  linkedAt              DateTime          @default(now())
+  // Team/sprint context stickiness (Nave's explicit ask, 2026-09-27 — supersedes the earlier
+  // "no time-based expiry" decision in product-backlog/10-*.md §10.0 #5). `contextSetAt` is
+  // refreshed whenever activeTeamId/activeSprintId is (re)confirmed; `contextStickyHours` is a
+  // per-link, user-configurable duration (null = never expire, back to the original behavior) —
+  // configured via `PATCH /auth/telegram/link/settings`.
+  contextSetAt          DateTime?
+  contextStickyHours    Int?              @default(24)
+  // Set only by an explicit "↩️ חזור" from the Keep/Improve stage back to team/sprint selection —
+  // forces an explicit re-ask even when there's only one team/sprint candidate (normally silent),
+  // so the user can confirm or change it. Cleared once team+sprint are both resolved again.
+  awaitingContextConfirm Boolean          @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channel, externalId])
 }
 
 enum TeamRole {

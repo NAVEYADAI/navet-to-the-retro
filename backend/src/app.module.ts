@@ -10,9 +10,10 @@ import { SprintsModule } from './sprints/sprints.module';
 import { InvitesModule } from './invites/invites.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 import { TeamCategoriesModule } from './team-categories/team-categories.module';
+import { TelegramModule } from './telegram/telegram.module';
 
 @Module({
-  imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule, InvitesModule, GoogleCalendarModule, TeamCategoriesModule],
+  imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule, InvitesModule, GoogleCalendarModule, TeamCategoriesModule, TelegramModule],
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })

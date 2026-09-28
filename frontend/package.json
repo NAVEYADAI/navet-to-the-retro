@@ -61,7 +61,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "web:e2e": "EXPO_PUBLIC_BACKEND_URL=http://localhost:5006 expo start --web --port 8086",
+    "web:e2e": "EXPO_PUBLIC_BACKEND_URL=http://localhost:5006 EXPO_PUBLIC_TELEGRAM_BOT_USERNAME= expo start --web --port 8086",
     "lint": "expo lint",
     "test": "jest",
     "test:e2e": "playwright test"

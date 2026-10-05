@@ -22,8 +22,8 @@ describe('SprintsService', () => {
 
   const activeTeam = { id: 1, name: 'Team A', status: 'ACTIVE' };
   const pendingTeam = { id: 2, status: 'PENDING_APPROVAL' };
-  const admin = { userId: 10, teamId: activeTeam.id, isAdmin: true };
-  const nonAdmin = { userId: 20, teamId: activeTeam.id, isAdmin: false };
+  const admin = { userId: 10, teamId: activeTeam.id, isAdmin: true, status: 'ACTIVE' };
+  const nonAdmin = { userId: 20, teamId: activeTeam.id, isAdmin: false, status: 'ACTIVE' };
 
   const dto = { name: 'Sprint 1', startDate: '2026-01-01', endDate: '2026-01-14' };
 
@@ -172,6 +172,13 @@ describe('SprintsService', () => {
       mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
 
       await expect(service.findAll(activeTeam.id, 999)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws ForbiddenException when the requester is only a PENDING invitee (BUG-04)', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ ...nonAdmin, status: 'PENDING' });
+
+      await expect(service.findAll(activeTeam.id, nonAdmin.userId)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.sprint.findMany).not.toHaveBeenCalled();
     });
 
     it('returns sprints for a team member', async () => {
@@ -353,8 +360,8 @@ describe('SprintsService', () => {
 
   describe('getLengthHistory', () => {
     const sprint = { id: 5, teamId: activeTeam.id, name: 'Sprint 1' };
-    const teamLeader = { userId: 30, teamId: activeTeam.id, isAdmin: false, role: 'TEAM_LEADER' };
-    const regularMember = { userId: 40, teamId: activeTeam.id, isAdmin: false, role: 'DEVELOPER' };
+    const teamLeader = { userId: 30, teamId: activeTeam.id, isAdmin: false, role: 'TEAM_LEADER', status: 'ACTIVE' };
+    const regularMember = { userId: 40, teamId: activeTeam.id, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
     const changer = { id: admin.userId, username: 'admin-user', password: 'hashed', firstName: 'A', lastName: 'B' };
 
     const records = [

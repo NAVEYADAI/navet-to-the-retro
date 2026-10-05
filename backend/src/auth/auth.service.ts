@@ -11,12 +11,13 @@ export class AuthService {
   constructor(private readonly prisma: PrismaService) {}
 
   async register(dto: RegisterDto) {
-    const finalUsername = dto.username || dto.email;
+    const email = dto.email.trim();
+    const finalUsername = dto.username || email;
     const existingUser = await this.prisma.user.findFirst({
       where: {
         OR: [
           { username: finalUsername },
-          { email: dto.email }
+          { email: { equals: email, mode: 'insensitive' } }
         ]
       }
     });
@@ -30,7 +31,7 @@ export class AuthService {
     const user = await this.prisma.user.create({
       data: {
         username: finalUsername,
-        email: dto.email,
+        email,
         password: hashedPassword,
         firstName: dto.firstName,
         lastName: dto.lastName,

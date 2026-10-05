@@ -96,6 +96,17 @@ describe('AuthService', () => {
       await expect(service.register(dto)).rejects.toThrow(ConflictException);
     });
 
+    it('BUG-05: duplicate-email check is case-insensitive', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
+
+      await expect(
+        service.register({ username: 'other', email: 'Test@Example.com', password: 'p' })
+      ).rejects.toThrow(ConflictException);
+      expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ username: 'other' }, { email: { equals: 'Test@Example.com', mode: 'insensitive' } }] },
+      });
+    });
+
     it('should throw ConflictException if email already exists', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 

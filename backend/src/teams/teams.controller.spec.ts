@@ -87,7 +87,7 @@ describe('TeamsController', () => {
   it('getTeamMembers() validates the token then delegates to the service', async () => {
     await controller.getTeamMembers(authHeader, 5);
 
-    expect(mockTeamsService.getTeamMembers).toHaveBeenCalledWith(5);
+    expect(mockTeamsService.getTeamMembers).toHaveBeenCalledWith(5, mockUser.id);
   });
 
   it('updateMember() validates the token then delegates to the service', async () => {

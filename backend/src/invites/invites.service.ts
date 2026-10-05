@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, ConflictException, B
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateInviteDto, CreatePhantomConversionInviteDto, ConsumePhantomConversionInviteDto } from './dto/invites.dto';
@@ -22,7 +23,7 @@ export class InvitesService {
     const membership = await this.prisma.teamMember.findUnique({
       where: { userId_teamId: { userId: requesterId, teamId } }
     });
-    if (!membership || !membership.isAdmin) {
+    if (!membership || membership.status !== 'ACTIVE' || !membership.isAdmin) {
       throw new ForbiddenException('Only team admins can manage invites');
     }
   }
@@ -34,6 +35,27 @@ export class InvitesService {
     if (invite.expiresAt && invite.expiresAt < new Date()) return 'ההזמנה פגה';
     if (invite.maxUses !== null && invite.useCount >= invite.maxUses) return 'ההזמנה כבר נוצלה';
     return null;
+  }
+
+  // BUG-06: the maxUses check in reasonForInvalidity runs on a value read before the increment, so
+  // concurrent consumers all pass it. Claim the use atomically instead — the WHERE clause is
+  // evaluated by the DB at write time, so only maxUses claims can succeed. Must run inside the
+  // same transaction as the join so a failed join releases the claim.
+  private async claimInviteUse(
+    tx: Prisma.TransactionClient,
+    invite: { id: number; maxUses: number | null }
+  ) {
+    const claimed = await tx.teamInvite.updateMany({
+      where: {
+        id: invite.id,
+        isRevoked: false,
+        ...(invite.maxUses !== null ? { useCount: { lt: invite.maxUses } } : {})
+      },
+      data: { useCount: { increment: 1 } }
+    });
+    if (claimed.count === 0) {
+      throw new ConflictException('ההזמנה כבר נוצלה');
+    }
   }
 
   async createInvite(teamId: number, dto: CreateInviteDto, requesterId: number) {
@@ -178,8 +200,9 @@ export class InvitesService {
       throw new ConflictException('כבר חבר/ה בצוות זה');
     }
 
-    const [membership] = await this.prisma.$transaction([
-      this.prisma.teamMember.create({
+    const membership = await this.prisma.$transaction(async (tx) => {
+      await this.claimInviteUse(tx, invite);
+      return tx.teamMember.create({
         data: {
           teamId: invite.teamId,
           userId: user.id,
@@ -188,12 +211,8 @@ export class InvitesService {
           status: 'ACTIVE'
         },
         include: { team: true }
-      }),
-      this.prisma.teamInvite.update({
-        where: { id: invite.id },
-        data: { useCount: { increment: 1 } }
-      })
-    ]);
+      });
+    });
 
     return membership;
   }
@@ -258,7 +277,9 @@ export class InvitesService {
     }
 
     const targetMember = await this.prisma.teamMember.findUnique({ where: { id: invite.convertsMemberId } });
-    if (!targetMember) {
+    // BUG-01: the phantom must belong to the team that issued this invite, otherwise whoever
+    // controls the invite's team could take over a phantom from another team.
+    if (!targetMember || targetMember.teamId !== invite.teamId) {
       throw new NotFoundException('Team member not found');
     }
 
@@ -286,8 +307,9 @@ export class InvitesService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    const [updatedUser] = await this.prisma.$transaction([
-      this.prisma.user.update({
+    const updatedUser = await this.prisma.$transaction(async (tx) => {
+      await this.claimInviteUse(tx, invite);
+      return tx.user.update({
         where: { id: phantomUser.id },
         data: {
           username: dto.username,
@@ -297,12 +319,8 @@ export class InvitesService {
           lastName: dto.lastName ?? phantomUser.lastName,
           isPhantom: false
         }
-      }),
-      this.prisma.teamInvite.update({
-        where: { id: invite.id },
-        data: { useCount: { increment: 1 } }
-      })
-    ]);
+      });
+    });
 
     // Same JWT payload shape/expiry as register()/login() — the user is logged straight in,
     // no separate login step.

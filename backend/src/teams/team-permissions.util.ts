@@ -9,7 +9,8 @@ export async function assertCanManageTeamContent(prisma: PrismaService, teamId: 
   const membership = await prisma.teamMember.findUnique({
     where: { userId_teamId: { userId: requesterId, teamId } }
   });
-  if (!membership || (!membership.isAdmin && membership.role !== 'TEAM_LEADER')) {
+  // BUG-04: a still-PENDING invitee has not accepted yet, so holds no permissions at all.
+  if (!membership || membership.status !== 'ACTIVE' || (!membership.isAdmin && membership.role !== 'TEAM_LEADER')) {
     throw new ForbiddenException('רק מנהלי צוות וראשי צוותים יכולים לבצע פעולה זו');
   }
 }

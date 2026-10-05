@@ -187,10 +187,28 @@ describe('GoogleLoginService', () => {
       expect(mockPrisma.user.create).not.toHaveBeenCalled();
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 5 },
-        data: { googleId: 'google-sub-4', emailVerifiedAt: expect.any(Date) },
+        // BUG-05: the row had no `emailVerifiedAt`, so its (unproven) password is dropped on link.
+        data: { googleId: 'google-sub-4', emailVerifiedAt: expect.any(Date), password: null },
       });
       const payload = jwt.verify((result as any).ticket, configuredEnv.JWT_SECRET) as jwt.JwtPayload;
       expect(payload.sub).toBe(5);
+    });
+
+    it('keeps the password when linking a row whose email was already verified', async () => {
+      const service = loadService(configuredEnv);
+      mockGetToken.mockResolvedValue({ tokens: { access_token: 'a' } });
+      mockUserinfoGet.mockResolvedValue({ data: { id: 'google-sub-4', email: 'existing@example.com' } });
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      const existingUser = { id: 5, googleId: null, email: 'existing@example.com', password: 'hashed', emailVerifiedAt: new Date() };
+      mockPrisma.user.findFirst.mockResolvedValue(existingUser);
+      mockPrisma.user.update.mockResolvedValue({ ...existingUser, googleId: 'google-sub-4' });
+
+      await service.handleCallback('code', validState());
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 5 },
+        data: { googleId: 'google-sub-4', emailVerifiedAt: expect.any(Date) },
+      });
     });
 
     it('does not crash on an email collision with a User already linked to a different googleId (known unresolved edge case)', async () => {

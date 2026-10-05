@@ -8,8 +8,8 @@ describe('InvitesService', () => {
   let service: InvitesService;
 
   const team = { id: 10, name: 'Core Team', status: 'ACTIVE' };
-  const admin = { userId: 1, teamId: team.id, isAdmin: true };
-  const nonAdmin = { userId: 2, teamId: team.id, isAdmin: false };
+  const admin = { userId: 1, teamId: team.id, isAdmin: true, status: 'ACTIVE' };
+  const nonAdmin = { userId: 2, teamId: team.id, isAdmin: false, status: 'ACTIVE' };
   const requester = { id: 1, username: 'creator', firstName: 'Cre', lastName: 'Ator' };
 
   const mockPrismaService = {
@@ -21,9 +21,11 @@ describe('InvitesService', () => {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     user: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
-    $transaction: jest.fn(),
+    // Interactive transactions: run the callback against the same mock client.
+    $transaction: jest.fn((cb: (tx: unknown) => unknown) => cb(mockPrismaService)),
   };
 
   const mockEmailService = {
@@ -40,10 +42,12 @@ describe('InvitesService', () => {
     }).compile();
 
     service = module.get<InvitesService>(InvitesService);
+    mockPrismaService.teamInvite.updateMany.mockResolvedValue({ count: 1 });
   });
 
   afterEach(() => {
     jest.clearAllMocks();
+    mockPrismaService.teamInvite.updateMany.mockReset();
   });
 
   describe('createInvite', () => {
@@ -227,7 +231,7 @@ describe('InvitesService', () => {
       mockPrismaService.teamInvite.findUnique.mockResolvedValue({ ...validInvite, email: 'Joiner@Example.com' });
       mockPrismaService.team.findUnique.mockResolvedValue(team);
       mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
-      mockPrismaService.$transaction.mockResolvedValue([{ id: 1 }, {}]);
+      mockPrismaService.teamMember.create.mockResolvedValue({ id: 1 });
 
       await expect(service.consumeInvite('tok', joiningUser)).resolves.toBeDefined();
     });
@@ -251,7 +255,7 @@ describe('InvitesService', () => {
       mockPrismaService.teamInvite.findUnique.mockResolvedValue(validInvite);
       mockPrismaService.team.findUnique.mockResolvedValue(team);
       mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
-      mockPrismaService.$transaction.mockResolvedValue([{ id: 1, status: 'ACTIVE' }, {}]);
+      mockPrismaService.teamMember.create.mockResolvedValue({ id: 1, status: 'ACTIVE' });
 
       const result = await service.consumeInvite('tok', joiningUser);
 
@@ -262,6 +266,44 @@ describe('InvitesService', () => {
         })
       );
       expect(result).toEqual({ id: 1, status: 'ACTIVE' });
+    });
+
+    it('claims the use atomically with a useCount < maxUses guard (BUG-06)', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({ ...validInvite, maxUses: 3, useCount: 2 });
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+      mockPrismaService.teamMember.create.mockResolvedValue({ id: 1 });
+
+      await service.consumeInvite('tok', joiningUser);
+
+      expect(mockPrismaService.teamInvite.updateMany).toHaveBeenCalledWith({
+        where: { id: validInvite.id, isRevoked: false, useCount: { lt: 3 } },
+        data: { useCount: { increment: 1 } },
+      });
+    });
+
+    it('omits the useCount guard for an unlimited invite', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue(validInvite);
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+      mockPrismaService.teamMember.create.mockResolvedValue({ id: 1 });
+
+      await service.consumeInvite('tok', joiningUser);
+
+      expect(mockPrismaService.teamInvite.updateMany).toHaveBeenCalledWith({
+        where: { id: validInvite.id, isRevoked: false },
+        data: { useCount: { increment: 1 } },
+      });
+    });
+
+    it('throws ConflictException and creates no membership when a concurrent consumer took the last use (BUG-06)', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({ ...validInvite, maxUses: 1, useCount: 0 });
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+      mockPrismaService.teamInvite.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.consumeInvite('tok', joiningUser)).rejects.toThrow(ConflictException);
+      expect(mockPrismaService.teamMember.create).not.toHaveBeenCalled();
     });
   });
 
@@ -381,6 +423,14 @@ describe('InvitesService', () => {
       await expect(service.consumePhantomConversionInvite('convtok', conversionDto)).rejects.toThrow(ConflictException);
     });
 
+    it('throws NotFoundException when the phantom belongs to a different team than the invite (BUG-01)', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue(conversionInvite);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ ...phantomMember, teamId: team.id + 1 });
+
+      await expect(service.consumePhantomConversionInvite('convtok', conversionDto)).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
+    });
+
     it('throws ConflictException when the phantom has already been converted (double-conversion blocked)', async () => {
       mockPrismaService.teamInvite.findUnique.mockResolvedValue(conversionInvite);
       mockPrismaService.teamMember.findUnique.mockResolvedValue(phantomMember);
@@ -406,10 +456,9 @@ describe('InvitesService', () => {
       mockPrismaService.teamMember.findUnique.mockResolvedValue(phantomMember);
       mockPrismaService.user.findUnique.mockResolvedValue(phantomUser);
       mockPrismaService.user.findFirst.mockResolvedValue(null);
-      mockPrismaService.$transaction.mockResolvedValue([
-        { ...phantomUser, username: conversionDto.username, email: conversionDto.email, password: 'hashed', isPhantom: false },
-        { id: conversionInvite.id, useCount: 1 },
-      ]);
+      mockPrismaService.user.update.mockResolvedValue({
+        ...phantomUser, username: conversionDto.username, email: conversionDto.email, password: 'hashed', isPhantom: false,
+      });
 
       const result = await service.consumePhantomConversionInvite('convtok', conversionDto);
 

@@ -177,7 +177,14 @@ export class GoogleLoginService {
       // valid," which it is).
       return this.prisma.user.update({
         where: { id: byEmail.id },
-        data: { googleId: profile.googleId, emailVerifiedAt: new Date() }
+        data: {
+          googleId: profile.googleId,
+          emailVerifiedAt: new Date(),
+          // BUG-05: a password row whose email was never verified may belong to someone who only
+          // *claimed* this address (pre-hijack). Google just proved the real owner, so the
+          // unverified password is dropped — the owner signs in with Google from now on.
+          ...(byEmail.emailVerifiedAt ? {} : { password: null }),
+        }
       });
     }
     return byEmail;

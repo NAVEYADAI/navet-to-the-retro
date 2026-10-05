@@ -7,9 +7,9 @@ describe('CommentsService', () => {
   let service: CommentsService;
 
   const sprint = { id: 1, teamId: 100 };
-  const member = { userId: 10, teamId: sprint.teamId, isAdmin: false, role: 'DEVELOPER' };
-  const admin = { userId: 20, teamId: sprint.teamId, isAdmin: true, role: 'DEVELOPER' };
-  const teamLeader = { userId: 30, teamId: sprint.teamId, isAdmin: false, role: 'TEAM_LEADER' };
+  const member = { userId: 10, teamId: sprint.teamId, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
+  const admin = { userId: 20, teamId: sprint.teamId, isAdmin: true, role: 'DEVELOPER', status: 'ACTIVE' };
+  const teamLeader = { userId: 30, teamId: sprint.teamId, isAdmin: false, role: 'TEAM_LEADER', status: 'ACTIVE' };
 
   const createDto = { content: 'Great sprint', type: 'KEEP' as const };
 
@@ -59,6 +59,14 @@ describe('CommentsService', () => {
       mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
 
       await expect(service.create(sprint.id, createDto, 999)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when the author is only a PENDING invitee (BUG-04)', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ ...member, status: 'PENDING' });
+
+      await expect(service.create(sprint.id, { content: 'x', type: 'KEEP' } as any, member.userId)).rejects.toThrow(ForbiddenException);
       expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
     });
 
@@ -135,6 +143,17 @@ describe('CommentsService', () => {
         expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
       });
 
+      it('throws NotFoundException when the target user is only a PENDING invitee (BUG-04)', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+        mockPrismaService.teamMember.findUnique
+          .mockResolvedValueOnce(admin) // requester membership
+          .mockResolvedValueOnce(admin) // assertCanManageTeamContent
+          .mockResolvedValueOnce({ userId: 77, teamId: sprint.teamId, role: 'DEVELOPER', isAdmin: false, status: 'PENDING' });
+
+        await expect(service.create(sprint.id, { content: 'x', type: 'KEEP', onBehalfOfUserId: 77 } as any, admin.userId)).rejects.toThrow(NotFoundException);
+        expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+      });
+
       it('throws NotFoundException when the target user is not a member of this team', async () => {
         mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
         mockPrismaService.teamMember.findUnique
@@ -147,7 +166,7 @@ describe('CommentsService', () => {
       });
 
       it('sets authorId to the target, postedByAdminId to the requester, and forces isAnonymous:false server-side', async () => {
-        const targetMembership = { userId: 77, teamId: sprint.teamId, role: 'DEVELOPER', isAdmin: false };
+        const targetMembership = { userId: 77, teamId: sprint.teamId, role: 'DEVELOPER', isAdmin: false, status: 'ACTIVE' };
         mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
         mockPrismaService.teamMember.findUnique
           .mockResolvedValueOnce(admin) // requester membership check
@@ -169,7 +188,7 @@ describe('CommentsService', () => {
       });
 
       it('allows a team leader (non-admin) to post on behalf of someone', async () => {
-        const targetMembership = { userId: 77, teamId: sprint.teamId, role: 'DEVELOPER', isAdmin: false };
+        const targetMembership = { userId: 77, teamId: sprint.teamId, role: 'DEVELOPER', isAdmin: false, status: 'ACTIVE' };
         mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
         mockPrismaService.teamMember.findUnique
           .mockResolvedValueOnce(teamLeader)
@@ -196,17 +215,27 @@ describe('CommentsService', () => {
       await expect(service.getCommentsForSprint(sprint.id, 999)).rejects.toThrow(ForbiddenException);
     });
 
+    it('throws ForbiddenException when the requester is only a PENDING invitee (BUG-04)', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ ...member, status: 'PENDING' });
+
+      await expect(service.getCommentsForSprint(sprint.id, member.userId)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.comment.findMany).not.toHaveBeenCalled();
+    });
+
     it('masks the author of anonymous comments so no one, not even admins, can unmask them', async () => {
       mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
       mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
       mockPrismaService.comment.findMany.mockResolvedValue([
-        { id: 1, content: 'named', isAnonymous: false, author: { id: 5, username: 'nave' } },
-        { id: 2, content: 'secret', isAnonymous: true, author: { id: 6, username: 'liron' } },
+        { id: 1, content: 'named', isAnonymous: false, authorId: 5, author: { id: 5, username: 'nave' } },
+        { id: 2, content: 'secret', isAnonymous: true, authorId: 6, author: { id: 6, username: 'liron' } },
       ]);
 
       const result = await service.getCommentsForSprint(sprint.id, admin.userId);
 
       expect(result[0].author).toEqual({ id: 5, username: 'nave' });
+      expect(result[0]).toHaveProperty('authorId', 5);
+      expect(result[1]).not.toHaveProperty('authorId'); // BUG-02
       expect(result[1].author).toEqual({ id: 0, username: 'Anonymous', firstName: 'Anonymous', lastName: '', isPhantom: false });
     });
   });
@@ -239,6 +268,19 @@ describe('CommentsService', () => {
         where: { id: comment.id },
         data: { isHighlighted: true },
       });
+    });
+
+    it('does not leak authorId when highlighting an anonymous comment (BUG-02)', async () => {
+      const anon = { ...comment, isAnonymous: true, authorId: 6 };
+      mockPrismaService.comment.findUnique.mockResolvedValue(anon);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.comment.update.mockResolvedValue({ ...anon, isHighlighted: true });
+
+      const result: any = await service.setHighlighted(comment.id, { isHighlighted: true }, admin.userId);
+
+      expect(result).not.toHaveProperty('authorId');
+      expect(result.author.username).toBe('Anonymous');
+      expect(result.isHighlighted).toBe(true);
     });
 
     it('allows a team leader (non-admin) to highlight', async () => {

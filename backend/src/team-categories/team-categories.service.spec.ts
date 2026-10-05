@@ -7,9 +7,9 @@ describe('TeamCategoriesService', () => {
   let service: TeamCategoriesService;
 
   const team = { id: 10, name: 'Core Team' };
-  const member = { userId: 1, teamId: team.id, isAdmin: false, role: 'DEVELOPER' };
-  const admin = { userId: 2, teamId: team.id, isAdmin: true, role: 'DEVELOPER' };
-  const teamLeader = { userId: 3, teamId: team.id, isAdmin: false, role: 'TEAM_LEADER' };
+  const member = { userId: 1, teamId: team.id, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
+  const admin = { userId: 2, teamId: team.id, isAdmin: true, role: 'DEVELOPER', status: 'ACTIVE' };
+  const teamLeader = { userId: 3, teamId: team.id, isAdmin: false, role: 'TEAM_LEADER', status: 'ACTIVE' };
 
   const mockPrismaService = {
     team: { findUnique: jest.fn() },
@@ -55,6 +55,13 @@ describe('TeamCategoriesService', () => {
       mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
 
       await expect(service.listCategories(team.id, 999, false)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws ForbiddenException when the requester is only a PENDING invitee (BUG-04)', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ ...member, status: 'PENDING' });
+
+      await expect(service.listCategories(team.id, member.userId, false)).rejects.toThrow(ForbiddenException);
     });
 
     it('allows a plain member to view the list (not admin-gated, unlike invites)', async () => {

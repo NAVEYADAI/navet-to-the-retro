@@ -17,7 +17,7 @@ export class TeamCategoriesService {
     const membership = await this.prisma.teamMember.findUnique({
       where: { userId_teamId: { userId: requesterId, teamId } }
     });
-    if (!membership) {
+    if (!membership || membership.status !== 'ACTIVE') {
       throw new ForbiddenException('You do not belong to this team');
     }
   }

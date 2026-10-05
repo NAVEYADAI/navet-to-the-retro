@@ -189,7 +189,7 @@ export class TeamsService {
         }
       }
     });
-    if (!requesterMembership || !requesterMembership.isAdmin) {
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE' || !requesterMembership.isAdmin) {
       throw new ForbiddenException('Only team admins can add members to the team');
     }
 
@@ -202,6 +202,11 @@ export class TeamsService {
         ]
       }
     });
+    // BUG-01: a phantom belongs to exactly the team that created it — never addable elsewhere.
+    // Reported as "not found" (same as a non-existent user) so it doesn't confirm the account exists.
+    if (userToJoin?.isPhantom) {
+      throw new NotFoundException(`User with username or email '${dto.username}' not found`);
+    }
     if (!userToJoin) {
       // No account yet — if a valid email was given, invite them to register instead of a
       // hard 404. Registering through that invite's link joins the team immediately
@@ -285,7 +290,7 @@ export class TeamsService {
       where: { userId_teamId: { userId: requesterId, teamId: teamId } }
     });
     const isInvitee = membership.userId === requesterId;
-    const isAdmin = !!requesterMembership?.isAdmin;
+    const isAdmin = requesterMembership?.status === 'ACTIVE' && !!requesterMembership.isAdmin;
     if (!isInvitee && !isAdmin) {
       throw new ForbiddenException('אין הרשאה לבטל הזמנה זו');
     }
@@ -326,12 +331,21 @@ export class TeamsService {
     ];
   }
 
-  async getTeamMembers(teamId: number) {
+  async getTeamMembers(teamId: number, requesterId: number) {
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
     });
     if (!team) {
       throw new NotFoundException('Team not found');
+    }
+
+    // BUG-03: the list exposes every member's email/username, so only active members of this
+    // team may read it (a still-pending invitee hasn't accepted yet, so they don't qualify).
+    const requesterMembership = await this.prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: requesterId, teamId } }
+    });
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE') {
+      throw new ForbiddenException('You do not belong to this team');
     }
 
     return this.prisma.teamMember.findMany({
@@ -360,7 +374,7 @@ export class TeamsService {
         }
       }
     });
-    if (!requesterMembership || !requesterMembership.isAdmin) {
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE' || !requesterMembership.isAdmin) {
       throw new ForbiddenException('Only team admins can manage members');
     }
 
@@ -419,7 +433,7 @@ export class TeamsService {
         }
       }
     });
-    if (!requesterMembership || !requesterMembership.isAdmin) {
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE' || !requesterMembership.isAdmin) {
       throw new ForbiddenException('Only team admins can remove members');
     }
 
@@ -504,7 +518,7 @@ export class TeamsService {
         }
       }
     });
-    if (!membership || !membership.isAdmin) {
+    if (!membership || membership.status !== 'ACTIVE' || !membership.isAdmin) {
       throw new ForbiddenException('Only team admins can edit team details');
     }
 

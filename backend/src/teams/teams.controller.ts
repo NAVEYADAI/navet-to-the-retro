@@ -84,8 +84,8 @@ export class TeamsController {
     @Headers('authorization') authHeader: string,
     @Param('id', ParseIntPipe) teamId: number
   ) {
-    await this.authService.validateToken(authHeader);
-    return this.teamsService.getTeamMembers(teamId);
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamsService.getTeamMembers(teamId, user.id);
   }
 
   // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.1).

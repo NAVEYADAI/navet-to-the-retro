@@ -100,7 +100,7 @@ model TeamMember {
 - `finalRole = dto.role || userToJoin.role || 'DEVELOPER'` — שים לב: `userToJoin.role` הוא ה-`User.role` (string חופשי, ברירת מחדל `'DEVELOPER'`), לא `TeamRole` enum — יכול תיאורטית להיות כל string שהוזן ב-registration/profile.
 
 ### `GET /teams/:id/members`
-- Auth: רק `validateToken` כללי — **אין בדיקת חברות בצוות** (ראה §9.7). `NotFoundException('Team not found')` אם לא קיים.
+- Auth: `validateToken` + דורש חברות ACTIVE בצוות (אחרת `ForbiddenException`) — תוקן ב-BUG-03. `NotFoundException('Team not found')` אם לא קיים.
 
 ### `GET /teams/user/me`
 - מחזיר מערך מאוחד: חברויות בפועל (`{...team, roleInTeam: m.role}`) **בצירוף** צוותים שהמשתמש הוא ה-`pendingApprover` שלהם ועדיין `PENDING_APPROVAL` (`{...team, roleInTeam: null}`). ה-frontend מבחין בין השניים לפי `team.status`/`pendingApproverId`/`creatorId` ולא לפי `roleInTeam` ישירות (ראה §6).

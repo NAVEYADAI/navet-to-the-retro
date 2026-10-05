@@ -25,7 +25,7 @@ export class CommentsService {
         }
       }
     });
-    if (!membership) {
+    if (!membership || membership.status !== 'ACTIVE') {
       throw new ForbiddenException('You are not a member of this team');
     }
 
@@ -49,7 +49,7 @@ export class CommentsService {
           }
         }
       });
-      if (!targetMembership) {
+      if (!targetMembership || targetMembership.status !== 'ACTIVE') {
         throw new NotFoundException('Team member not found in this team');
       }
 
@@ -131,7 +131,7 @@ export class CommentsService {
         }
       }
     });
-    if (!requesterMembership) {
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE') {
       throw new ForbiddenException('You do not belong to this team');
     }
 
@@ -175,21 +175,26 @@ export class CommentsService {
     });
 
     // 4. Return comments, masking author if comment is anonymous (no one, including admins, can unmask it)
-    return comments.map(c => {
-      if (c.isAnonymous) {
-        return {
-          ...c,
-          author: {
-            id: 0,
-            username: 'Anonymous',
-            firstName: 'Anonymous',
-            lastName: '',
-            isPhantom: false
-          }
-        };
+    return comments.map(c => this.maskIfAnonymous(c));
+  }
+
+  // BUG-02: masks both the nested `author` and the flat `authorId` column — leaving `authorId`
+  // in place would let anyone map an anonymous comment back to its writer.
+  private maskIfAnonymous<T extends { isAnonymous: boolean; authorId: number }>(comment: T) {
+    if (!comment.isAnonymous) {
+      return comment;
+    }
+    const { authorId: _authorId, ...rest } = comment;
+    return {
+      ...rest,
+      author: {
+        id: 0,
+        username: 'Anonymous',
+        firstName: 'Anonymous',
+        lastName: '',
+        isPhantom: false
       }
-      return c;
-    });
+    };
   }
 
   async setHighlighted(commentId: number, dto: UpdateHighlightDto, requesterId: number) {
@@ -201,9 +206,10 @@ export class CommentsService {
     // Only team admins and team leads may highlight — see product-backlog/02-comment-highlighting.md §2.0.
     await assertCanManageTeamContent(this.prisma, comment.teamId, requesterId);
 
-    return this.prisma.comment.update({
+    const updated = await this.prisma.comment.update({
       where: { id: commentId },
       data: { isHighlighted: dto.isHighlighted }
     });
+    return this.maskIfAnonymous(updated);
   }
 }

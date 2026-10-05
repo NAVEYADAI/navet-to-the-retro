@@ -40,6 +40,7 @@ describe('TeamsService', () => {
     },
     teamMember: {
       create: jest.fn(),
+      findMany: jest.fn(),
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
@@ -250,8 +251,8 @@ describe('TeamsService', () => {
 
   describe('addMember', () => {
     const activeTeam = { ...mockTeam, status: 'ACTIVE' };
-    const admin = { userId: creator.id, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER' };
-    const nonAdmin = { userId: approver.id, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER' };
+    const admin = { userId: creator.id, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER', status: 'ACTIVE' };
+    const nonAdmin = { userId: approver.id, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
     const invitee = { id: 5, username: 'invitee', email: 'invitee@example.com', role: 'DEVELOPER' };
 
     it('throws NotFoundException when the team does not exist', async () => {
@@ -275,6 +276,16 @@ describe('TeamsService', () => {
 
       await expect(service.addMember(activeTeam.id, { username: 'x', role: 'DEVELOPER' } as any, approver.id))
         .rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when the target is a phantom member of another team (BUG-01)', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.user.findFirst.mockResolvedValue({ id: 500, username: 'phantom_abc', email: 'phantom_abc@phantom.local', isPhantom: true });
+
+      await expect(service.addMember(activeTeam.id, { username: 'phantom_abc', role: 'DEVELOPER' } as any, creator.id))
+        .rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.teamMember.create).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when the invited username does not exist and is not an email', async () => {
@@ -332,6 +343,38 @@ describe('TeamsService', () => {
     });
   });
 
+  describe('getTeamMembers', () => {
+    it('throws NotFoundException when the team does not exist', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(null);
+
+      await expect(service.getTeamMembers(999, creator.id)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException for a user who is not a member of the team (BUG-03)', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+
+      await expect(service.getTeamMembers(mockTeam.id, 999)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.teamMember.findMany).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException for a member whose invite is still PENDING', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ userId: 5, teamId: mockTeam.id, status: 'PENDING' });
+
+      await expect(service.getTeamMembers(mockTeam.id, 5)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.teamMember.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns the members to an ACTIVE member', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ userId: creator.id, teamId: mockTeam.id, status: 'ACTIVE' });
+      mockPrismaService.teamMember.findMany.mockResolvedValue([{ id: 1 }]);
+
+      await expect(service.getTeamMembers(mockTeam.id, creator.id)).resolves.toEqual([{ id: 1 }]);
+    });
+  });
+
   describe('acceptMemberInvite', () => {
     const pendingInvite = { id: 30, userId: 5, teamId: mockTeam.id, status: 'PENDING' };
 
@@ -382,7 +425,7 @@ describe('TeamsService', () => {
 
     it('throws ForbiddenException when requester is neither the invitee nor a team admin', async () => {
       mockPrismaService.teamMember.findFirst.mockResolvedValue(pendingInvite);
-      mockPrismaService.teamMember.findUnique.mockResolvedValue({ isAdmin: false });
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ isAdmin: false, status: 'ACTIVE' });
 
       await expect(service.declineMemberInvite(mockTeam.id, pendingInvite.id, 999)).rejects.toThrow(ForbiddenException);
     });
@@ -400,7 +443,7 @@ describe('TeamsService', () => {
 
     it('allows a team admin to cancel a pending invite', async () => {
       mockPrismaService.teamMember.findFirst.mockResolvedValue(pendingInvite);
-      mockPrismaService.teamMember.findUnique.mockResolvedValue({ isAdmin: true });
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ isAdmin: true, status: 'ACTIVE' });
       mockPrismaService.teamMember.delete.mockResolvedValue(pendingInvite);
 
       const result = await service.declineMemberInvite(mockTeam.id, pendingInvite.id, creator.id);
@@ -411,10 +454,10 @@ describe('TeamsService', () => {
   });
 
   describe('removeMember', () => {
-    const admin = { id: 1, userId: creator.id, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER' };
-    const nonAdmin = { userId: approver.id, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER' };
-    const targetRegular = { id: 20, userId: 5, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER' };
-    const targetAdmin = { id: 21, userId: 6, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER' };
+    const admin = { id: 1, userId: creator.id, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER', status: 'ACTIVE' };
+    const nonAdmin = { userId: approver.id, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
+    const targetRegular = { id: 20, userId: 5, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
+    const targetAdmin = { id: 21, userId: 6, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER', status: 'ACTIVE' };
 
     it('throws NotFoundException when the team does not exist', async () => {
       mockPrismaService.team.findUnique.mockResolvedValue(null);
@@ -474,8 +517,8 @@ describe('TeamsService', () => {
   });
 
   describe('createPhantomMember', () => {
-    const admin = { userId: creator.id, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER' };
-    const nonAdmin = { userId: approver.id, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER' };
+    const admin = { userId: creator.id, teamId: mockTeam.id, isAdmin: true, role: 'TEAM_LEADER', status: 'ACTIVE' };
+    const nonAdmin = { userId: approver.id, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
     const dto = { firstName: 'Phanto', lastName: 'Mm' };
 
     it('throws NotFoundException when the team does not exist', async () => {

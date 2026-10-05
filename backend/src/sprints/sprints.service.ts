@@ -35,7 +35,7 @@ export class SprintsService {
         }
       }
     });
-    if (!requesterMembership || !requesterMembership.isAdmin) {
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE' || !requesterMembership.isAdmin) {
       throw new ForbiddenException('Only team admins can create sprints');
     }
 
@@ -99,7 +99,7 @@ export class SprintsService {
     const requesterMembership = await this.prisma.teamMember.findUnique({
       where: { userId_teamId: { userId: requesterId, teamId } }
     });
-    if (!requesterMembership || !requesterMembership.isAdmin) {
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE' || !requesterMembership.isAdmin) {
       throw new ForbiddenException('Only team admins can edit sprints');
     }
 
@@ -205,7 +205,7 @@ export class SprintsService {
         }
       }
     });
-    if (!requesterMembership) {
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE') {
       throw new ForbiddenException('You do not belong to this team');
     }
 
@@ -228,7 +228,7 @@ export class SprintsService {
       const membership = await this.prisma.teamMember.findUnique({
         where: { userId_teamId: { userId: requesterId, teamId } }
       });
-      if (!membership || !membership.isAdmin) {
+      if (!membership || membership.status !== 'ACTIVE' || !membership.isAdmin) {
         throw new ForbiddenException('רק מי שיצר את הצוות או מנהל צוות יכולים לייצא סיכום ספרינט');
       }
     }

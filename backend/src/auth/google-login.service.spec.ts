@@ -236,7 +236,7 @@ describe('GoogleLoginService', () => {
 
   describe('completeGoogleRegistration', () => {
     function pendingTicketFor(profile: { googleId: string; email: string; firstName?: string; lastName?: string }) {
-      return jwt.sign({ pendingGoogleSignup: true, ...profile }, configuredEnv.JWT_SECRET, { expiresIn: '10m' });
+      return jwt.sign({ pendingGoogleSignup: true, ...profile }, configuredEnv.JWT_SECRET, { expiresIn: '10m', jwtid: `pending-${Math.random()}` });
     }
 
     it('throws UnauthorizedException for an invalid/expired pending ticket', async () => {
@@ -250,6 +250,18 @@ describe('GoogleLoginService', () => {
       const realTicket = jwt.sign({ sub: 1 }, configuredEnv.JWT_SECRET, { expiresIn: '2m' });
 
       await expect(service.completeGoogleRegistration(realTicket, 'DEVELOPER')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('BUG-21: a pending ticket can complete registration only once (replay is rejected)', async () => {
+      const service = loadService(configuredEnv);
+      const ticket = pendingTicketFor({ googleId: 'google-sub-r', email: 'replay@example.com' });
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue({ id: 98, username: 'replay', email: 'replay@example.com', password: null });
+
+      await expect(service.completeGoogleRegistration(ticket, 'DEVELOPER')).resolves.toBeDefined();
+      await expect(service.completeGoogleRegistration(ticket, 'DEVELOPER')).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.user.create).toHaveBeenCalledTimes(1);
     });
 
     it('creates a fresh User with password:null, the chosen role, and a username derived from the email local-part', async () => {
@@ -325,15 +337,47 @@ describe('GoogleLoginService', () => {
 
     it('throws UnauthorizedException when the ticket is valid but the user no longer exists', async () => {
       const service = loadService(configuredEnv);
-      const ticket = jwt.sign({ sub: 123, purpose: 'google-login-ticket' }, configuredEnv.JWT_SECRET, { expiresIn: '2m' });
+      const ticket = jwt.sign({ sub: 123, purpose: 'google-login-ticket' }, configuredEnv.JWT_SECRET, { expiresIn: '2m', jwtid: 'jti-123' });
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
       await expect(service.exchangeTicket(ticket)).rejects.toThrow(UnauthorizedException);
     });
 
-    it('returns {accessToken, user} without the password, matching register/login\'s shape', async () => {
+    it('BUG-21: a ticket can be exchanged only once (replay is rejected)', async () => {
+      const service = loadService(configuredEnv);
+      const ticket = jwt.sign({ sub: 55, purpose: 'google-login-ticket' }, configuredEnv.JWT_SECRET, { expiresIn: '2m', jwtid: 'replay-1' });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 55, username: 'someone', email: 's@example.com', password: null });
+
+      await expect(service.exchangeTicket(ticket)).resolves.toBeDefined();
+      await expect(service.exchangeTicket(ticket)).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('BUG-21: a ticket without a jti (not minted by handleCallback) is rejected', async () => {
       const service = loadService(configuredEnv);
       const ticket = jwt.sign({ sub: 55, purpose: 'google-login-ticket' }, configuredEnv.JWT_SECRET, { expiresIn: '2m' });
+
+      await expect(service.exchangeTicket(ticket)).rejects.toThrow(UnauthorizedException);
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('BUG-21: handleCallback mints tickets with a unique jti', async () => {
+      const service = loadService(configuredEnv);
+      mockGetToken.mockResolvedValue({ tokens: { access_token: 'a' } });
+      mockUserinfoGet.mockResolvedValue({ data: { id: 'g-uniq', email: 'u@example.com' } });
+      mockPrisma.user.findUnique.mockResolvedValue({ id: 7, googleId: 'g-uniq', email: 'u@example.com' });
+
+      const state = () => jwt.sign({ purpose: 'google-login' }, configuredEnv.JWT_SECRET, { expiresIn: '10m' });
+      const a = await service.handleCallback('code', state());
+      const b = await service.handleCallback('code', state());
+      const ja = (jwt.decode((a as any).ticket) as jwt.JwtPayload).jti;
+      const jb = (jwt.decode((b as any).ticket) as jwt.JwtPayload).jti;
+      expect(ja).toBeTruthy();
+      expect(ja).not.toBe(jb);
+    });
+
+    it('returns {accessToken, user} without the password, matching register/login\'s shape', async () => {
+      const service = loadService(configuredEnv);
+      const ticket = jwt.sign({ sub: 55, purpose: 'google-login-ticket' }, configuredEnv.JWT_SECRET, { expiresIn: '2m', jwtid: 'jti-55' });
       mockPrisma.user.findUnique.mockResolvedValue({
         id: 55,
         username: 'someone',

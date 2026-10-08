@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TelegramConversationService } from './telegram-conversation.service';
+import { TelegramConversationService, getSprintDayAnchor, isSprintOpenNow } from './telegram-conversation.service';
 import { PrismaService } from '../prisma.service';
 import { TelegramApiService } from './telegram-api.service';
 import { CommentsService } from '../comments/comments.service';
@@ -677,6 +677,269 @@ describe('TelegramConversationService', () => {
       expect(mockPrisma.userMessagingLink.update).not.toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ pendingCommentContent: null }) })
       );
+    });
+  });
+
+  // Freezes only `Date` (real promises/timers keep working so awaits inside the service resolve).
+  function freezeNow(iso: string) {
+    jest.useFakeTimers({
+      now: new Date(iso),
+      doNotFake: [
+        'nextTick', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval',
+        'setTimeout', 'clearTimeout', 'hrtime', 'performance', 'queueMicrotask',
+      ],
+    });
+  }
+
+  describe('BUG-24 — the whole last day (Asia/Jerusalem) counts as open', () => {
+    afterEach(() => jest.useRealTimers());
+
+    const sprint = { startDate: new Date('2026-09-21T00:00:00.000Z'), endDate: new Date('2026-10-05T00:00:00.000Z') };
+
+    it('anchors "today" to the Jerusalem calendar date as midnight UTC', () => {
+      expect(getSprintDayAnchor(new Date('2026-10-05T12:00:00Z')).toISOString()).toBe('2026-10-05T00:00:00.000Z');
+      // 21:00Z on Oct 4 is already 00:00 on Oct 5 in Israel (UTC+3, DST).
+      expect(getSprintDayAnchor(new Date('2026-10-04T21:00:00Z')).toISOString()).toBe('2026-10-05T00:00:00.000Z');
+      expect(getSprintDayAnchor(new Date('2026-10-04T20:59:59Z')).toISOString()).toBe('2026-10-04T00:00:00.000Z');
+    });
+
+    it('is open from 03:00 UTC until the last Israeli minute of endDate (summer, UTC+3)', () => {
+      expect(isSprintOpenNow(sprint, new Date('2026-10-05T03:30:00Z'))).toBe(true); // used to be "closed"
+      expect(isSprintOpenNow(sprint, new Date('2026-10-05T12:00:00Z'))).toBe(true);
+      expect(isSprintOpenNow(sprint, new Date('2026-10-05T20:59:59Z'))).toBe(true);
+      expect(isSprintOpenNow(sprint, new Date('2026-10-05T21:00:00Z'))).toBe(false); // 00:00 on Oct 6 in Israel
+    });
+
+    it('is open through the last Israeli minute in winter too (UTC+2)', () => {
+      const winter = { startDate: new Date('2026-12-01T00:00:00Z'), endDate: new Date('2026-12-10T00:00:00Z') };
+      expect(isSprintOpenNow(winter, new Date('2026-12-10T21:59:59Z'))).toBe(true);
+      expect(isSprintOpenNow(winter, new Date('2026-12-10T22:00:00Z'))).toBe(false);
+    });
+
+    it('treats the whole first day as open as well', () => {
+      expect(isSprintOpenNow(sprint, new Date('2026-09-20T21:00:00Z'))).toBe(true); // 00:00 on Sep 21 in Israel
+      expect(isSprintOpenNow(sprint, new Date('2026-09-20T20:59:00Z'))).toBe(false);
+    });
+
+    it('queries open sprints with the Jerusalem-day anchor, not the raw current instant', async () => {
+      freezeNow('2026-10-05T12:00:00Z');
+      setupTeamsAndSprints([{ teamId: 10, teamName: 'Team A' }], { 10: [{ id: 100, name: 'Sprint 1' }] });
+
+      await service.handleTextMessage(baseLink, 'hello', 7);
+
+      const anchor = new Date('2026-10-05T00:00:00.000Z');
+      expect(mockPrisma.sprint.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ startDate: { lte: anchor }, endDate: { gte: anchor } }) })
+      );
+    });
+
+    it('keeps an active context alive on the last day after 03:00 Israel time', async () => {
+      freezeNow('2026-10-05T12:00:00Z');
+      const linkWithContext = { ...baseLink, activeTeamId: 10, activeSprintId: 100, contextSetAt: new Date(), contextStickyHours: null };
+      seedLink(linkWithContext);
+      mockPrisma.teamMember.findUnique.mockResolvedValue({ userId: 42, teamId: 10, status: 'ACTIVE' });
+      mockPrisma.sprint.findUnique.mockResolvedValue({ id: 100, teamId: 10, name: 'Sprint 1', ...sprint });
+      mockPrisma.team.findUnique.mockResolvedValue({ name: 'Team A' });
+
+      await service.handleTextMessage(linkWithContext, 'retro note', 8);
+
+      expect(mockPrisma.userMessagingLink.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ activeTeamId: null }) })
+      );
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledWith('555', expect.stringContaining('שימור'), expect.anything());
+    });
+  });
+
+  describe('BUG-25 — commands match only the whole message; only a bare number selects', () => {
+    const inContext = { ...baseLink, activeTeamId: 10, activeSprintId: 100, contextSetAt: new Date() };
+
+    function openContext() {
+      seedLink(inContext);
+      mockPrisma.teamMember.findUnique.mockResolvedValue({ userId: 42, teamId: 10, status: 'ACTIVE' });
+      mockPrisma.sprint.findUnique.mockResolvedValue({
+        id: 100, teamId: 10, name: 'Sprint 1',
+        startDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        endDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      });
+      mockPrisma.team.findUnique.mockResolvedValue({ name: 'Team A' });
+    }
+
+    it.each([
+      'צריך מחקר',
+      'צריך לחזור ללקוח עם תשובה',
+      'ביטול ההזמנה היה מיותר',
+      'לא לשכוח להחליף צוות בפרויקט',
+      'cancel the meeting',
+      'back to basics',
+    ])('treats "%s" as a normal comment (draft started), not a command', async (text) => {
+      openContext();
+
+      await service.handleTextMessage(inContext, text, 20);
+
+      expect(mockPrisma.userMessagingLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { pendingCommentContent: text } })
+      );
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledWith('555', expect.stringContaining('שימור'), expect.anything());
+    });
+
+    it.each([['מחק'], ['ביטול'], ['  Cancel  ']])('still treats the exact message "%s" as cancel', async (text) => {
+      const withDraft = { ...inContext, pendingCommentContent: 'draft' };
+      seedLink(withDraft);
+
+      await service.handleTextMessage(withDraft, text, 21);
+
+      expect(mockPrisma.userMessagingLink.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { pendingCommentContent: null, pendingCommentType: null },
+      });
+    });
+
+    it.each([['חזור'], ['back']])('still treats the exact message "%s" as back', async (text) => {
+      const awaitingCategory = { ...inContext, pendingCommentContent: 'draft', pendingCommentType: 'KEEP' as const };
+      seedLink(awaitingCategory);
+
+      await service.handleTextMessage(awaitingCategory, text, 22);
+
+      expect(mockPrisma.userMessagingLink.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { pendingCommentType: null } });
+    });
+
+    it('still treats the exact typed "החלף צוות" as switch-team', async () => {
+      const linkMid = { ...inContext, pendingCommentContent: 'draft' };
+      seedLink(linkMid);
+      setupTeamsAndSprints([], {});
+
+      await service.handleTextMessage(linkMid, 'החלף צוות', 23);
+
+      expect(mockPrisma.userMessagingLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ activeTeamId: null, pendingCommentContent: null }) })
+      );
+    });
+
+    it('does not parse "3 באגים בפרודקשן" as team #3 — it is held as the draft and the list is shown', async () => {
+      setupTeamsAndSprints(
+        [
+          { teamId: 1, teamName: 'Team A' },
+          { teamId: 2, teamName: 'Team B' },
+          { teamId: 3, teamName: 'Team C' },
+        ],
+        { 1: [{ id: 11, name: 'S1' }], 2: [{ id: 22, name: 'S2' }], 3: [{ id: 33, name: 'S3' }] }
+      );
+
+      await service.handleTextMessage(baseLink, '3 באגים בפרודקשן', 24);
+
+      expect(mockPrisma.userMessagingLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { pendingCommentContent: '3 באגים בפרודקשן' } })
+      );
+      expect(mockPrisma.userMessagingLink.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ activeTeamId: 3 }) })
+      );
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledWith('555', expect.stringContaining('Team C'), expect.anything());
+    });
+
+    it('still selects a team on a bare number ("2")', async () => {
+      setupTeamsAndSprints(
+        [{ teamId: 1, teamName: 'Team A' }, { teamId: 2, teamName: 'Team B' }],
+        { 1: [{ id: 11, name: 'S1' }], 2: [{ id: 22, name: 'S2' }] }
+      );
+
+      await service.handleTextMessage({ ...baseLink, awaitingContextConfirm: false }, '2', 25);
+
+      expect(mockPrisma.userMessagingLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ activeTeamId: 2 }) })
+      );
+    });
+
+    it('does not treat a Keep/Improve answer that merely contains the word as a type', async () => {
+      const awaitingType = { ...inContext, pendingCommentContent: 'draft' };
+      seedLink(awaitingType);
+      openContext();
+      seedLink(awaitingType);
+
+      await service.handleTextMessage(awaitingType, 'צריך לחשוב על שיפור התהליך', 26);
+
+      expect(mockPrisma.userMessagingLink.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: { pendingCommentType: 'IMPROVE' } })
+      );
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledWith('555', expect.stringContaining('לא הבנתי'), expect.anything());
+    });
+
+    it('does not pick a category by "2 ..." prefix — only a bare number', async () => {
+      const awaitingCategory = { ...inContext, pendingCommentContent: 'draft', pendingCommentType: 'KEEP' as const };
+      seedLink(awaitingCategory);
+      openContext();
+      seedLink(awaitingCategory);
+      mockTeamCategoriesService.listCategories.mockResolvedValue([
+        { id: 1, label: 'Process' },
+        { id: 2, label: 'Tools' },
+      ]);
+
+      await service.handleTextMessage(awaitingCategory, '2 דברים', 27);
+
+      expect(mockCommentsService.create).not.toHaveBeenCalled();
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledWith('555', expect.stringContaining('Tools'), expect.anything());
+    });
+  });
+
+  describe('BUG-48 — a draft whose context expired is not reinterpreted as a new comment', () => {
+    it('tells the user the draft expired and does NOT start a new draft from the reply', async () => {
+      const staleWithDraft = {
+        ...baseLink,
+        activeTeamId: 10,
+        activeSprintId: 100,
+        pendingCommentContent: 'my original note',
+        pendingCommentType: null,
+        contextSetAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+        contextStickyHours: 24,
+      };
+      seedLink(staleWithDraft);
+      mockPrisma.teamMember.findUnique.mockResolvedValue({ userId: 42, teamId: 10, status: 'ACTIVE' });
+      mockPrisma.sprint.findUnique.mockResolvedValue({
+        id: 100, teamId: 10,
+        startDate: new Date(Date.now() - 48 * 60 * 60 * 1000),
+        endDate: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      });
+
+      await service.handleTextMessage(staleWithDraft, '✅ שימור', 30);
+
+      expect(mockPrisma.userMessagingLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ activeTeamId: null, pendingCommentContent: null }) })
+      );
+      expect(mockPrisma.userMessagingLink.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ data: { pendingCommentContent: '✅ שימור' } })
+      );
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledTimes(1);
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledWith('555', expect.stringContaining('לא נשמרה'));
+      expect(mockPrisma.teamMember.findMany).not.toHaveBeenCalled();
+      expect(mockCommentsService.create).not.toHaveBeenCalled();
+    });
+
+    it('also covers a draft already past the Keep/Improve stage (pendingCommentType set)', async () => {
+      const staleAwaitingCategory = {
+        ...baseLink,
+        activeTeamId: 10,
+        activeSprintId: 100,
+        pendingCommentContent: 'note',
+        pendingCommentType: 'KEEP' as const,
+      };
+      seedLink(staleAwaitingCategory);
+      mockPrisma.teamMember.findUnique.mockResolvedValue({ userId: 42, teamId: 10, status: 'REMOVED' });
+
+      await service.handleTextMessage(staleAwaitingCategory, '1', 31);
+
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledWith('555', expect.stringContaining('לא נשמרה'));
+      expect(mockCommentsService.create).not.toHaveBeenCalled();
+    });
+
+    it('without a pending draft, an expired context still just re-resolves and the message is handled normally', async () => {
+      const staleNoDraft = { ...baseLink, activeTeamId: 10, activeSprintId: 100 };
+      seedLink(staleNoDraft);
+      mockPrisma.teamMember.findUnique.mockResolvedValue({ userId: 42, teamId: 10, status: 'REMOVED' });
+      setupTeamsAndSprints([], {});
+
+      await service.handleTextMessage(staleNoDraft, 'a fresh note', 32);
+
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledWith('555', expect.stringContaining('אין לך צוות'));
+      expect(mockTelegramApi.sendMessage).not.toHaveBeenCalledWith('555', expect.stringContaining('לא נשמרה'));
     });
   });
 

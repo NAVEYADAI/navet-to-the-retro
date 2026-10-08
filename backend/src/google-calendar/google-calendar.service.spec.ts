@@ -10,6 +10,8 @@ const mockSetCredentials = jest.fn();
 const mockUserinfoGet = jest.fn();
 const mockEventsInsert = jest.fn();
 const mockEventsPatch = jest.fn();
+const mockEventsDelete = jest.fn();
+const mockCalendarsPatch = jest.fn();
 const mockCalendarsInsert = jest.fn();
 const mockOAuth2On = jest.fn();
 
@@ -27,8 +29,8 @@ jest.mock('googleapis', () => ({
       userinfo: { get: mockUserinfoGet },
     })),
     calendar: jest.fn().mockImplementation(() => ({
-      events: { insert: mockEventsInsert, patch: mockEventsPatch },
-      calendars: { insert: mockCalendarsInsert },
+      events: { insert: mockEventsInsert, patch: mockEventsPatch, delete: mockEventsDelete },
+      calendars: { insert: mockCalendarsInsert, patch: mockCalendarsPatch },
     })),
   },
 }));
@@ -42,13 +44,16 @@ describe('GoogleCalendarService', () => {
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     sprintGoogleEvent: {
       create: jest.fn(),
       findMany: jest.fn(),
+      delete: jest.fn(),
     },
     googleCalendarTeamCalendar: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       create: jest.fn(),
     },
     teamMember: {
@@ -118,6 +123,21 @@ describe('GoogleCalendarService', () => {
       expect(callArgs.login_hint).toBeUndefined();
     });
 
+    it('BUG-20: state expires in 5 minutes and carries a unique jti', () => {
+      mockGenerateAuthUrl.mockReturnValue('https://accounts.google.com/o/oauth2/v2/auth?mock=1');
+      const service = loadService(configuredEnv);
+
+      service.getAuthUrl(42);
+      service.getAuthUrl(42);
+
+      const [[a], [b]] = mockGenerateAuthUrl.mock.calls;
+      const pa = jwt.verify(a.state, configuredEnv.JWT_SECRET) as jwt.JwtPayload;
+      const pb = jwt.verify(b.state, configuredEnv.JWT_SECRET) as jwt.JwtPayload;
+      expect(pa.exp! - pa.iat!).toBe(5 * 60);
+      expect(pa.jti).toBeTruthy();
+      expect(pa.jti).not.toBe(pb.jti);
+    });
+
     it('passes login_hint when the caller has an email, so Google pre-selects the matching account', () => {
       mockGenerateAuthUrl.mockReturnValue('https://accounts.google.com/o/oauth2/v2/auth?mock=1');
       const service = loadService(configuredEnv);
@@ -169,7 +189,7 @@ describe('GoogleCalendarService', () => {
 
     it('throws UnauthorizedException when Google does not return both tokens', async () => {
       const service = loadService(configuredEnv);
-      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET);
+      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET, { jwtid: `s-${Math.random()}` });
       mockGetToken.mockResolvedValue({ tokens: { access_token: 'only-access' } });
 
       await expect(service.handleCallback('code', state)).rejects.toThrow(UnauthorizedException);
@@ -177,16 +197,55 @@ describe('GoogleCalendarService', () => {
 
     it('throws UnauthorizedException when the Google userinfo call has no email', async () => {
       const service = loadService(configuredEnv);
-      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET);
+      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET, { jwtid: `s-${Math.random()}` });
       mockGetToken.mockResolvedValue({ tokens: { access_token: 'a', refresh_token: 'r', expiry_date: 123 } });
       mockUserinfoGet.mockResolvedValue({ data: {} });
 
       await expect(service.handleCallback('code', state)).rejects.toThrow(UnauthorizedException);
     });
 
-    it('stores a new connection for the user encoded in `state` on success', async () => {
+    it('BUG-20: a `state` can be used only once (replay is rejected before any Google call)', async () => {
+      const service = loadService(configuredEnv);
+      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET, { expiresIn: '5m', jwtid: 'once' });
+      mockGetToken.mockResolvedValue({ tokens: { access_token: 'a', refresh_token: 'r' } });
+      mockUserinfoGet.mockResolvedValue({ data: { email: 'me@gmail.com' } });
+      mockPrisma.googleCalendarConnection.create.mockResolvedValue({ id: 1 });
+      mockPrisma.teamMember.findMany.mockResolvedValue([]);
+
+      await service.handleCallback('code', state);
+      mockGetToken.mockClear();
+      await expect(service.handleCallback('code', state)).rejects.toThrow(UnauthorizedException);
+      expect(mockGetToken).not.toHaveBeenCalled();
+      expect(mockPrisma.googleCalendarConnection.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('BUG-20: a `state` without a jti is rejected', async () => {
       const service = loadService(configuredEnv);
       const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET);
+
+      await expect(service.handleCallback('code', state)).rejects.toThrow(UnauthorizedException);
+      expect(mockGetToken).not.toHaveBeenCalled();
+    });
+
+    it('BUG-22: revokes the user\'s previously-active connections after saving the new one', async () => {
+      const service = loadService(configuredEnv);
+      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET, { jwtid: `s-${Math.random()}` });
+      mockGetToken.mockResolvedValue({ tokens: { access_token: 'a', refresh_token: 'r' } });
+      mockUserinfoGet.mockResolvedValue({ data: { email: 'me@gmail.com' } });
+      mockPrisma.googleCalendarConnection.create.mockResolvedValue({ id: 55 });
+      mockPrisma.teamMember.findMany.mockResolvedValue([]);
+
+      await service.handleCallback('code', state);
+
+      expect(mockPrisma.googleCalendarConnection.updateMany).toHaveBeenCalledWith({
+        where: { userId: 7, isRevoked: false, id: { not: 55 } },
+        data: { isRevoked: true },
+      });
+    });
+
+    it('stores a new connection for the user encoded in `state` on success', async () => {
+      const service = loadService(configuredEnv);
+      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET, { jwtid: `s-${Math.random()}` });
       mockGetToken.mockResolvedValue({ tokens: { access_token: 'a', refresh_token: 'r', expiry_date: 1999999999000 } });
       mockUserinfoGet.mockResolvedValue({ data: { email: 'me@gmail.com' } });
       mockPrisma.googleCalendarConnection.create.mockResolvedValue({ id: 1 });
@@ -207,7 +266,7 @@ describe('GoogleCalendarService', () => {
 
     it('backfills an event for every pre-existing sprint across all the user\'s active teams', async () => {
       const service = loadService(configuredEnv);
-      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET);
+      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET, { jwtid: `s-${Math.random()}` });
       mockGetToken.mockResolvedValue({ tokens: { access_token: 'a', refresh_token: 'r', expiry_date: 1999999999000 } });
       mockUserinfoGet.mockResolvedValue({ data: { email: 'me@gmail.com' } });
       mockPrisma.googleCalendarConnection.create.mockResolvedValue({ id: 1, userId: 7, accessToken: 'a', refreshToken: 'r' });
@@ -234,7 +293,7 @@ describe('GoogleCalendarService', () => {
 
     it('still returns the saved connection when the backfill itself fails', async () => {
       const service = loadService(configuredEnv);
-      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET);
+      const state = jwt.sign({ sub: 7, purpose: 'google-calendar-connect' }, configuredEnv.JWT_SECRET, { jwtid: `s-${Math.random()}` });
       mockGetToken.mockResolvedValue({ tokens: { access_token: 'a', refresh_token: 'r', expiry_date: 1999999999000 } });
       mockUserinfoGet.mockResolvedValue({ data: { email: 'me@gmail.com' } });
       mockPrisma.googleCalendarConnection.create.mockResolvedValue({ id: 1, userId: 7, accessToken: 'a', refreshToken: 'r' });
@@ -254,17 +313,18 @@ describe('GoogleCalendarService', () => {
       await expect(service.disconnect(1)).rejects.toThrow(NotFoundException);
     });
 
-    it('marks the active connection isRevoked=true (soft-delete, not a hard delete)', async () => {
+    it('BUG-22: marks ALL the user\'s active connections isRevoked=true (soft-delete, not a hard delete)', async () => {
       mockPrisma.googleCalendarConnection.findFirst.mockResolvedValue({ id: 9, userId: 1 });
-      mockPrisma.googleCalendarConnection.update.mockResolvedValue({ id: 9, isRevoked: true });
+      mockPrisma.googleCalendarConnection.updateMany.mockResolvedValue({ count: 2 });
       const service = loadService(configuredEnv);
 
-      await service.disconnect(1);
+      const result = await service.disconnect(1);
 
-      expect(mockPrisma.googleCalendarConnection.update).toHaveBeenCalledWith({
-        where: { id: 9 },
+      expect(mockPrisma.googleCalendarConnection.updateMany).toHaveBeenCalledWith({
+        where: { userId: 1, isRevoked: false },
         data: { isRevoked: true },
       });
+      expect(result).toEqual(expect.objectContaining({ id: 9, isRevoked: true }));
     });
   });
 
@@ -358,6 +418,29 @@ describe('GoogleCalendarService', () => {
       expect(mockPrisma.sprintGoogleEvent.create).toHaveBeenCalledTimes(1);
     });
 
+    it('BUG-52: marks the connection disconnected when Google answers invalid_grant (and only then)', async () => {
+      mockPrisma.teamMember.findMany.mockResolvedValue([{ userId: 1 }, { userId: 2 }]);
+      mockPrisma.googleCalendarConnection.findMany.mockResolvedValue([
+        { id: 10, userId: 1, accessToken: 'a1', refreshToken: 'r1', isRevoked: false },
+        { id: 11, userId: 2, accessToken: 'a2', refreshToken: 'r2', isRevoked: false },
+      ]);
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValue({ calendarId: 'existing-cal' });
+      mockPrisma.googleCalendarConnection.update.mockResolvedValue({});
+      const invalidGrant = Object.assign(new Error('invalid_grant'), { response: { data: { error: 'invalid_grant' } } });
+      mockEventsInsert
+        .mockRejectedValueOnce(invalidGrant)
+        .mockRejectedValueOnce(new Error('google is down'));
+      const service = loadService(configuredEnv);
+
+      await service.syncSprintCreated(sprintInfo);
+
+      expect(mockPrisma.googleCalendarConnection.update).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.googleCalendarConnection.update).toHaveBeenCalledWith({
+        where: { id: 10 },
+        data: { isRevoked: true },
+      });
+    });
+
     it('logs and swallows a failure to create the team calendar itself, without throwing or blocking other connections', async () => {
       mockPrisma.teamMember.findMany.mockResolvedValue([{ userId: 1 }, { userId: 2 }]);
       mockPrisma.googleCalendarConnection.findMany.mockResolvedValue([
@@ -411,6 +494,46 @@ describe('GoogleCalendarService', () => {
       });
     });
 
+    it('BUG-52: only patches connections of users who are still ACTIVE members of the sprint\'s team', async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockResolvedValue([]);
+      const service = loadService(configuredEnv);
+
+      await service.syncSprintUpdated(sprintInfo);
+
+      expect(mockPrisma.sprintGoogleEvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            sprintId: sprintInfo.sprintId,
+            connection: {
+              isRevoked: false,
+              user: { members: { some: { teamId: sprintInfo.teamId, status: 'ACTIVE' } } },
+            },
+          },
+        })
+      );
+    });
+
+    it('BUG-52: marks the connection disconnected when a patch fails with invalid_grant', async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockResolvedValue([
+        {
+          connectionId: 10,
+          googleEventId: 'gcal-event-1',
+          connection: { id: 10, accessToken: 'a1', refreshToken: 'r1', isRevoked: false },
+        },
+      ]);
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValue({ calendarId: 'existing-cal' });
+      mockPrisma.googleCalendarConnection.update.mockResolvedValue({});
+      mockEventsPatch.mockRejectedValue(new Error('invalid_grant'));
+      const service = loadService(configuredEnv);
+
+      await service.syncSprintUpdated(sprintInfo);
+
+      expect(mockPrisma.googleCalendarConnection.update).toHaveBeenCalledWith({
+        where: { id: 10 },
+        data: { isRevoked: true },
+      });
+    });
+
     it('logs and swallows a patch failure instead of throwing', async () => {
       mockPrisma.sprintGoogleEvent.findMany.mockResolvedValue([
         {
@@ -424,6 +547,129 @@ describe('GoogleCalendarService', () => {
       const service = loadService(configuredEnv);
 
       await expect(service.syncSprintUpdated(sprintInfo)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('syncTeamRenamed (BUG-52)', () => {
+    const teamCalendars = [
+      { connectionId: 10, calendarId: 'cal-1', connection: { id: 10, accessToken: 'a1', refreshToken: 'r1' } },
+      { connectionId: 11, calendarId: 'cal-2', connection: { id: 11, accessToken: 'a2', refreshToken: 'r2' } },
+    ];
+
+    it('does nothing when Google Calendar is not configured', async () => {
+      const service = loadService({ GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', GOOGLE_REDIRECT_URI: '' });
+
+      await service.syncTeamRenamed(1, 'New Team');
+
+      expect(mockPrisma.googleCalendarTeamCalendar.findMany).not.toHaveBeenCalled();
+    });
+
+    it('renames the calendar summary on every active connection of an ACTIVE team member', async () => {
+      mockPrisma.googleCalendarTeamCalendar.findMany.mockResolvedValue(teamCalendars);
+      const service = loadService(configuredEnv);
+
+      await service.syncTeamRenamed(1, 'New Team');
+
+      expect(mockPrisma.googleCalendarTeamCalendar.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            teamId: 1,
+            connection: { isRevoked: false, user: { members: { some: { teamId: 1, status: 'ACTIVE' } } } },
+          },
+        })
+      );
+      expect(mockCalendarsPatch).toHaveBeenCalledTimes(2);
+      expect(mockCalendarsPatch).toHaveBeenCalledWith({ calendarId: 'cal-1', requestBody: { summary: 'New Team — ספרינטים' } });
+      expect(mockCalendarsPatch).toHaveBeenCalledWith({ calendarId: 'cal-2', requestBody: { summary: 'New Team — ספרינטים' } });
+    });
+
+    it('logs and swallows a failure on one calendar without blocking the others', async () => {
+      mockPrisma.googleCalendarTeamCalendar.findMany.mockResolvedValue(teamCalendars);
+      mockCalendarsPatch.mockRejectedValueOnce(new Error('google is down')).mockResolvedValueOnce({});
+      const service = loadService(configuredEnv);
+
+      await expect(service.syncTeamRenamed(1, 'New Team')).resolves.toBeUndefined();
+      expect(mockCalendarsPatch).toHaveBeenCalledTimes(2);
+    });
+
+    it('marks the connection disconnected when the rename fails with invalid_grant', async () => {
+      mockPrisma.googleCalendarTeamCalendar.findMany.mockResolvedValue([teamCalendars[0]]);
+      mockPrisma.googleCalendarConnection.update.mockResolvedValue({});
+      mockCalendarsPatch.mockRejectedValueOnce(new Error('invalid_grant'));
+      const service = loadService(configuredEnv);
+
+      await service.syncTeamRenamed(1, 'New Team');
+
+      expect(mockPrisma.googleCalendarConnection.update).toHaveBeenCalledWith({
+        where: { id: 10 },
+        data: { isRevoked: true },
+      });
+    });
+  });
+
+  describe('removeMemberFromTeam (BUG-52)', () => {
+    const link = (id: number, googleEventId: string) => ({
+      id,
+      sprintId: 100 + id,
+      connectionId: 10,
+      googleEventId,
+      connection: { id: 10, accessToken: 'a1', refreshToken: 'r1' },
+    });
+
+    it('does nothing when Google Calendar is not configured', async () => {
+      const service = loadService({ GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', GOOGLE_REDIRECT_URI: '' });
+
+      await service.removeMemberFromTeam(7, 1);
+
+      expect(mockPrisma.sprintGoogleEvent.findMany).not.toHaveBeenCalled();
+    });
+
+    it('deletes the team\'s events from the removed user\'s calendar and drops the links', async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockResolvedValue([link(1, 'ev-1'), link(2, 'ev-2')]);
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValue({ calendarId: 'cal-1' });
+      mockEventsDelete.mockResolvedValue({});
+      const service = loadService(configuredEnv);
+
+      await service.removeMemberFromTeam(7, 1);
+
+      expect(mockPrisma.sprintGoogleEvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sprint: { teamId: 1 }, connection: { userId: 7, isRevoked: false } } })
+      );
+      expect(mockEventsDelete).toHaveBeenCalledWith({ calendarId: 'cal-1', eventId: 'ev-1' });
+      expect(mockEventsDelete).toHaveBeenCalledWith({ calendarId: 'cal-1', eventId: 'ev-2' });
+      expect(mockPrisma.sprintGoogleEvent.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(mockPrisma.sprintGoogleEvent.delete).toHaveBeenCalledWith({ where: { id: 2 } });
+    });
+
+    it('treats an already-gone event (404/410) as success and still drops the link', async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockResolvedValue([link(1, 'ev-1')]);
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValue({ calendarId: 'cal-1' });
+      mockEventsDelete.mockRejectedValue(Object.assign(new Error('Not Found'), { code: 404 }));
+      const service = loadService(configuredEnv);
+
+      await service.removeMemberFromTeam(7, 1);
+
+      expect(mockPrisma.sprintGoogleEvent.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    });
+
+    it('keeps the link of an event whose delete failed, logs, and carries on with the rest without throwing', async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockResolvedValue([link(1, 'ev-1'), link(2, 'ev-2')]);
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValue({ calendarId: 'cal-1' });
+      mockEventsDelete.mockRejectedValueOnce(new Error('google is down')).mockResolvedValueOnce({});
+      const service = loadService(configuredEnv);
+
+      await expect(service.removeMemberFromTeam(7, 1)).resolves.toBeUndefined();
+
+      expect(mockPrisma.sprintGoogleEvent.delete).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.sprintGoogleEvent.delete).toHaveBeenCalledWith({ where: { id: 2 } });
+    });
+
+    it('swallows a failure to look up the links', async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockRejectedValue(new Error('db down'));
+      const service = loadService(configuredEnv);
+
+      await expect(service.removeMemberFromTeam(7, 1)).resolves.toBeUndefined();
+      expect(mockEventsDelete).not.toHaveBeenCalled();
     });
   });
 

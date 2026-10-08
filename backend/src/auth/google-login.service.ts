@@ -2,6 +2,8 @@ import { Injectable, Logger, UnauthorizedException, InternalServerErrorException
 import { google } from 'googleapis';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma.service';
+import { getJwtSecret } from '../config/jwt-secret';
+import { SingleUseTokenRegistry } from '../config/single-use-tokens';
 
 // Narrower than Feature 6's calendar scope on purpose (product-backlog/07-google-sign-in.md §7.0 default #1):
 // login only needs to identify the user, not obtain a long-lived refresh token, so there's no
@@ -20,7 +22,12 @@ export class GoogleLoginService {
   private readonly clientId = process.env.GOOGLE_CLIENT_ID;
   private readonly clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   private readonly redirectUri = process.env.GOOGLE_LOGIN_REDIRECT_URI;
-  private readonly jwtSecret = process.env.JWT_SECRET || 'retro-secret-key-12345';
+  private readonly jwtSecret = getJwtSecret();
+  // BUG-21: `ticket` and `pendingTicket` carry a random `jti` and are redeemable at most once
+  // (in-memory, per-process — see SingleUseTokenRegistry for the exact limits). Both end up in a
+  // browser URL (and thus history), so without this a copied URL could log someone in again.
+  // This does NOT fix the login-CSRF half of BUG-21 (`state` isn't bound to the starting browser).
+  private readonly consumedTickets = new SingleUseTokenRegistry();
 
   constructor(private readonly prisma: PrismaService) {
     if (!this.isConfigured()) {
@@ -118,7 +125,7 @@ export class GoogleLoginService {
       // and from GoogleCalendarService's connect `state` — both signed with the same secret,
       // and previously indistinguishable from this ticket by shape alone (`{sub}`). See
       // `AuthService.validateToken` and `exchangeTicket` below for where this is now enforced.
-      return { ticket: jwt.sign({ sub: existing.id, purpose: 'google-login-ticket' }, this.jwtSecret, { expiresIn: '2m' }) };
+      return { ticket: jwt.sign({ sub: existing.id, purpose: 'google-login-ticket' }, this.jwtSecret, { expiresIn: '2m', jwtid: SingleUseTokenRegistry.newId() }) };
     }
 
     // Longer expiry than the regular ticket — this one has to survive an actual UI step (picking
@@ -126,7 +133,7 @@ export class GoogleLoginService {
     const pendingTicket = jwt.sign(
       { pendingGoogleSignup: true as const, ...profile },
       this.jwtSecret,
-      { expiresIn: '10m' }
+      { expiresIn: '10m', jwtid: SingleUseTokenRegistry.newId() }
     );
     return { pendingTicket };
   }
@@ -204,6 +211,9 @@ export class GoogleLoginService {
       if (!payload.pendingGoogleSignup || !payload.googleId || !payload.email) {
         throw new Error('not a pending-signup ticket');
       }
+      if (!this.consumedTickets.consume(payload.jti, payload.exp)) {
+        throw new Error('pending ticket already used or missing jti');
+      }
     } catch {
       throw new UnauthorizedException('קישור ההרשמה פג תוקף או אינו תקין, נסה/י שוב');
     }
@@ -260,6 +270,9 @@ export class GoogleLoginService {
       // `sub` were ever checked.
       if (payload.purpose !== 'google-login-ticket') {
         throw new Error('wrong token purpose');
+      }
+      if (!this.consumedTickets.consume(payload.jti, payload.exp)) {
+        throw new Error('ticket already used or missing jti');
       }
       userId = payload.sub as unknown as number;
     } catch {

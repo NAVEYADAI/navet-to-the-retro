@@ -1,13 +1,34 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateCommentDto, UpdateHighlightDto } from './dto/comments.dto';
 import { assertCanManageTeamContent } from '../teams/team-permissions.util';
+import {
+  requireNonEmptyString,
+  assertOptionalBoolean,
+  assertOptionalEnum,
+  assertOptionalPositiveInt
+} from '../common/validation';
+
+// BUG-15: values the Prisma `CommentType` enum accepts.
+const COMMENT_TYPE_VALUES = ['KEEP', 'IMPROVE'];
 
 @Injectable()
 export class CommentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(sprintId: number, dto: CreateCommentDto, requesterId: number) {
+    // BUG-15: explicit body validation before any DB access. `type` is required and must be a
+    // real CommentType; content required & non-blank; the optional fields must have the right
+    // JS type (a string categoryId or "yes" for isAnonymous used to reach Prisma as a 500).
+    requireNonEmptyString(dto?.content, 'תוכן ההערה הוא שדה חובה');
+    if (dto.type === undefined || dto.type === null) {
+      throw new BadRequestException('סוג ההערה הוא שדה חובה');
+    }
+    assertOptionalEnum(dto.type, COMMENT_TYPE_VALUES, 'סוג ההערה לא תקין');
+    assertOptionalPositiveInt(dto.categoryId, 'קטגוריה לא תקינה');
+    assertOptionalBoolean(dto.isAnonymous, 'ערך האנונימיות לא תקין');
+    assertOptionalPositiveInt(dto.onBehalfOfUserId, 'מזהה המשתמש לא תקין');
+
     // 1. Verify sprint exists
     const sprint = await this.prisma.sprint.findUnique({
       where: { id: sprintId }
@@ -25,8 +46,9 @@ export class CommentsService {
         }
       }
     });
+    // BUG-40: same 404 as a non-existent sprint, so a non-member can't enumerate sprint ids.
     if (!membership || membership.status !== 'ACTIVE') {
-      throw new ForbiddenException('You are not a member of this team');
+      throw new NotFoundException('Sprint not found');
     }
 
     // 3. Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decision #1/#2):
@@ -131,8 +153,9 @@ export class CommentsService {
         }
       }
     });
+    // BUG-40: same 404 as a non-existent sprint, so a non-member can't enumerate sprint ids.
     if (!requesterMembership || requesterMembership.status !== 'ACTIVE') {
-      throw new ForbiddenException('You do not belong to this team');
+      throw new NotFoundException('Sprint not found');
     }
 
     // 3. Fetch comments
@@ -198,8 +221,23 @@ export class CommentsService {
   }
 
   async setHighlighted(commentId: number, dto: UpdateHighlightDto, requesterId: number) {
+    // BUG-15: isHighlighted must be a real boolean (a string used to reach Prisma as a 500).
+    if (typeof dto?.isHighlighted !== 'boolean') {
+      throw new BadRequestException('ערך ההדגשה לא תקין');
+    }
+
     const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
     if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    // BUG-40: someone who isn't an active member of the comment's team gets the same 404 as for a
+    // non-existent comment (no id enumeration). Active members who simply lack the admin/leader
+    // role still get the 403 from the guard below.
+    const membership = await this.prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: requesterId, teamId: comment.teamId } }
+    });
+    if (!membership || membership.status !== 'ACTIVE') {
       throw new NotFoundException('Comment not found');
     }
 

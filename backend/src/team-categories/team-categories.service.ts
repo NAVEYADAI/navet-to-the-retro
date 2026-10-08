@@ -2,6 +2,7 @@ import { Injectable, ForbiddenException, NotFoundException, BadRequestException 
 import { PrismaService } from '../prisma.service';
 import { CreateTeamCategoryDto, UpdateTeamCategoryDto } from './dto/team-categories.dto';
 import { assertCanManageTeamContent } from '../teams/team-permissions.util';
+import { assertOptionalBoolean } from '../common/validation';
 
 // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.1), built
 // on the same shape as invites.service.ts (see backend/AGENTS.md's "per-team-owned entities"
@@ -65,7 +66,8 @@ export class TeamCategoriesService {
     }
     await assertCanManageTeamContent(this.prisma, teamId, requesterId);
 
-    const label = dto.label?.trim();
+    // BUG-15: a non-string label (number/object) used to throw a TypeError on .trim() -> 500.
+    const label = typeof dto?.label === 'string' ? dto.label.trim() : undefined;
     if (!label) {
       throw new BadRequestException('יש להזין שם קטגוריה');
     }
@@ -88,6 +90,7 @@ export class TeamCategoriesService {
       throw new NotFoundException('Team not found');
     }
     await assertCanManageTeamContent(this.prisma, teamId, requesterId);
+    assertOptionalBoolean(dto?.isEnabled, 'ערך isEnabled חייב להיות בוליאני');
 
     const category = await this.prisma.teamCommentCategory.findFirst({ where: { id: categoryId, teamId } });
     if (!category) {
@@ -96,7 +99,7 @@ export class TeamCategoriesService {
 
     return this.prisma.teamCommentCategory.update({
       where: { id: categoryId },
-      data: { isEnabled: dto.isEnabled ?? category.isEnabled }
+      data: { isEnabled: dto?.isEnabled ?? category.isEnabled }
     });
   }
 }

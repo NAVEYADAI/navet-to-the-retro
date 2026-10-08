@@ -1,6 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 
+// BUG-23: user-controlled strings (team name, names, office) are interpolated into HTML templates.
+export function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Subjects are plain text (not HTML) — only strip line breaks to prevent header injection.
+function sanitizeSubject(value: string): string {
+  return String(value ?? '').replace(/[\r\n]+/g, ' ');
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -23,11 +38,11 @@ export class EmailService {
     mainOffice?: string | null;
   }) {
     const { to, teamName, creatorName, mainOffice } = params;
-    const subject = `בקשת אישור להקמת צוות: ${teamName}`;
+    const subject = sanitizeSubject(`בקשת אישור להקמת צוות: ${teamName}`);
     const html = `
       <div dir="rtl" style="font-family: sans-serif; text-align: right;">
         <h2>בקשה לאישור צוות חדש</h2>
-        <p>${creatorName} ביקש/ה להקים את הצוות "<strong>${teamName}</strong>"${mainOffice ? ` (${mainOffice})` : ''} ומינה/תה אותך כמאשר/ת.</p>
+        <p>${escapeHtml(creatorName)} ביקש/ה להקים את הצוות "<strong>${escapeHtml(teamName)}</strong>"${mainOffice ? ` (${escapeHtml(mainOffice)})` : ''} ומינה/תה אותך כמאשר/ת.</p>
         <p>הצוות יהפוך לפעיל רק לאחר שתאשר/י אותו באפליקציה.</p>
         <p><a href="${this.frontendUrl}">פתח/י את האפליקציה כדי לאשר או לדחות</a></p>
       </div>
@@ -58,13 +73,13 @@ export class EmailService {
   }) {
     const { to, teamName, inviterName, token } = params;
     const registerUrl = `${this.frontendUrl}/invite/${token}`;
-    const subject = `${inviterName} הזמין/ה אותך להצטרף לצוות: ${teamName}`;
+    const subject = sanitizeSubject(`${inviterName} הזמין/ה אותך להצטרף לצוות: ${teamName}`);
     const html = `
       <div dir="rtl" style="font-family: sans-serif; text-align: right;">
         <h2>הוזמנת להצטרף לצוות</h2>
-        <p>${inviterName} הזמין/ה אותך להצטרף לצוות "<strong>${teamName}</strong>".</p>
+        <p>${escapeHtml(inviterName)} הזמין/ה אותך להצטרף לצוות "<strong>${escapeHtml(teamName)}</strong>".</p>
         <p>הרשמ/י דרך הקישור הבא כדי להצטרף לצוות באופן מיידי:</p>
-        <p><a href="${registerUrl}">הרשמה והצטרפות לצוות</a></p>
+        <p><a href="${escapeHtml(registerUrl)}">הרשמה והצטרפות לצוות</a></p>
       </div>
     `;
 

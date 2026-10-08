@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Patch, Body, Param, Headers, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Headers } from '@nestjs/common';
 import { CommentsService } from './comments.service';
 import { AuthService } from '../auth/auth.service';
+import { IntIdPipe } from '../common/validation';
 import { CreateCommentDto, UpdateHighlightDto } from './dto/comments.dto';
 
 @Controller()
@@ -13,7 +14,7 @@ export class CommentsController {
   @Post('sprints/:sprintId/comments')
   async create(
     @Headers('authorization') authHeader: string,
-    @Param('sprintId', ParseIntPipe) sprintId: number,
+    @Param('sprintId', IntIdPipe) sprintId: number,
     @Body() dto: CreateCommentDto
   ) {
     const user = await this.authService.validateToken(authHeader);
@@ -23,7 +24,7 @@ export class CommentsController {
   @Get('sprints/:sprintId/comments')
   async getCommentsForSprint(
     @Headers('authorization') authHeader: string,
-    @Param('sprintId', ParseIntPipe) sprintId: number
+    @Param('sprintId', IntIdPipe) sprintId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.commentsService.getCommentsForSprint(sprintId, user.id);
@@ -32,7 +33,7 @@ export class CommentsController {
   @Patch('comments/:commentId/highlight')
   async setHighlighted(
     @Headers('authorization') authHeader: string,
-    @Param('commentId', ParseIntPipe) commentId: number,
+    @Param('commentId', IntIdPipe) commentId: number,
     @Body() dto: UpdateHighlightDto
   ) {
     const user = await this.authService.validateToken(authHeader);

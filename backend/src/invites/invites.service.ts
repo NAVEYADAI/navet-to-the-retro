@@ -6,13 +6,27 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
 import { CreateInviteDto, CreatePhantomConversionInviteDto, ConsumePhantomConversionInviteDto } from './dto/invites.dto';
-import { assertCanManageTeamContent } from '../teams/team-permissions.util';
+import {
+  parseExpiryInput,
+  requireNonEmptyString,
+  assertOptionalString,
+  assertOptionalPositiveInt,
+  assertOptionalEnum
+} from '../common/validation';
+import { getJwtSecret } from '../config/jwt-secret';
+import { MIN_PASSWORD_LENGTH } from '../auth/auth.service';
+
+// BUG-15: shape check for the public invite token (generated as 48 hex chars). A token carrying
+// a NUL byte or an absurd length used to reach Prisma/Postgres and come back as a 500.
+const INVITE_TOKEN_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+// Same loose email shape as auth.service.ts (BUG-18).
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 @Injectable()
 export class InvitesService {
   // Same fallback secret/pattern as auth.service.ts — the conversion flow mints a real 12h
   // session token, same shape as register()/login().
-  private readonly jwtSecret = process.env.JWT_SECRET || 'retro-secret-key-12345';
+  private readonly jwtSecret = getJwtSecret();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -65,13 +79,26 @@ export class InvitesService {
     }
     await this.assertIsTeamAdmin(teamId, requesterId);
 
-    if (dto.expiresAt && new Date(dto.expiresAt) <= new Date()) {
+    // BUG-15/BUG-32: field types are checked explicitly; `expiresAt` goes through
+    // parseExpiryInput (garbage -> 400; date-only -> end of that day in Israel, so "today" is OK);
+    // `maxUses` must be a positive Int32 (0/negative used to create an already-"used up" link).
+    assertOptionalString(dto?.name, 'שם ההזמנה לא תקין');
+    assertOptionalString(dto.email, 'כתובת האימייל לא תקינה');
+    assertOptionalEnum(dto.role, ['TEAM_LEADER', 'PRODUCT_MANAGER', 'TESTER', 'DEVELOPER', 'DEVOPS'], 'תפקיד לא תקין');
+    assertOptionalPositiveInt(dto.maxUses, 'מספר השימושים המרבי חייב להיות מספר שלם חיובי');
+    const expiresAt = dto.expiresAt ? parseExpiryInput(dto.expiresAt) : null;
+    if (expiresAt && expiresAt <= new Date()) {
       throw new BadRequestException('תאריך התפוגה חייב להיות בעתיד');
     }
 
-    if (dto.email) {
+    // BUG-19: emails are case-insensitive everywhere else (lookup, consumeInvite) — store and
+    // send the normalized form so the invite row never differs from the account's address only
+    // by casing.
+    const email = dto.email?.trim().toLowerCase() || null;
+
+    if (email) {
       const existing = await this.prisma.teamInvite.findFirst({
-        where: { teamId, email: { equals: dto.email, mode: 'insensitive' } }
+        where: { teamId, email: { equals: email, mode: 'insensitive' } }
       });
       if (existing && !this.reasonForInvalidity(existing)) {
         throw new ConflictException('כבר נשלחה הזמנה ממתינה לכתובת האימייל הזו');
@@ -88,19 +115,19 @@ export class InvitesService {
         token: crypto.randomBytes(24).toString('hex'),
         teamId,
         name: dto.name?.trim() || null,
-        email: dto.email || null,
+        email,
         role: dto.role || 'DEVELOPER',
         createdById: requesterId,
-        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        expiresAt,
         // A personal (email-locked) invite is inherently single-use; a generic link's
         // maxUses is whatever the admin chose (or unlimited if omitted).
-        maxUses: dto.email ? 1 : (dto.maxUses ?? null)
+        maxUses: email ? 1 : (dto.maxUses ?? null)
       }
     });
 
-    if (dto.email) {
+    if (email) {
       await this.emailService.sendTeamJoinInvite({
-        to: dto.email,
+        to: email,
         teamName: team.name,
         inviterName,
         token: invite.token
@@ -110,7 +137,14 @@ export class InvitesService {
     return invite;
   }
 
+  private assertValidToken(token: unknown): asserts token is string {
+    if (typeof token !== 'string' || !INVITE_TOKEN_PATTERN.test(token)) {
+      throw new BadRequestException('קישור ההזמנה לא תקין');
+    }
+  }
+
   async getInvite(token: string) {
+    this.assertValidToken(token);
     const invite = await this.prisma.teamInvite.findUnique({
       where: { token },
       include: {
@@ -174,9 +208,17 @@ export class InvitesService {
   }
 
   async consumeInvite(token: string, user: { id: number; email: string }) {
+    this.assertValidToken(token);
     const invite = await this.prisma.teamInvite.findUnique({ where: { token } });
     if (!invite) {
       throw new NotFoundException('Invite not found');
+    }
+
+    // BUG-10: a phantom-conversion invite (convertsMemberId set) must only be redeemable through
+    // consumePhantomConversionInvite — otherwise a stranger could use it as a generic join link,
+    // burn its single use and lock the real phantom out of converting.
+    if (invite.convertsMemberId) {
+      throw new ConflictException('קישור זה הוא קישור המרת פנטום ולא קישור הצטרפות לצוות');
     }
 
     const reason = this.reasonForInvalidity(invite);
@@ -226,7 +268,9 @@ export class InvitesService {
     if (!team) {
       throw new NotFoundException('Team not found');
     }
-    await assertCanManageTeamContent(this.prisma, teamId, requesterId);
+    // BUG-44: same admin-only guard as list/revoke above — a TEAM_LEADER who isn't an admin
+    // used to be able to mint a conversion link they could then neither see nor revoke.
+    await this.assertIsTeamAdmin(teamId, requesterId);
 
     const targetMember = await this.prisma.teamMember.findFirst({
       where: { id: phantomMemberId, teamId },
@@ -239,7 +283,8 @@ export class InvitesService {
       throw new ConflictException('חבר זה כבר אינו חבר פנטום — לא ניתן ליצור קישור המרה עבורו');
     }
 
-    if (dto.expiresAt && new Date(dto.expiresAt) <= new Date()) {
+    const expiresAt = dto?.expiresAt ? parseExpiryInput(dto.expiresAt) : null;
+    if (expiresAt && expiresAt <= new Date()) {
       throw new BadRequestException('תאריך התפוגה חייב להיות בעתיד');
     }
 
@@ -250,7 +295,7 @@ export class InvitesService {
         convertsMemberId: phantomMemberId,
         email: null,
         createdById: requesterId,
-        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+        expiresAt,
         // A conversion link belongs to exactly one phantom — never makes sense more than once.
         maxUses: 1
       }
@@ -262,6 +307,29 @@ export class InvitesService {
   // username/email/password on the *existing* phantom `User` row (`update`, not `create`) and
   // never creates a new TeamMember (it already exists).
   async consumePhantomConversionInvite(token: string, dto: ConsumePhantomConversionInviteDto) {
+    this.assertValidToken(token);
+    // BUG-15: same rules as auth.service.ts::register (required strings, email shape, minimum
+    // password length, username-that-looks-like-an-email must equal the email — BUG-38). Checked
+    // before any DB access so bad input is a 400, never a 500 from bcrypt/Prisma.
+    dto = dto ?? ({} as ConsumePhantomConversionInviteDto);
+    const username = requireNonEmptyString(dto.username, 'שם משתמש הוא שדה חובה').trim();
+    const rawEmail = requireNonEmptyString(dto.email, 'כתובת אימייל היא שדה חובה').trim();
+    if (!EMAIL_PATTERN.test(rawEmail)) {
+      throw new BadRequestException('כתובת האימייל אינה תקינה');
+    }
+    const email = rawEmail.toLowerCase();
+    if (typeof dto.password !== 'string' || dto.password.length === 0) {
+      throw new BadRequestException('סיסמה היא שדה חובה');
+    }
+    if (dto.password.length < MIN_PASSWORD_LENGTH) {
+      throw new BadRequestException(`הסיסמה חייבת להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים`);
+    }
+    if (username.includes('@') && username.toLowerCase() !== email) {
+      throw new BadRequestException('שם משתמש שנראה כמו כתובת אימייל חייב להיות זהה לכתובת האימייל שלך');
+    }
+    assertOptionalString(dto.firstName, 'שם פרטי לא תקין');
+    assertOptionalString(dto.lastName, 'שם משפחה לא תקין');
+
     const invite = await this.prisma.teamInvite.findUnique({ where: { token } });
     if (!invite) {
       throw new NotFoundException('Invite not found');
@@ -297,7 +365,7 @@ export class InvitesService {
     // already "holds" a (randomly-generated) username/email.
     const collision = await this.prisma.user.findFirst({
       where: {
-        OR: [{ username: dto.username }, { email: dto.email }],
+        OR: [{ username }, { email: { equals: email, mode: 'insensitive' } }],
         NOT: { id: phantomUser.id }
       }
     });
@@ -312,8 +380,8 @@ export class InvitesService {
       return tx.user.update({
         where: { id: phantomUser.id },
         data: {
-          username: dto.username,
-          email: dto.email,
+          username,
+          email,
           password: hashedPassword,
           firstName: dto.firstName ?? phantomUser.firstName,
           lastName: dto.lastName ?? phantomUser.lastName,

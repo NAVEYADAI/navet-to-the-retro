@@ -1,9 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma.service';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
+import { getJwtSecret } from '../config/jwt-secret';
 
 // Mock bcryptjs at the top
 jest.mock('bcryptjs', () => ({
@@ -96,11 +97,27 @@ describe('AuthService', () => {
       await expect(service.register(dto)).rejects.toThrow(ConflictException);
     });
 
+    it('BUG-38: rejects a username that looks like a different email address', async () => {
+      await expect(
+        service.register({ username: 'victim@x.com', email: 'att@x.com', password: 'password123' })
+      ).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.findFirst).not.toHaveBeenCalled();
+      expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+    });
+
+    it('BUG-38: allows a username equal to the registrant\'s own email (case-insensitive)', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.create.mockResolvedValue(mockUser);
+      await expect(
+        service.register({ username: 'Test@Example.com', email: 'test@example.com', password: 'password123' })
+      ).resolves.toBeDefined();
+    });
+
     it('BUG-05: duplicate-email check is case-insensitive', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
 
       await expect(
-        service.register({ username: 'other', email: 'Test@Example.com', password: 'p' })
+        service.register({ username: 'other', email: 'Test@Example.com', password: 'password123' })
       ).rejects.toThrow(ConflictException);
       expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
         where: { OR: [{ username: 'other' }, { email: { equals: 'Test@Example.com', mode: 'insensitive' } }] },
@@ -177,7 +194,56 @@ describe('AuthService', () => {
     });
   });
 
+  describe('register input validation (BUG-15 / BUG-37)', () => {
+    const base = { email: 'new@example.com', password: 'password123' };
+
+    it.each([
+      ['missing email', { password: 'password123' }],
+      ['non-string email', { email: 123, password: 'password123' }],
+      ['empty email', { email: '   ', password: 'password123' }],
+      ['missing password', { email: 'new@example.com' }],
+      ['non-string password', { email: 'new@example.com', password: 12345678 }],
+      ['empty password', { email: 'new@example.com', password: '' }],
+      ['object username', { ...base, username: { contains: 'a' } }],
+    ])('rejects %s with 400 and touches nothing', async (_name, dto) => {
+      await expect(service.register(dto as any)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.findFirst).not.toHaveBeenCalled();
+      expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing body with 400', async () => {
+      await expect(service.register(undefined as any)).rejects.toThrow(BadRequestException);
+    });
+
+    it.each(['1', 'x', '12345'])('rejects too-short password %p (BUG-37)', async (password) => {
+      await expect(service.register({ ...base, password })).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a password of exactly the minimum length', async () => {
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.create.mockResolvedValue(mockUser);
+      await expect(service.register({ ...base, password: '123456' })).resolves.toBeDefined();
+    });
+  });
+
   describe('login', () => {
+    it.each([
+      ['missing username', { password: 'password123' }],
+      ['non-string username', { username: { contains: 'a' }, password: 'password123' }],
+      ['empty username', { username: '', password: 'password123' }],
+      ['missing password', { username: 'testuser' }],
+      ['non-string password', { username: 'testuser', password: 123456 }],
+      ['empty password', { username: 'testuser', password: '' }],
+    ])('rejects %s with 400 (BUG-15) without querying the DB', async (_name, dto) => {
+      await expect(service.login(dto as any)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing body with 400', async () => {
+      await expect(service.login(undefined as any)).rejects.toThrow(BadRequestException);
+    });
+
     it('should login successfully and return access token', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       // Use mock resolved value on the mocked function
@@ -267,7 +333,7 @@ describe('AuthService', () => {
   });
 
   describe('validateToken', () => {
-    const secret = process.env.JWT_SECRET || 'retro-secret-key-12345';
+    const secret = getJwtSecret();
 
     it('should throw UnauthorizedException when the auth header is missing', async () => {
       await expect(service.validateToken('')).rejects.toThrow(
@@ -376,6 +442,44 @@ describe('AuthService', () => {
         where: { id: mockUser.id },
         data: { firstName: undefined, lastName: undefined, email: 'new@example.com', emailVerifiedAt: null },
       });
+    });
+
+    it.each([
+      ['empty string', ''],
+      ['whitespace only', '   '],
+      ['no @', 'not an email'],
+      ['no domain dot', 'a@b'],
+      ['non-string', 123],
+      ['null', null],
+    ])('BUG-18: rejects %s email with 400 and does not write', async (_name, email) => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+
+      await expect(service.updateProfile(mockUser.id, { email } as any)).rejects.toThrow(BadRequestException);
+
+      expect(mockPrismaService.user.findFirst).not.toHaveBeenCalled();
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
+    });
+
+    it('BUG-18: trims and lowercases a changed email before collision check and storage', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.user.findFirst.mockResolvedValue(null);
+      mockPrismaService.user.update.mockResolvedValue(mockUser);
+
+      await service.updateProfile(mockUser.id, { email: '  New.Person@Example.COM ' });
+
+      expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
+        where: { email: { equals: 'new.person@example.com', mode: 'insensitive' }, NOT: { id: mockUser.id } },
+      });
+      expect(mockPrismaService.user.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: expect.objectContaining({ email: 'new.person@example.com', emailVerifiedAt: null }),
+      });
+    });
+
+    it('rejects a non-string firstName with 400', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      await expect(service.updateProfile(mockUser.id, { firstName: { a: 1 } } as any)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
     });
 
     it('should reject changing to an email already claimed by a different user, without writing anything', async () => {

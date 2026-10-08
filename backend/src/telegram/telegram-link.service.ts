@@ -45,25 +45,36 @@ export class TelegramLinkService {
       throw new ConflictException('חשבון הטלגרם הזה כבר מקושר למשתמש אחר');
     }
 
-    return this.prisma.userMessagingLink.upsert({
-      where: { channel_externalId: { channel: 'TELEGRAM', externalId } },
-      update: { userId: requesterId, isRevoked: false },
-      create: { channel: 'TELEGRAM', externalId, userId: requesterId, isRevoked: false }
-    });
+    // BUG-49: at most one active TELEGRAM link per user — linking a different Telegram account
+    // revokes the user's other active links (otherwise both chats could post comments as this user
+    // and a single unlink would leave the other one live). The revoke and the upsert run in one
+    // transaction so a failed upsert never leaves the user with no link at all.
+    const [, link] = await this.prisma.$transaction([
+      this.prisma.userMessagingLink.updateMany({
+        where: { channel: 'TELEGRAM', userId: requesterId, isRevoked: false, externalId: { not: externalId } },
+        data: { isRevoked: true }
+      }),
+      this.prisma.userMessagingLink.upsert({
+        where: { channel_externalId: { channel: 'TELEGRAM', externalId } },
+        update: { userId: requesterId, isRevoked: false },
+        create: { channel: 'TELEGRAM', externalId, userId: requesterId, isRevoked: false }
+      })
+    ]);
+    return link;
   }
 
   /** Soft-disconnect (§10.0 default #6) — never a hard delete, mirrors GoogleCalendarConnection. */
   async unlink(requesterId: number) {
-    const link = await this.prisma.userMessagingLink.findFirst({
-      where: { channel: 'TELEGRAM', userId: requesterId, isRevoked: false }
-    });
-    if (!link) {
-      throw new NotFoundException('אין חיבור טלגרם פעיל');
-    }
-    return this.prisma.userMessagingLink.update({
-      where: { id: link.id },
+    // BUG-49: revoke EVERY active link of this user (legacy data may already hold more than one),
+    // not just the first one found.
+    const { count } = await this.prisma.userMessagingLink.updateMany({
+      where: { channel: 'TELEGRAM', userId: requesterId, isRevoked: false },
       data: { isRevoked: true }
     });
+    if (count === 0) {
+      throw new NotFoundException('אין חיבור טלגרם פעיל');
+    }
+    return { connected: false as const, revokedCount: count };
   }
 
   /** Current connection status for the given user — used by the settings-screen card. */

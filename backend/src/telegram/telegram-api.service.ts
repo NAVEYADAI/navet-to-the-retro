@@ -11,6 +11,15 @@ export interface TelegramReplyKeyboard {
   one_time_keyboard: true;
 }
 
+function describeSendError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const description = (err.response?.data as { description?: string } | undefined)?.description;
+    const status = err.response?.status;
+    return [status ? `HTTP ${status}` : null, description ?? err.message].filter(Boolean).join(' - ');
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 // Thin wrapper around plain HTTP calls to the Telegram Bot API — deliberately NOT a full bot
 // framework (`node-telegram-bot-api`/`telegraf`), per product-backlog/10-telegram-comment-
 // ingestion.md §10.0 default #3: consistent with this backend's existing "manual, no extra
@@ -43,14 +52,16 @@ export class TelegramApiService {
       await axios.post(`${this.baseUrl()}/sendMessage`, {
         chat_id: chatId,
         text,
-        // Legacy Markdown (not MarkdownV2) — supports *bold*/_italic_ with far fewer characters
-        // needing escaping, which matters because message text interpolates user-entered team/
-        // sprint/category names (see escapeMarkdown() in telegram-messages.ts).
-        parse_mode: 'Markdown',
+        // HTML (not Markdown) — only `&`, `<`, `>` need escaping, and unlike legacy Markdown that
+        // escaping works everywhere (including inside bold). Message text interpolates user-entered
+        // team/sprint/category names, which go through escapeHtml() in telegram-messages.ts (BUG-26).
+        parse_mode: 'HTML',
         ...(replyMarkup ? { reply_markup: replyMarkup } : {})
       });
     } catch (err) {
-      this.logger.warn(`Failed to send Telegram message to chat ${chatId}`, err instanceof Error ? err.stack : err);
+      // BUG-26: never swallow silently — include Telegram's own error description (e.g. "can't
+      // parse entities") when the API answered with an error, since that's what explains *why*.
+      this.logger.error(`Failed to send Telegram message to chat ${chatId}: ${describeSendError(err)}`);
     }
   }
 

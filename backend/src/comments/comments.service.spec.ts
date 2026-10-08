@@ -54,20 +54,54 @@ describe('CommentsService', () => {
       await expect(service.create(sprint.id, createDto, member.userId)).rejects.toThrow(NotFoundException);
     });
 
-    it('throws ForbiddenException when the author is not a member of the sprint\'s team', async () => {
+    // BUG-40: non-members get the same 404 as a non-existent sprint (no id enumeration).
+    it('throws NotFoundException when the author is not a member of the sprint\'s team (BUG-40)', async () => {
       mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
       mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
 
-      await expect(service.create(sprint.id, createDto, 999)).rejects.toThrow(ForbiddenException);
+      await expect(service.create(sprint.id, createDto, 999)).rejects.toThrow(NotFoundException);
       expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
     });
 
-    it('throws ForbiddenException when the author is only a PENDING invitee (BUG-04)', async () => {
+    it('throws NotFoundException when the author is only a PENDING invitee (BUG-04, BUG-40)', async () => {
       mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
       mockPrismaService.teamMember.findUnique.mockResolvedValue({ ...member, status: 'PENDING' });
 
-      await expect(service.create(sprint.id, { content: 'x', type: 'KEEP' } as any, member.userId)).rejects.toThrow(ForbiddenException);
+      await expect(service.create(sprint.id, { content: 'x', type: 'KEEP' } as any, member.userId)).rejects.toThrow(NotFoundException);
       expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+    });
+
+    // BUG-15: malformed bodies are 400s and never reach the DB.
+    describe('input validation (BUG-15)', () => {
+      const bad: [string, Record<string, unknown>][] = [
+        ['missing content', { type: 'KEEP' }],
+        ['empty content', { content: '', type: 'KEEP' }],
+        ['whitespace-only content', { content: '   ', type: 'KEEP' }],
+        ['non-string content', { content: 5, type: 'KEEP' }],
+        ['missing type', { content: 'x' }],
+        ['unknown type', { content: 'x', type: 'LOVE' }],
+        ['string categoryId', { content: 'x', type: 'KEEP', categoryId: '3' }],
+        ['fractional categoryId', { content: 'x', type: 'KEEP', categoryId: 1.5 }],
+        ['over-Int32 categoryId', { content: 'x', type: 'KEEP', categoryId: 99999999999 }],
+        ['string isAnonymous', { content: 'x', type: 'KEEP', isAnonymous: 'yes' }],
+        ['string onBehalfOfUserId', { content: 'x', type: 'KEEP', onBehalfOfUserId: 'a' }],
+      ];
+
+      it.each(bad)('rejects %s with BadRequestException', async (_label, dto) => {
+        await expect(service.create(sprint.id, dto as any, member.userId)).rejects.toThrow(BadRequestException);
+        expect(mockPrismaService.sprint.findUnique).not.toHaveBeenCalled();
+        expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+      });
+
+      it('accepts IMPROVE, null categoryId and boolean isAnonymous', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.comment.create.mockResolvedValue({ id: 1 });
+
+        await service.create(sprint.id, { content: 'x', type: 'IMPROVE', categoryId: null, isAnonymous: true } as any, member.userId);
+
+        expect(mockPrismaService.comment.create).toHaveBeenCalled();
+      });
     });
 
     it('creates the comment for a team member', async () => {
@@ -208,18 +242,18 @@ describe('CommentsService', () => {
       await expect(service.getCommentsForSprint(sprint.id, member.userId)).rejects.toThrow(NotFoundException);
     });
 
-    it('throws ForbiddenException when the requester does not belong to the team', async () => {
+    it('throws NotFoundException (same as a missing sprint) when the requester does not belong to the team (BUG-40)', async () => {
       mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
       mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
 
-      await expect(service.getCommentsForSprint(sprint.id, 999)).rejects.toThrow(ForbiddenException);
+      await expect(service.getCommentsForSprint(sprint.id, 999)).rejects.toThrow(NotFoundException);
     });
 
-    it('throws ForbiddenException when the requester is only a PENDING invitee (BUG-04)', async () => {
+    it('throws NotFoundException when the requester is only a PENDING invitee (BUG-04, BUG-40)', async () => {
       mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
       mockPrismaService.teamMember.findUnique.mockResolvedValue({ ...member, status: 'PENDING' });
 
-      await expect(service.getCommentsForSprint(sprint.id, member.userId)).rejects.toThrow(ForbiddenException);
+      await expect(service.getCommentsForSprint(sprint.id, member.userId)).rejects.toThrow(NotFoundException);
       expect(mockPrismaService.comment.findMany).not.toHaveBeenCalled();
     });
 
@@ -255,6 +289,20 @@ describe('CommentsService', () => {
 
       await expect(service.setHighlighted(comment.id, { isHighlighted: true }, member.userId)).rejects.toThrow(ForbiddenException);
       expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+
+    // BUG-40: outsiders can't tell an existing comment id from a missing one.
+    it('throws NotFoundException (not 403) when the requester is not an active member of the comment\'s team (BUG-40)', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(comment);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+
+      await expect(service.setHighlighted(comment.id, { isHighlighted: true }, 999)).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a non-boolean isHighlighted with 400 (BUG-15)', async () => {
+      await expect(service.setHighlighted(comment.id, { isHighlighted: 'yes' } as any, admin.userId)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.comment.findUnique).not.toHaveBeenCalled();
     });
 
     it('allows a team admin to highlight', async () => {

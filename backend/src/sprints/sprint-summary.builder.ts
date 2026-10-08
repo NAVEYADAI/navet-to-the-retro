@@ -1,6 +1,7 @@
 import PptxGenJS from 'pptxgenjs';
 import { NO_CATEGORY_LABEL } from '../comments/comment-category-labels';
 import { applySlideTransitions } from './pptx-post-process.util';
+import { ISRAEL_TIME_ZONE } from '../common/validation';
 
 type CommentForExport = {
   content: string;
@@ -72,17 +73,33 @@ interface SprintSummaryInput {
   templateId?: SprintSummaryTemplateId;
 }
 
-function formatDate(d: Date): string {
-  return d.toLocaleDateString('he-IL');
+// BUG-13: user-supplied free text (comment content pasted from Word/PDF, sprint/team/category
+// names) can contain C0 control characters (U+0000-U+0008, U+000B, U+000C, U+000E-U+001F), the
+// non-characters U+FFFE/U+FFFF, or unpaired surrogates. None of these are legal in XML 1.0, and
+// pptxgenjs writes text into slide XML verbatim, so a single one makes the whole slide
+// unparseable in PowerPoint/Keynote. Tab/LF/CR are valid XML and are kept.
+const XML_INVALID_CHARS =
+  // eslint-disable-next-line no-control-regex
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+export function stripXmlInvalidChars(text: string): string {
+  return text.replace(XML_INVALID_CHARS, '');
+}
+
+// BUG-46: the server runs in UTC, so a bare `toLocaleDateString('he-IL')` gave yesterday's date
+// for anything between 00:00 and 03:00 Israel time. The app's single target locale is Israel, so
+// every date in the export (slide text and file name) is rendered in Asia/Jerusalem.
+export function formatDate(d: Date): string {
+  return d.toLocaleDateString('he-IL', { timeZone: ISRAEL_TIME_ZONE });
 }
 
 // Presentation file name = sprint name + the date it was generated (not the sprint's own
 // start/end dates — re-exporting the same sprint later, with more comments, should produce a
 // visibly different file name). Strips characters that are invalid in file names on
 // Windows/macOS so a free-text sprint name can't produce a broken download.
-export function buildExportFileName(sprintName: string): string {
+export function buildExportFileName(sprintName: string, now: Date = new Date()): string {
   const sanitized = sprintName.replace(/[\\/:*?"<>|]/g, ' ').trim() || 'ספרינט';
-  const dateStr = formatDate(new Date());
+  const dateStr = formatDate(now);
   return `${sanitized} - ${dateStr}.pptx`;
 }
 
@@ -98,6 +115,51 @@ function groupByCategory(comments: CommentForExport[]): Map<string, CommentForEx
     }
   }
   return groups;
+}
+
+// BUG-45: each KEEP/IMPROVE column is a fixed 4.4in x 3.7in text box, and pptxgenjs does not
+// shrink or paginate text, so a long comment (or many comments) ran off the bottom of the slide.
+// We (1) cap a single comment's length, (2) estimate how many wrapped lines the column needs and
+// pick the largest font size (12 down to 8pt) that fits, and (3) if even 8pt doesn't fit, drop
+// the trailing comments and say how many were left out. The estimate is deliberately
+// conservative (average glyph ~0.55em wide, line height 1.2em).
+export const MAX_COMMENT_CHARS = 500;
+const COLUMN_WIDTH_IN = 4.4;
+const COLUMN_HEIGHT_IN = 3.7;
+const BULLET_INDENT_IN = 0.3;
+const FONT_SIZES_PT = [12, 11, 10, 9, 8];
+
+function truncateComment(text: string): string {
+  return text.length > MAX_COMMENT_CHARS ? `${text.slice(0, MAX_COMMENT_CHARS).trimEnd()}…` : text;
+}
+
+function estimateLines(texts: string[], fontSizePt: number): number {
+  const charsPerLine = Math.max(1, Math.floor(((COLUMN_WIDTH_IN - BULLET_INDENT_IN) * 72) / (fontSizePt * 0.55)));
+  return texts.reduce((sum, text) => {
+    // A comment may contain explicit line breaks; each physical line wraps independently.
+    const lines = text.split(/\r?\n/).reduce((n, line) => n + Math.max(1, Math.ceil(line.length / charsPerLine)), 0);
+    return sum + lines;
+  }, 0);
+}
+
+function fitsColumn(texts: string[], fontSizePt: number): boolean {
+  return estimateLines(texts, fontSizePt) * fontSizePt * 1.2 / 72 <= COLUMN_HEIGHT_IN;
+}
+
+export function fitColumnText(contents: string[]): { texts: string[]; fontSize: number; omitted: number } {
+  const truncated = contents.map(truncateComment);
+  const minSize = FONT_SIZES_PT[FONT_SIZES_PT.length - 1];
+  const fontSize = FONT_SIZES_PT.find(size => fitsColumn(truncated, size));
+  if (fontSize !== undefined) {
+    return { texts: truncated, fontSize, omitted: 0 };
+  }
+  // Doesn't fit even at the smallest size: keep as many leading comments as fit, reserving one
+  // line for the "and N more" note.
+  let kept = truncated.length;
+  while (kept > 0 && !fitsColumn([...truncated.slice(0, kept), 'x'], minSize)) {
+    kept -= 1;
+  }
+  return { texts: truncated.slice(0, kept), fontSize: minSize, omitted: truncated.length - kept };
 }
 
 // Adds each layout's decorative shape BEFORE any text is placed on the title slide, so the text
@@ -136,6 +198,19 @@ function categoryTitleColor(t: Template): string {
 
 export async function buildSprintSummaryPptx(input: SprintSummaryInput): Promise<Buffer> {
   const t = SPRINT_SUMMARY_TEMPLATES[input.templateId ?? 'classic'];
+
+  // BUG-13: sanitize every piece of user-supplied text once, up front, so no code path below can
+  // forget to.
+  input = {
+    ...input,
+    sprintName: stripXmlInvalidChars(input.sprintName),
+    teamName: stripXmlInvalidChars(input.teamName),
+    comments: input.comments.map(c => ({
+      ...c,
+      content: stripXmlInvalidChars(c.content),
+      category: c.category === null ? null : stripXmlInvalidChars(c.category)
+    }))
+  };
 
   const pptx = new PptxGenJS();
   pptx.defineLayout({ name: 'RETRO_16x9', width: 10, height: 5.63 });
@@ -187,19 +262,31 @@ export async function buildSprintSummaryPptx(input: SprintSummaryInput): Promise
     // paragraph is explicitly marked `rtl="1"` — the presentation-level `pptx.rtlMode` above
     // does NOT propagate down to bulleted paragraphs, so without this the bullet glyph renders
     // stuck to the left while the Hebrew text it belongs to is right-aligned.
-    const bulletsFor = (items: CommentForExport[]) =>
-      items.length > 0
-        ? items.map(c => ({ text: c.content, options: { bullet: bulletStyle, breakLine: true, rtlMode: true, fontFace: t.fontFace } }))
-        : [{ text: '—', options: { color: t.muted, rtlMode: true, fontFace: t.fontFace } }];
+    const columnFor = (items: CommentForExport[]) => {
+      if (items.length === 0) {
+        return { fontSize: 12, runs: [{ text: '—', options: { color: t.muted, rtlMode: true, fontFace: t.fontFace } }] };
+      }
+      const fit = fitColumnText(items.map(c => c.content));
+      const runs: PptxGenJS.TextProps[] = fit.texts.map(text => ({
+        text, options: { bullet: bulletStyle, breakLine: true, rtlMode: true, fontFace: t.fontFace }
+      }));
+      if (fit.omitted > 0) {
+        runs.push({ text: `ועוד ${fit.omitted} תגובות…`, options: { color: t.muted, rtlMode: true, fontFace: t.fontFace } });
+      }
+      return { fontSize: fit.fontSize, runs };
+    };
+
+    const keepColumn = columnFor(keep);
+    const improveColumn = columnFor(improve);
 
     slide.addText('שימור', { x: 0.4, y: 1.05, w: 4.4, h: 0.4, align: 'right', fontSize: 16, bold: true, color: t.keep, fontFace: t.fontFace });
-    slide.addText(bulletsFor(keep), {
-      x: 0.4, y: 1.5, w: 4.4, h: 3.7, align: 'right', fontSize: 12, color: t.heading, valign: 'top', fontFace: t.fontFace
+    slide.addText(keepColumn.runs, {
+      x: 0.4, y: 1.5, w: 4.4, h: 3.7, align: 'right', fontSize: keepColumn.fontSize, color: t.heading, valign: 'top', fontFace: t.fontFace
     });
 
     slide.addText('שיפור', { x: 5.2, y: 1.05, w: 4.4, h: 0.4, align: 'right', fontSize: 16, bold: true, color: t.improve, fontFace: t.fontFace });
-    slide.addText(bulletsFor(improve), {
-      x: 5.2, y: 1.5, w: 4.4, h: 3.7, align: 'right', fontSize: 12, color: t.heading, valign: 'top', fontFace: t.fontFace
+    slide.addText(improveColumn.runs, {
+      x: 5.2, y: 1.5, w: 4.4, h: 3.7, align: 'right', fontSize: improveColumn.fontSize, color: t.heading, valign: 'top', fontFace: t.fontFace
     });
   }
 

@@ -2,6 +2,8 @@ import { Injectable, Logger, UnauthorizedException, InternalServerErrorException
 import { google } from 'googleapis';
 import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma.service';
+import { getJwtSecret } from '../config/jwt-secret';
+import { SingleUseTokenRegistry } from '../config/single-use-tokens';
 
 // `calendar.events` only covers reading/writing events on calendars that already exist — it does
 // NOT allow creating a new (secondary) calendar. Since `getOrCreateTeamCalendar` calls
@@ -51,7 +53,13 @@ export class GoogleCalendarService {
   // started this connect flow" across the redirect to Google and back — reusing AuthService's
   // JWT secret/scheme avoids introducing a second secret to manage in infisical for the same
   // purpose. Not a session token; never sent back to the client as one.
-  private readonly jwtSecret = process.env.JWT_SECRET || 'retro-secret-key-12345';
+  private readonly jwtSecret = getJwtSecret();
+  // BUG-20: each connect `state` carries a random `jti` and is accepted by `handleCallback` at most
+  // once (in-memory, per-process — see SingleUseTokenRegistry for the exact limits). Together with
+  // the short 5-minute expiry this stops a captured/leaked `state` from being replayed. It does NOT
+  // bind the flow to the browser that started it (login-CSRF-style "victim finishes attacker's
+  // authUrl" still needs a cookie/session binding — product decision, see BUGS.md BUG-20).
+  private readonly consumedStates = new SingleUseTokenRegistry();
 
   constructor(private readonly prisma: PrismaService) {
     if (!this.isConfigured()) {
@@ -89,7 +97,10 @@ export class GoogleCalendarService {
     // indistinguishable from a real session token or a Google-login ticket signed with the same
     // secret — replayable as either. `AuthService.validateToken` now rejects any token carrying
     // a `purpose` claim, and `handleCallback` below now checks this exact value.
-    const state = jwt.sign({ sub: userId, purpose: 'google-calendar-connect' }, this.jwtSecret, { expiresIn: '10m' });
+    const state = jwt.sign({ sub: userId, purpose: 'google-calendar-connect' }, this.jwtSecret, {
+      expiresIn: '5m',
+      jwtid: SingleUseTokenRegistry.newId()
+    });
     return client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
@@ -120,6 +131,11 @@ export class GoogleCalendarService {
       if (payload.purpose !== 'google-calendar-connect') {
         throw new Error('wrong token purpose');
       }
+      // Consume only after the signature/expiry/purpose checks passed, so garbage input can't
+      // fill the registry. A replayed (already-used) or jti-less state is rejected.
+      if (!this.consumedStates.consume(payload.jti, payload.exp)) {
+        throw new Error('state already used or missing jti');
+      }
       userId = payload.sub as unknown as number;
     } catch {
       throw new UnauthorizedException('קישור החיבור פג תוקף או אינו תקין, נסה/י שוב');
@@ -149,6 +165,15 @@ export class GoogleCalendarService {
       }
     });
 
+    // BUG-22: a user must have at most one active connection — otherwise every sprint is written
+    // to Google once per active connection (duplicate events) and `disconnect` leaves the older
+    // one syncing. Done after the new row is saved so a failure here can't leave the user with no
+    // connection at all. (Old connections' Google-side calendars/events are left in place.)
+    await this.prisma.googleCalendarConnection.updateMany({
+      where: { userId, isRevoked: false, id: { not: connection.id } },
+      data: { isRevoked: true }
+    });
+
     // Best-effort — a backfill failure must never fail the connect flow itself (the connection
     // is already saved above); same "never block on Google" philosophy as sprint sync.
     try {
@@ -163,7 +188,7 @@ export class GoogleCalendarService {
     return connection;
   }
 
-  /** Revokes (soft-disconnects) the requester's own active connection, if any. */
+  /** Revokes (soft-disconnects) ALL of the requester's active connections (BUG-22), if any. */
   async disconnect(userId: number) {
     const connection = await this.prisma.googleCalendarConnection.findFirst({
       where: { userId, isRevoked: false },
@@ -172,10 +197,42 @@ export class GoogleCalendarService {
     if (!connection) {
       throw new NotFoundException('אין חיבור פעיל ליומן Google');
     }
-    return this.prisma.googleCalendarConnection.update({
-      where: { id: connection.id },
+    await this.prisma.googleCalendarConnection.updateMany({
+      where: { userId, isRevoked: false },
       data: { isRevoked: true }
     });
+    return { ...connection, isRevoked: true };
+  }
+
+  /**
+   * BUG-52 (invalid_grant part): when Google rejects the stored refresh token (user revoked
+   * access, token expired/rotated) every future call will fail the same way, so mark the
+   * connection disconnected — `getStatus` then shows "not connected" and the user can reconnect.
+   * Never throws; any other error type is left alone.
+   */
+  private isInvalidGrant(err: unknown): boolean {
+    const e = err as { message?: string; code?: string | number; response?: { data?: { error?: string } } } | undefined;
+    return (
+      e?.response?.data?.error === 'invalid_grant' ||
+      e?.code === 'invalid_grant' ||
+      (typeof e?.message === 'string' && e.message.includes('invalid_grant'))
+    );
+  }
+
+  private async markRevokedIfInvalidGrant(connectionId: number, err: unknown): Promise<void> {
+    if (!this.isInvalidGrant(err)) return;
+    try {
+      await this.prisma.googleCalendarConnection.update({
+        where: { id: connectionId },
+        data: { isRevoked: true }
+      });
+      this.logger.warn(`Google rejected the refresh token (invalid_grant) — connection ${connectionId} marked disconnected`);
+    } catch (updateErr) {
+      this.logger.warn(
+        `Failed to mark connection ${connectionId} disconnected after invalid_grant`,
+        updateErr instanceof Error ? updateErr.stack : updateErr
+      );
+    }
   }
 
   private buildCalendarClient(connection: { id: number; accessToken: string; refreshToken: string }) {
@@ -303,6 +360,7 @@ export class GoogleCalendarService {
           `Failed to create Google Calendar event for sprint ${sprint.sprintId} on connection ${connection.id}`,
           err instanceof Error ? err.stack : err
         );
+        await this.markRevokedIfInvalidGrant(connection.id, err);
       }
     }
   }
@@ -345,6 +403,9 @@ export class GoogleCalendarService {
           `Failed to backfill Google Calendar event for pre-existing sprint ${sprint.id} on new connection ${connection.id}`,
           err instanceof Error ? err.stack : err
         );
+        await this.markRevokedIfInvalidGrant(connection.id, err);
+        // A dead connection won't get better for the remaining sprints either.
+        if (this.isInvalidGrant(err)) return;
       }
     }
   }
@@ -359,8 +420,18 @@ export class GoogleCalendarService {
       return;
     }
 
+    // BUG-52: only connections of users who are still ACTIVE members of the sprint's team — a
+    // member removed from the team (or whose invite is back to PENDING) must stop receiving
+    // updates even if a link row for them still exists (e.g. created before this filter, or the
+    // best-effort cleanup in `removeMemberFromTeam` failed).
     const links = await this.prisma.sprintGoogleEvent.findMany({
-      where: { sprintId: sprint.sprintId, connection: { isRevoked: false } },
+      where: {
+        sprintId: sprint.sprintId,
+        connection: {
+          isRevoked: false,
+          user: { members: { some: { teamId: sprint.teamId, status: 'ACTIVE' } } }
+        }
+      },
       include: { connection: true }
     });
 
@@ -383,6 +454,112 @@ export class GoogleCalendarService {
           `Failed to update Google Calendar event for sprint ${sprint.sprintId} on connection ${link.connectionId}`,
           err instanceof Error ? err.stack : err
         );
+        await this.markRevokedIfInvalidGrant(link.connectionId, err);
+      }
+    }
+  }
+
+  /**
+   * BUG-52: a team rename must reach the per-team Google calendars (summary
+   * `<team name> — ספרינטים`) that were created under the old name. Only active connections of
+   * users who are still ACTIVE team members are touched. Same catch-and-log-per-calendar pattern
+   * as the sprint syncs — never throws, never blocks the rename itself. (Existing events'
+   * descriptions still carry the old team name until each sprint is next updated — the patch in
+   * `syncSprintUpdated` rewrites them; not worth one Google call per event here.)
+   */
+  async syncTeamRenamed(teamId: number, teamName: string): Promise<void> {
+    if (!this.isConfigured()) {
+      return;
+    }
+
+    const calendars = await this.prisma.googleCalendarTeamCalendar.findMany({
+      where: {
+        teamId,
+        connection: {
+          isRevoked: false,
+          user: { members: { some: { teamId, status: 'ACTIVE' } } }
+        }
+      },
+      include: { connection: true }
+    });
+
+    for (const teamCalendar of calendars) {
+      try {
+        const calendar = this.buildCalendarClient(teamCalendar.connection);
+        await calendar.calendars.patch({
+          calendarId: teamCalendar.calendarId,
+          requestBody: { summary: `${teamName} — ספרינטים` }
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Failed to rename Google Calendar for team ${teamId} on connection ${teamCalendar.connectionId}`,
+          err instanceof Error ? err.stack : err
+        );
+        await this.markRevokedIfInvalidGrant(teamCalendar.connectionId, err);
+      }
+    }
+  }
+
+  private isGoogleNotFound(err: unknown): boolean {
+    const e = err as { code?: string | number; status?: number; response?: { status?: number } } | undefined;
+    const status = e?.response?.status ?? e?.status ?? e?.code;
+    return status === 404 || status === 410 || status === '404' || status === '410';
+  }
+
+  /**
+   * BUG-52: when a member is removed from a team, delete that team's sprint events from the
+   * removed user's own Google calendar and drop the `SprintGoogleEvent` links, so nothing keeps
+   * being synced to them. Best-effort and per-event: a link is dropped only once Google confirms
+   * the event is gone (deleted, or already 404/410); a failed delete keeps its link (and is
+   * logged) — `syncSprintUpdated` ignores non-members anyway. The dedicated team calendar itself
+   * and its `GoogleCalendarTeamCalendar` row are deliberately left in place (it may hold the
+   * user's own entries, and it is reused if they rejoin). Never throws.
+   */
+  async removeMemberFromTeam(userId: number, teamId: number): Promise<void> {
+    if (!this.isConfigured()) {
+      return;
+    }
+
+    let links: Array<{
+      id: number;
+      sprintId: number;
+      connectionId: number;
+      googleEventId: string;
+      connection: { id: number; accessToken: string; refreshToken: string };
+    }>;
+    try {
+      links = await this.prisma.sprintGoogleEvent.findMany({
+        where: { sprint: { teamId }, connection: { userId, isRevoked: false } },
+        include: { connection: true }
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to look up Google Calendar events of removed member ${userId} for team ${teamId}`,
+        err instanceof Error ? err.stack : err
+      );
+      return;
+    }
+
+    for (const link of links) {
+      try {
+        const teamCalendar = await this.prisma.googleCalendarTeamCalendar.findUnique({
+          where: { connectionId_teamId: { connectionId: link.connectionId, teamId } }
+        });
+        if (teamCalendar) {
+          const calendar = this.buildCalendarClient(link.connection);
+          try {
+            await calendar.events.delete({ calendarId: teamCalendar.calendarId, eventId: link.googleEventId });
+          } catch (err) {
+            if (!this.isGoogleNotFound(err)) throw err;
+          }
+        }
+        await this.prisma.sprintGoogleEvent.delete({ where: { id: link.id } });
+      } catch (err) {
+        this.logger.warn(
+          `Failed to remove Google Calendar event for sprint ${link.sprintId} of removed member ${userId} on connection ${link.connectionId}`,
+          err instanceof Error ? err.stack : err
+        );
+        await this.markRevokedIfInvalidGrant(link.connectionId, err);
       }
     }
   }

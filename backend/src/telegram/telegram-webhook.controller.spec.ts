@@ -53,6 +53,29 @@ describe('TelegramWebhookController', () => {
     expect(mockAdapterService.normalize).not.toHaveBeenCalled();
   });
 
+  it('rejects secrets of a different length / a prefix of the real secret without throwing (BUG-51)', async () => {
+    await expect(controller.handleWebhook('shh', { update_id: 1 })).rejects.toThrow(UnauthorizedException);
+    await expect(controller.handleWebhook('shh-secret-and-more', { update_id: 1 })).rejects.toThrow(UnauthorizedException);
+    await expect(controller.handleWebhook('', { update_id: 1 })).rejects.toThrow(UnauthorizedException);
+    await expect(controller.handleWebhook(['shh-secret'] as any, { update_id: 1 })).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects everything when TELEGRAM_WEBHOOK_SECRET is not configured', async () => {
+    process.env = { ...originalEnv, TELEGRAM_WEBHOOK_SECRET: undefined };
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [TelegramWebhookController],
+      providers: [
+        { provide: TelegramAdapterService, useValue: mockAdapterService },
+        { provide: TelegramConversationService, useValue: mockConversationService },
+        { provide: TelegramApiService, useValue: mockTelegramApi },
+      ],
+    }).compile();
+    const unconfigured = module.get(TelegramWebhookController);
+
+    await expect(unconfigured.handleWebhook('anything', { update_id: 1 })).rejects.toThrow(UnauthorizedException);
+    await expect(unconfigured.handleWebhook(undefined, { update_id: 1 })).rejects.toThrow(UnauthorizedException);
+  });
+
   it('ignores updates with no normalizable message (e.g. edited_message)', async () => {
     mockAdapterService.normalize.mockReturnValue(null);
 

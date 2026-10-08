@@ -166,6 +166,16 @@ describe('TeamCategoriesService', () => {
       expect(mockPrismaService.teamCommentCategory.create).not.toHaveBeenCalled();
     });
 
+    it('throws BadRequestException (not a TypeError/500) for a non-string or missing label (BUG-15)', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+
+      await expect(service.createCategory(team.id, { label: 5 as any }, admin.userId)).rejects.toThrow(BadRequestException);
+      await expect(service.createCategory(team.id, { label: { a: 1 } as any }, admin.userId)).rejects.toThrow(BadRequestException);
+      await expect(service.createCategory(team.id, undefined as any, admin.userId)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.teamCommentCategory.create).not.toHaveBeenCalled();
+    });
+
     it('allows a team admin to create a custom category', async () => {
       mockPrismaService.team.findUnique.mockResolvedValue(team);
       mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
@@ -236,6 +246,14 @@ describe('TeamCategoriesService', () => {
         where: { id: category.id },
         data: { isEnabled: false },
       });
+    });
+
+    it('throws BadRequestException when isEnabled is not a boolean (BUG-15)', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+
+      await expect(service.updateCategory(team.id, category.id, { isEnabled: 'yes' as any }, admin.userId)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.teamCommentCategory.update).not.toHaveBeenCalled();
     });
 
     it('allows a team leader (non-admin) to re-enable a category', async () => {

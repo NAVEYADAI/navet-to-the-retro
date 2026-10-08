@@ -9,6 +9,9 @@ import {
   SKIP_CATEGORY_COMMAND,
   CANCEL_COMMAND,
   BACK_COMMAND,
+  KEEP_LABEL,
+  IMPROVE_LABEL,
+  DRAFT_EXPIRED_MESSAGE,
   START_MESSAGE,
   NO_OPEN_TEAM_MESSAGE,
   ASK_KEEP_OR_IMPROVE_MESSAGE,
@@ -30,6 +33,35 @@ import {
   categoryKeyboard,
   confirmationMessage
 } from './telegram-messages';
+
+const SPRINT_TIME_ZONE = 'Asia/Jerusalem';
+
+/**
+ * BUG-24: sprint `startDate`/`endDate` are stored as midnight UTC of the calendar day the user
+ * picked (the frontend shows a sprint as active for that whole local day). Comparing the raw
+ * instants against `now` made the last day "closed" from 00:00 UTC (03:00 Israel time). Instead,
+ * resolve "today" as a calendar date in Asia/Jerusalem and return it as midnight UTC of that date,
+ * so `startDate <= anchor <= endDate` treats the whole first and last Israeli day as open.
+ */
+export function getSprintDayAnchor(now: Date = new Date()): Date {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SPRINT_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((p) => p.type === type)!.value;
+  return new Date(`${get('year')}-${get('month')}-${get('day')}T00:00:00.000Z`);
+}
+
+/** True when the given sprint's date range includes "today" (Asia/Jerusalem calendar day). */
+export function isSprintOpenNow(sprint: { startDate: Date; endDate: Date }, now: Date = new Date()): boolean {
+  const anchor = getSprintDayAnchor(now).getTime();
+  return sprint.startDate.getTime() <= anchor && sprint.endDate.getTime() >= anchor;
+}
+
+/** Matches a bare positive integer ("3") only — never a message that merely starts with a number. */
+const BARE_NUMBER = /^\d+$/;
 
 interface TeamCandidate {
   teamId: number;
@@ -166,7 +198,15 @@ export class TelegramConversationService {
     if (link.activeTeamId != null && link.activeSprintId != null) {
       const stillOpen = await this.isContextStillOpen(link);
       if (!stillOpen) {
+        const hadDraft = link.pendingCommentContent != null || link.pendingCommentType != null;
         link = await this.clearContext(link.id);
+        if (hadDraft) {
+          // BUG-48: the context expired mid-flow, so this message is a reply to the dropped draft
+          // (e.g. "שימור" or a category), not a new comment — saving it as one would create a bogus
+          // note. Conservative option: say the draft is gone and ask to resend.
+          await this.telegramApi.sendMessage(link.externalId, DRAFT_EXPIRED_MESSAGE);
+          return;
+        }
       }
     }
 
@@ -200,18 +240,28 @@ export class TelegramConversationService {
     await this.telegramApi.sendMessage(link.externalId, askTypeMessage(teamName, sprintName), keepImproveKeyboard());
   }
 
+  // BUG-25: commands only match when the WHOLE trimmed message equals a known command form (the
+  // reply-keyboard button label, or a short typed alias). A substring match swallowed real comments
+  // such as "צריך מחקר" (contains "מחק") or "צריך לחזור ללקוח" (contains "חזור").
+  private normalizeCommand(text: string): string {
+    return text.trim().toLowerCase();
+  }
+
+  private matchesCommand(text: string, forms: string[]): boolean {
+    const normalized = this.normalizeCommand(text);
+    return forms.some((f) => f.toLowerCase() === normalized);
+  }
+
   private isSwitchTeamCommand(text: string): boolean {
-    return text === SWITCH_TEAM_COMMAND || text.includes('החלף צוות');
+    return this.matchesCommand(text, [SWITCH_TEAM_COMMAND, 'החלף צוות', 'switch team']);
   }
 
   private isCancelCommand(text: string): boolean {
-    const normalized = text.trim().toLowerCase();
-    return normalized === CANCEL_COMMAND.toLowerCase() || normalized === 'cancel' || normalized.includes('מחק') || normalized.includes('ביטול');
+    return this.matchesCommand(text, [CANCEL_COMMAND, 'מחק הערה', 'מחק', 'ביטול', '❌ ביטול', 'cancel', '/cancel']);
   }
 
   private isBackCommand(text: string): boolean {
-    const normalized = text.trim().toLowerCase();
-    return normalized === BACK_COMMAND.toLowerCase() || normalized === 'back' || normalized.includes('חזור');
+    return this.matchesCommand(text, [BACK_COMMAND, 'חזור', 'חזרה', 'back', '/back']);
   }
 
   private isSkipCommand(text: string): boolean {
@@ -235,14 +285,15 @@ export class TelegramConversationService {
 
   /**
    * §10.0 default #5 — server-side redefinition of "open sprint" (no such concept exists in the
-   * DB): `TeamMember.status === 'ACTIVE'` + `sprint.startDate <= now <= sprint.endDate`. Mirrors
+   * DB): `TeamMember.status === 'ACTIVE'` + today (Asia/Jerusalem calendar day, see
+   * `getSprintDayAnchor`) within `sprint.startDate..sprint.endDate` inclusive of the whole last day. Mirrors
    * the client-side-only `getSprintState` in sprint-list-web.tsx, which has no backend equivalent
    * to reuse. Returns only the TEAM candidates — sprint candidates are resolved separately per
    * team (see `getOpenSprintsForTeam`), since a team can in principle have more than one sprint
    * open at once (not enforced anywhere in the schema).
    */
   private async getOpenTeamCandidates(userId: number): Promise<TeamCandidate[]> {
-    const now = new Date();
+    const dayAnchor = getSprintDayAnchor();
     const memberships = await this.prisma.teamMember.findMany({
       where: { userId, status: 'ACTIVE' },
       select: { teamId: true, team: { select: { name: true } } }
@@ -252,8 +303,8 @@ export class TelegramConversationService {
     const openSprints = await this.prisma.sprint.findMany({
       where: {
         teamId: { in: memberships.map((m) => m.teamId) },
-        startDate: { lte: now },
-        endDate: { gte: now }
+        startDate: { lte: dayAnchor },
+        endDate: { gte: dayAnchor }
       },
       select: { teamId: true }
     });
@@ -265,9 +316,9 @@ export class TelegramConversationService {
   }
 
   private async getOpenSprintsForTeam(teamId: number): Promise<SprintCandidate[]> {
-    const now = new Date();
+    const dayAnchor = getSprintDayAnchor();
     const sprints = await this.prisma.sprint.findMany({
-      where: { teamId, startDate: { lte: now }, endDate: { gte: now } },
+      where: { teamId, startDate: { lte: dayAnchor }, endDate: { gte: dayAnchor } },
       select: { id: true, name: true },
       orderBy: { startDate: 'asc' }
     });
@@ -290,7 +341,7 @@ export class TelegramConversationService {
 
     const sprint = await this.prisma.sprint.findUnique({ where: { id: link.activeSprintId! } });
     if (!sprint || sprint.teamId !== link.activeTeamId) return false;
-    if (sprint.startDate.getTime() > now.getTime() || sprint.endDate.getTime() < now.getTime()) return false;
+    if (!isSprintOpenNow(sprint, now)) return false;
 
     if (link.contextStickyHours != null && link.contextSetAt != null) {
       const ageMs = now.getTime() - link.contextSetAt.getTime();
@@ -302,9 +353,10 @@ export class TelegramConversationService {
 
   private matchByLabel<T>(candidates: T[], text: string, label: (c: T) => string): T | null {
     const trimmed = text.trim();
-    const asIndex = parseInt(trimmed, 10);
-    if (!isNaN(asIndex) && asIndex >= 1 && asIndex <= candidates.length) {
-      return candidates[asIndex - 1];
+    // BUG-25: only a bare number selects by index — "3 באגים בפרודקשן" is a comment, not "team 3".
+    if (BARE_NUMBER.test(trimmed)) {
+      const asIndex = parseInt(trimmed, 10);
+      if (asIndex >= 1 && asIndex <= candidates.length) return candidates[asIndex - 1];
     }
     return candidates.find((c) => label(c).trim().toLowerCase() === trimmed.toLowerCase()) ?? null;
   }
@@ -461,9 +513,9 @@ export class TelegramConversationService {
   }
 
   private parseCommentType(text: string): CommentType | null {
-    const normalized = text.trim().toLowerCase();
-    if (normalized === 'keep' || normalized.includes('שימור')) return CommentType.KEEP;
-    if (normalized === 'improve' || normalized.includes('שיפור')) return CommentType.IMPROVE;
+    // BUG-25: whole-message match only (button label or bare word), same reasoning as the commands.
+    if (this.matchesCommand(text, [KEEP_LABEL, 'שימור', 'keep'])) return CommentType.KEEP;
+    if (this.matchesCommand(text, [IMPROVE_LABEL, 'שיפור', 'improve'])) return CommentType.IMPROVE;
     return null;
   }
 
@@ -476,7 +528,7 @@ export class TelegramConversationService {
 
     const categories = await this.teamCategoriesService.listCategories(link.activeTeamId!, link.userId, true);
     const trimmed = text.trim();
-    const asIndex = parseInt(trimmed, 10);
+    const asIndex = BARE_NUMBER.test(trimmed) ? parseInt(trimmed, 10) : NaN;
     const match =
       (!isNaN(asIndex) && asIndex >= 1 && asIndex <= categories.length ? categories[asIndex - 1] : undefined) ??
       categories.find((c: { label: string }) => c.label.trim().toLowerCase() === trimmed.toLowerCase());

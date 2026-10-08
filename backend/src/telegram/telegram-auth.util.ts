@@ -13,7 +13,15 @@ export interface TelegramLoginPayload {
   hash: string;
 }
 
-const MAX_AUTH_AGE_MS = 24 * 60 * 60 * 1000; // §10.0 default #4: "not too old (e.g. < 1 day)"
+// BUG-50: was 24h. `auth_date` is the unix time at which Telegram signed the payload, i.e. the
+// moment the user tapped "log in" in the widget; the widget hands the payload straight to our
+// `data-onauth` callback, which POSTs it immediately — so a few minutes is plenty. A shorter window
+// shrinks the replay window of a leaked payload. (True one-time use would need to persist a used
+// hash/auth_date server-side, i.e. a schema change — intentionally not done here.)
+const MAX_AUTH_AGE_MS = 5 * 60 * 1000;
+// Small tolerance for clock skew between Telegram's servers and ours; anything dated further in the
+// future than this is not a genuine payload.
+const MAX_CLOCK_SKEW_MS = 60 * 1000;
 
 /**
  * Verifies a Telegram Login Widget payload's `hash` per Telegram's official spec
@@ -44,8 +52,9 @@ export function verifyTelegramLoginHash(payload: TelegramLoginPayload, botToken:
   return crypto.timingSafeEqual(computedBuffer, providedBuffer);
 }
 
-/** True when `auth_date` (unix seconds) is within the freshness window Telegram recommends checking. */
+/** True when `auth_date` (unix seconds) is recent (≤ 5 min old) and not meaningfully in the future. */
 export function isTelegramAuthDateFresh(authDateSeconds: number, now: Date = new Date()): boolean {
-  const authDateMs = authDateSeconds * 1000;
-  return now.getTime() - authDateMs <= MAX_AUTH_AGE_MS;
+  if (typeof authDateSeconds !== 'number' || !Number.isFinite(authDateSeconds)) return false;
+  const ageMs = now.getTime() - authDateSeconds * 1000;
+  return ageMs <= MAX_AUTH_AGE_MS && ageMs >= -MAX_CLOCK_SKEW_MS;
 }

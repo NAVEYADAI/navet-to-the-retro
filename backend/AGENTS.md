@@ -63,8 +63,8 @@ lead" gated action instead of re-deriving the same check inline in a new service
 - `bcryptjs`, 10 salt rounds. Every `User`-shaped API response strips `password` manually
   (`const { password, ...result } = user`) — there's no `@Exclude`, so a new endpoint returning a
   `User` must remember to do this itself.
-- JWT via `jsonwebtoken`, `expiresIn: '12h'`, secret from `JWT_SECRET` (falls back to a hardcoded
-  dev secret if unset — never rely on that fallback outside local dev).
+- JWT via `jsonwebtoken`, `expiresIn: '12h'`, secret from `JWT_SECRET` via `src/config/jwt-secret.ts::getJwtSecret()` (throws at startup if unset;
+  only `NODE_ENV=test` gets a fixed test secret).
 
 ## Database
 

@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import { Controller, Post, Body, Headers, UnauthorizedException, HttpCode, HttpStatus } from '@nestjs/common';
 import { TelegramAdapterService } from './telegram-adapter.service';
 import type { TelegramUpdate } from './telegram-adapter.service';
@@ -19,13 +20,25 @@ export class TelegramWebhookController {
     private readonly telegramApi: TelegramApiService
   ) {}
 
+  /**
+   * BUG-51: constant-time comparison. Both sides are hashed to a fixed length first so that
+   * `crypto.timingSafeEqual` (which throws on unequal lengths) never needs a length check that
+   * would itself leak the secret's length.
+   */
+  private isValidSecret(provided: string | undefined): boolean {
+    if (typeof provided !== 'string' || provided.length === 0 || !this.webhookSecret) return false;
+    const a = crypto.createHash('sha256').update(provided).digest();
+    const b = crypto.createHash('sha256').update(this.webhookSecret).digest();
+    return crypto.timingSafeEqual(a, b);
+  }
+
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   async handleWebhook(
     @Headers('x-telegram-bot-api-secret-token') secretToken: string | undefined,
     @Body() update: TelegramUpdate
   ) {
-    if (!this.webhookSecret || !secretToken || secretToken !== this.webhookSecret) {
+    if (!this.webhookSecret || !this.isValidSecret(secretToken)) {
       throw new UnauthorizedException('Invalid webhook secret token');
     }
 

@@ -4,7 +4,12 @@
 // module's services, specifically so a later wording pass touches only this file.
 //
 // Style rules (Nave's explicit feedback, live testing): short and to the point, no filler
-// sentences, use Telegram's Markdown bold for emphasis instead of long explanations.
+// sentences, use Telegram's bold for emphasis instead of long explanations.
+//
+// All bot messages are sent with parse_mode HTML (see TelegramApiService.sendMessage) — BUG-26:
+// legacy Markdown has no working way to escape special characters inside `*...*`, so a team/sprint/
+// category name like `dev_ops` or `a*b` made Telegram reject the whole message with a 400. Every
+// dynamic (user-entered) value must go through `escapeHtml()` before being interpolated below.
 
 import { TelegramReplyKeyboard } from './telegram-api.service';
 
@@ -17,15 +22,15 @@ export const CANCEL_COMMAND = '🗑️ מחק הערה';
 // discarding everything like CANCEL_COMMAND — available at every step of entering a comment.
 export const BACK_COMMAND = '↩️ חזור';
 
-/** Escapes legacy-Markdown special characters in dynamic (user-entered) text before interpolating
- *  it into a bold/italic message, so a team/sprint/category name containing `*`, `_`, `` ` `` or
- *  `[` can never break Telegram's parser or accidentally toggle formatting. */
-export function escapeMarkdown(text: string): string {
-  return text.replace(/([_*`[])/g, '\\$1');
+/** Escapes the three characters Telegram's HTML parse mode treats as special (`&`, `<`, `>`) in
+ *  dynamic (user-entered) text, so a team/sprint/category name can never break Telegram's parser
+ *  or inject formatting/tags. */
+export function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 export const START_MESSAGE =
-  '👋 *הבוט של Navet Retro*\nשלחו הודעת טקסט ואוסיף אותה כתגובת רטרו לספרינט הפתוח שלכם.\n' +
+  '👋 <b>הבוט של Navet Retro</b>\nשלחו הודעת טקסט ואוסיף אותה כתגובת רטרו לספרינט הפתוח שלכם.\n' +
   'לא מקושרים? התחברו ב-Settings באפליקציה.';
 
 export const NOT_LINKED_MESSAGE = '🔒 עדיין לא מקושר. התחברו ב-Settings באפליקציה.';
@@ -36,25 +41,30 @@ export const GROUP_CHAT_NOT_SUPPORTED_MESSAGE = '🙅 עובד רק בצ׳אט �
 
 export const TEXT_ONLY_MESSAGE = '📝 טקסט בלבד כרגע.';
 
-export const ASK_KEEP_OR_IMPROVE_MESSAGE = '*שימור* או *שיפור*?';
+export const ASK_KEEP_OR_IMPROVE_MESSAGE = '<b>שימור</b> או <b>שיפור</b>?';
 
 export const ASK_KEEP_OR_IMPROVE_RETRY_MESSAGE = '🤔 לא הבנתי, בחר/י למטה.';
 
-export const CREATE_FAILED_MESSAGE = '😕 *לא נשמר* - נסה/י שוב.';
+export const CREATE_FAILED_MESSAGE = '😕 <b>לא נשמר</b> - נסה/י שוב.';
 
-export const CANCELLED_MESSAGE = '🗑️ *ההערה נמחקה.*';
+export const CANCELLED_MESSAGE = '🗑️ <b>ההערה נמחקה.</b>';
 export const NOTHING_TO_CANCEL_MESSAGE = 'אין מה למחוק.';
 
-export const BACK_TO_CONTENT_MESSAGE = '↩️ *חזרה אחורה* - שלח/י את ההערה שוב.';
+// BUG-48: the in-progress draft was dropped because the team/sprint context expired (sprint closed,
+// membership lost, or sticky-hours elapsed) before the user finished answering — the user's latest
+// message was a reply to the dropped flow, NOT a new comment, so it is deliberately not saved.
+export const DRAFT_EXPIRED_MESSAGE = '⌛ <b>ההערה לא נשמרה</b> - ההקשר פג. שלח/י אותה שוב.';
+
+export const BACK_TO_CONTENT_MESSAGE = '↩️ <b>חזרה אחורה</b> - שלח/י את ההערה שוב.';
 export const NOTHING_TO_GO_BACK_MESSAGE = 'אין שלב קודם.';
 
 export function teamSelectedMessage(teamName: string): string {
-  return `✅ *${escapeMarkdown(teamName)}*`;
+  return `✅ <b>${escapeHtml(teamName)}</b>`;
 }
 
 export function buildTeamListMessage(candidates: { teamName: string }[]): string {
-  const lines = candidates.map((c, i) => `${i + 1}. ${c.teamName}`);
-  return ['*לאיזו קבוצה?*', ...lines].join('\n');
+  const lines = candidates.map((c, i) => `${i + 1}. ${escapeHtml(c.teamName)}`);
+  return ['<b>לאיזו קבוצה?</b>', ...lines].join('\n');
 }
 
 /** Tap-to-select buttons for the team list — same options as buildTeamListMessage, numbered text,
@@ -69,8 +79,8 @@ export function teamListKeyboard(candidates: { teamName: string }[]): TelegramRe
 }
 
 export function buildSprintListMessage(sprints: { sprintName: string }[]): string {
-  const lines = sprints.map((s, i) => `${i + 1}. ${s.sprintName}`);
-  return ['*איזה ספרינט?*', ...lines].join('\n');
+  const lines = sprints.map((s, i) => `${i + 1}. ${escapeHtml(s.sprintName)}`);
+  return ['<b>איזה ספרינט?</b>', ...lines].join('\n');
 }
 
 /** Tap-to-select buttons for the sprint list — same mechanism as teamListKeyboard, Nave's ask. */
@@ -83,18 +93,18 @@ export function sprintListKeyboard(sprints: { sprintName: string }[]): TelegramR
 }
 
 export function sprintSelectedMessage(sprintName: string): string {
-  return `✅ ספרינט *${escapeMarkdown(sprintName)}*`;
+  return `✅ ספרינט <b>${escapeHtml(sprintName)}</b>`;
 }
 
 /** Recap (team + sprint) shown once, right as we transition into the Keep/Improve question —
  *  Nave's explicit ask for "a mention at the start of which team and sprint" this note goes to. */
 export function askTypeMessage(teamName: string, sprintName: string): string {
-  return `🏷️ *${escapeMarkdown(teamName)}* · ספרינט *${escapeMarkdown(sprintName)}*\n\n${ASK_KEEP_OR_IMPROVE_MESSAGE}`;
+  return `🏷️ <b>${escapeHtml(teamName)}</b> · ספרינט <b>${escapeHtml(sprintName)}</b>\n\n${ASK_KEEP_OR_IMPROVE_MESSAGE}`;
 }
 
 export function buildCategoryListMessage(categories: { label: string }[]): string {
-  const lines = categories.map((c, i) => `${i + 1}. ${c.label}`);
-  return ['*קטגוריה?*', ...lines].join('\n');
+  const lines = categories.map((c, i) => `${i + 1}. ${escapeHtml(c.label)}`);
+  return ['<b>קטגוריה?</b>', ...lines].join('\n');
 }
 
 // Same icons the frontend retro board uses for these two columns (sprint-retro-board-web.tsx:
@@ -124,5 +134,5 @@ export function categoryKeyboard(categories: { label: string }[]): TelegramReply
 
 export function confirmationMessage(sprintName: string, type: 'KEEP' | 'IMPROVE'): string {
   const typeLabel = type === 'KEEP' ? KEEP_LABEL : IMPROVE_LABEL;
-  return `*נשמר!* ${typeLabel} · ${escapeMarkdown(sprintName)}`;
+  return `<b>נשמר!</b> ${typeLabel} · ${escapeHtml(sprintName)}`;
 }

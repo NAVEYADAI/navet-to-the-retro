@@ -1,9 +1,22 @@
-import { Injectable, Logger, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateSprintDto, UpdateSprintDto } from './dto/sprints.dto';
 import { buildSprintSummaryPptx, buildExportFileName, resolveTemplateId } from './sprint-summary.builder';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { assertCanManageTeamContent } from '../teams/team-permissions.util';
+import { requireNonEmptyString, assertOptionalString, parseDateString } from '../common/validation';
+
+// BUG-12: a sprint must not end before it starts. Equal dates (a one-day sprint) are allowed.
+// Unparseable dates are rejected here too, otherwise `NaN` comparisons would silently pass and
+// Prisma would throw an uncaught 500. Overlap between sprints is deliberately NOT checked here.
+function assertValidDateRange(startDate: Date, endDate: Date) {
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    throw new BadRequestException('תאריך לא תקין');
+  }
+  if (endDate.getTime() < startDate.getTime()) {
+    throw new BadRequestException('תאריך הסיום לא יכול להיות לפני תאריך ההתחלה');
+  }
+}
 
 @Injectable()
 export class SprintsService {
@@ -15,6 +28,13 @@ export class SprintsService {
   ) {}
 
   async create(teamId: number, dto: CreateSprintDto, requesterId: number) {
+    // BUG-15: validate the body before touching the DB — name required & non-blank, both dates
+    // must be parseable date strings (a missing/garbled date used to reach Prisma as a 500).
+    requireNonEmptyString(dto?.name, 'שם הספרינט הוא שדה חובה');
+    assertOptionalString(dto.description, 'תיאור הספרינט לא תקין');
+    const startDate = parseDateString(dto.startDate);
+    const endDate = parseDateString(dto.endDate);
+
     // 1. Verify team exists
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
@@ -39,6 +59,9 @@ export class SprintsService {
       throw new ForbiddenException('Only team admins can create sprints');
     }
 
+    // 2b. BUG-12: reject end-before-start before touching the DB.
+    assertValidDateRange(startDate, endDate);
+
     // 3. Create the sprint, plus its baseline SprintLengthChange row (product-backlog/
     // 05-sprint-length-audit-log.md §5.0 decision #4) in the same transaction — the history for
     // a sprint always starts with a "row zero" of who created it and with what dates, never
@@ -48,8 +71,8 @@ export class SprintsService {
         data: {
           name: dto.name,
           description: dto.description,
-          startDate: new Date(dto.startDate),
-          endDate: new Date(dto.endDate),
+          startDate,
+          endDate,
           teamId: teamId
         }
       });
@@ -88,6 +111,17 @@ export class SprintsService {
   }
 
   async update(teamId: number, sprintId: number, dto: UpdateSprintDto, requesterId: number) {
+    // BUG-15: a provided field must be well-formed (undefined = leave unchanged). An explicitly
+    // provided name can't be blank; provided dates must parse — checked before the transaction
+    // so a bad body never takes the row lock.
+    if (dto?.name !== undefined) {
+      requireNonEmptyString(dto.name, 'שם הספרינט לא יכול להיות ריק');
+    }
+    assertOptionalString(dto.description, 'תיאור הספרינט לא תקין');
+    assertOptionalString(dto.reason, 'סיבת השינוי לא תקינה');
+    const parsedStart = dto.startDate !== undefined ? parseDateString(dto.startDate) : undefined;
+    const parsedEnd = dto.endDate !== undefined ? parseDateString(dto.endDate) : undefined;
+
     // 1. Verify team exists
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
     if (!team) {
@@ -115,28 +149,48 @@ export class SprintsService {
     // the update itself succeeding, or vice versa. `datesChanged` here is the single source of
     // truth reused below for the (non-transactional) Google Calendar sync decision, per feature
     // 5's cross-feature note — not recomputed a second time.
+    //
+    // BUG-16: the "previous" dates are read INSIDE the transaction, under a row lock
+    // (`SELECT ... FOR UPDATE`), so concurrent PATCHes on the same sprint serialize: each one
+    // sees the value the previous one committed, and the audit chain
+    // (previous -> new -> previous -> new ...) stays unbroken. BUG-12's merged-range check also
+    // runs against these locked values, so it can't be bypassed by a racing update either.
     const { updated, datesChanged } = await this.prisma.$transaction(async (tx) => {
+      const lockedRows = await tx.$queryRaw<{ startDate: Date; endDate: Date }[]>`
+        SELECT "startDate", "endDate" FROM "Sprint" WHERE "id" = ${sprintId} FOR UPDATE
+      `;
+      const current = lockedRows[0];
+      if (!current) {
+        throw new NotFoundException('Sprint not found');
+      }
+
+      const newStart = parsedStart ?? current.startDate;
+      const newEnd = parsedEnd ?? current.endDate;
+      if (dto.startDate !== undefined || dto.endDate !== undefined) {
+        assertValidDateRange(newStart, newEnd);
+      }
+
       const result = await tx.sprint.update({
         where: { id: sprintId },
         data: {
           ...(dto.name !== undefined && { name: dto.name }),
           ...(dto.description !== undefined && { description: dto.description }),
-          ...(dto.startDate !== undefined && { startDate: new Date(dto.startDate) }),
-          ...(dto.endDate !== undefined && { endDate: new Date(dto.endDate) })
+          ...(dto.startDate !== undefined && { startDate: newStart }),
+          ...(dto.endDate !== undefined && { endDate: newEnd })
         }
       });
 
       const changed =
-        result.startDate.getTime() !== sprint.startDate.getTime() ||
-        result.endDate.getTime() !== sprint.endDate.getTime();
+        result.startDate.getTime() !== current.startDate.getTime() ||
+        result.endDate.getTime() !== current.endDate.getTime();
 
       if (changed) {
         await tx.sprintLengthChange.create({
           data: {
             sprintId: result.id,
             changedById: requesterId,
-            previousStartDate: sprint.startDate,
-            previousEndDate: sprint.endDate,
+            previousStartDate: current.startDate,
+            previousEndDate: current.endDate,
             newStartDate: result.startDate,
             newEndDate: result.endDate,
             reason: dto.reason ?? null
@@ -147,11 +201,13 @@ export class SprintsService {
       return { updated: result, datesChanged: changed };
     });
 
-    // 5. If the dates actually changed, patch the existing Google Calendar event(s) for this
+    // 5. If the dates OR the name actually changed (BUG-52: a rename used to never reach Google),
+    // patch the existing Google Calendar event(s) for this
     // sprint (product-backlog/06-google-calendar-integration.md §6.0.4) rather than deleting/recreating — best-effort, same
     // pattern as `create` above. Deliberately outside the `$transaction` above (external HTTP
     // call, not a DB write — see feature 5's cross-feature note).
-    if (datesChanged) {
+    const nameChanged = updated.name !== sprint.name;
+    if (datesChanged || nameChanged) {
       try {
         await this.googleCalendarService.syncSprintUpdated({
           sprintId: updated.id,
@@ -174,25 +230,24 @@ export class SprintsService {
   // TEAM_LEADER — a *viewing* permission, deliberately broader than the admin-only write path
   // above, see §5.0 decision #2 there).
   async getLengthHistory(teamId: number, sprintId: number, requesterId: number) {
+    // BUG-40: permission first, existence second — otherwise a caller without access could tell
+    // which sprint ids exist (404) from which don't (403).
+    await assertCanManageTeamContent(this.prisma, teamId, requesterId);
+
     const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId } });
     if (!sprint) {
       throw new NotFoundException('Sprint not found');
     }
 
-    await assertCanManageTeamContent(this.prisma, teamId, requesterId);
-
     const records = await this.prisma.sprintLengthChange.findMany({
       where: { sprintId },
       orderBy: { createdAt: 'desc' },
-      include: { changedBy: true }
+      // BUG-17: whitelist the editor's public fields only — never `include: { changedBy: true }`,
+      // which leaked email/googleId/emailVerifiedAt/global role (everything but password).
+      include: { changedBy: { select: { id: true, firstName: true, lastName: true, username: true } } }
     });
 
-    // Every User-shaped response strips `password` manually — no @Exclude in this codebase
-    // (see backend/AGENTS.md §"Passwords & JWT").
-    return records.map(({ changedBy, ...record }) => {
-      const { password, ...safeChangedBy } = changedBy;
-      return { ...record, changedBy: safeChangedBy };
-    });
+    return records;
   }
 
   async findAll(teamId: number, requesterId: number) {
@@ -224,13 +279,13 @@ export class SprintsService {
 
     // The team's creator OR any team admin can export a sprint summary — see
     // product-backlog/01-sprint-summary-export.md §1.0 (updated 2026-09-01 per Nave: admins should also be able to).
-    if (team.creatorId !== requesterId) {
-      const membership = await this.prisma.teamMember.findUnique({
-        where: { userId_teamId: { userId: requesterId, teamId } }
-      });
-      if (!membership || membership.status !== 'ACTIVE' || !membership.isAdmin) {
-        throw new ForbiddenException('רק מי שיצר את הצוות או מנהל צוות יכולים לייצא סיכום ספרינט');
-      }
+    // BUG-14: either way the requester must still be an ACTIVE member — the creator no longer
+    // bypasses the membership check, so a creator who was removed from the team gets 403.
+    const membership = await this.prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: requesterId, teamId } }
+    });
+    if (!membership || membership.status !== 'ACTIVE' || (team.creatorId !== requesterId && !membership.isAdmin)) {
+      throw new ForbiddenException('רק מי שיצר את הצוות או מנהל צוות יכולים לייצא סיכום ספרינט');
     }
 
     const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId } });

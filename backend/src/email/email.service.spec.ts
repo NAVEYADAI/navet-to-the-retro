@@ -61,3 +61,61 @@ describe('EmailService', () => {
     await expect(service.sendTeamApprovalRequest(params)).resolves.toBeUndefined();
   });
 });
+
+describe('EmailService HTML escaping (BUG-23)', () => {
+  const originalEnv = process.env;
+  const evil = '<a href="https://evil.test">click</a>';
+
+  beforeEach(() => {
+    jest.resetModules();
+    mockSend.mockReset();
+    mockSend.mockResolvedValue({ id: 'email-1' });
+    process.env = { ...originalEnv, RESEND_API_KEY: 'test-key' };
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('escapes teamName, creatorName and mainOffice in the approval email html', async () => {
+    const { EmailService } = require('./email.service');
+    await new EmailService().sendTeamApprovalRequest({
+      to: 'a@b.test',
+      teamName: evil,
+      creatorName: evil,
+      mainOffice: evil,
+    });
+
+    const { html } = mockSend.mock.calls[0][0];
+    expect(html).not.toContain('<a href="https://evil.test">');
+    expect(html).toContain('&lt;a href=&quot;https://evil.test&quot;&gt;click&lt;/a&gt;');
+  });
+
+  it('escapes teamName and inviterName in the join-invite email html', async () => {
+    const { EmailService } = require('./email.service');
+    await new EmailService().sendTeamJoinInvite({
+      to: 'a@b.test',
+      teamName: evil,
+      inviterName: evil,
+      token: 'tok',
+    });
+
+    const { html } = mockSend.mock.calls[0][0];
+    expect(html).not.toContain('<a href="https://evil.test">');
+    expect(html).toContain('&lt;a href=');
+    expect(html).toContain('/invite/tok"');
+  });
+
+  it('keeps the subject plain text (not HTML-escaped) but strips line breaks', async () => {
+    const { EmailService } = require('./email.service');
+    await new EmailService().sendTeamApprovalRequest({
+      to: 'a@b.test',
+      teamName: 'R&D\r\nBcc: x@y.test',
+      creatorName: 'Dana',
+    });
+
+    const { subject } = mockSend.mock.calls[0][0];
+    expect(subject).toContain('R&D');
+    expect(subject).not.toMatch(/[\r\n]/);
+  });
+});

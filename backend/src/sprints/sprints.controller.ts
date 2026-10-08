@@ -1,7 +1,8 @@
-import { Controller, Post, Get, Patch, Body, Param, Query, Headers, ParseIntPipe, Res } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, Headers, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { SprintsService } from './sprints.service';
 import { AuthService } from '../auth/auth.service';
+import { IntIdPipe } from '../common/validation';
 import { CreateSprintDto, UpdateSprintDto } from './dto/sprints.dto';
 
 @Controller('teams/:teamId/sprints')
@@ -14,7 +15,7 @@ export class SprintsController {
   @Post()
   async create(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('teamId', IntIdPipe) teamId: number,
     @Body() dto: CreateSprintDto
   ) {
     const user = await this.authService.validateToken(authHeader);
@@ -24,7 +25,7 @@ export class SprintsController {
   @Get()
   async findAll(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number
+    @Param('teamId', IntIdPipe) teamId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.sprintsService.findAll(teamId, user.id);
@@ -33,8 +34,8 @@ export class SprintsController {
   @Patch(':sprintId')
   async update(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
-    @Param('sprintId', ParseIntPipe) sprintId: number,
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('sprintId', IntIdPipe) sprintId: number,
     @Body() dto: UpdateSprintDto
   ) {
     const user = await this.authService.validateToken(authHeader);
@@ -44,8 +45,8 @@ export class SprintsController {
   @Get(':sprintId/length-history')
   async getLengthHistory(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
-    @Param('sprintId', ParseIntPipe) sprintId: number
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('sprintId', IntIdPipe) sprintId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.sprintsService.getLengthHistory(teamId, sprintId, user.id);
@@ -54,8 +55,8 @@ export class SprintsController {
   @Get(':sprintId/summary/export')
   async exportSummary(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
-    @Param('sprintId', ParseIntPipe) sprintId: number,
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('sprintId', IntIdPipe) sprintId: number,
     @Query('template') template: string | undefined,
     @Res() res: Response
   ) {

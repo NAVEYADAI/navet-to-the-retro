@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Patch, Body, Param, Headers, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Headers } from '@nestjs/common';
 import { InvitesService } from './invites.service';
 import { AuthService } from '../auth/auth.service';
+import { IntIdPipe } from '../common/validation';
 import { CreateInviteDto, CreatePhantomConversionInviteDto, ConsumePhantomConversionInviteDto } from './dto/invites.dto';
 
 @Controller()
@@ -38,7 +39,7 @@ export class InvitesController {
   @Post('teams/:teamId/invites')
   async createInvite(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('teamId', IntIdPipe) teamId: number,
     @Body() dto: CreateInviteDto
   ) {
     const user = await this.authService.validateToken(authHeader);
@@ -48,7 +49,7 @@ export class InvitesController {
   @Get('teams/:teamId/invites')
   async listInvites(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number
+    @Param('teamId', IntIdPipe) teamId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.invitesService.listInvites(teamId, user.id);
@@ -57,8 +58,8 @@ export class InvitesController {
   @Patch('teams/:teamId/invites/:inviteId')
   async revokeInvite(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
-    @Param('inviteId', ParseIntPipe) inviteId: number
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('inviteId', IntIdPipe) inviteId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.invitesService.revokeInvite(teamId, inviteId, user.id);
@@ -68,8 +69,8 @@ export class InvitesController {
   @Post('teams/:teamId/phantom-members/:memberId/conversion-invite')
   async createPhantomConversionInvite(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
-    @Param('memberId', ParseIntPipe) memberId: number,
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('memberId', IntIdPipe) memberId: number,
     @Body() dto: CreatePhantomConversionInviteDto
   ) {
     const user = await this.authService.validateToken(authHeader);

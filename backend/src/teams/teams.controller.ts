@@ -1,6 +1,7 @@
-import { Controller, Post, Get, Patch, Delete, Body, Param, Headers, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Delete, Body, Param, Headers } from '@nestjs/common';
 import { TeamsService } from './teams.service';
 import { AuthService } from '../auth/auth.service';
+import { IntIdPipe } from '../common/validation';
 import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto } from './dto/teams.dto';
 
 @Controller('teams')
@@ -28,7 +29,7 @@ export class TeamsController {
   @Post(':id/approve')
   async approve(
     @Headers('authorization') authHeader: string,
-    @Param('id', ParseIntPipe) teamId: number
+    @Param('id', IntIdPipe) teamId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.teamsService.approveTeam(teamId, user.id);
@@ -37,7 +38,7 @@ export class TeamsController {
   @Post(':id/decline')
   async decline(
     @Headers('authorization') authHeader: string,
-    @Param('id', ParseIntPipe) teamId: number
+    @Param('id', IntIdPipe) teamId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.teamsService.declineTeam(teamId, user.id);
@@ -46,7 +47,7 @@ export class TeamsController {
   @Post(':id/members')
   async addMember(
     @Headers('authorization') authHeader: string,
-    @Param('id', ParseIntPipe) teamId: number,
+    @Param('id', IntIdPipe) teamId: number,
     @Body() dto: AddMemberDto
   ) {
     const user = await this.authService.validateToken(authHeader);
@@ -56,8 +57,8 @@ export class TeamsController {
   @Post(':teamId/members/:memberId/accept')
   async acceptMemberInvite(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
-    @Param('memberId', ParseIntPipe) memberId: number
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('memberId', IntIdPipe) memberId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.teamsService.acceptMemberInvite(teamId, memberId, user.id);
@@ -66,8 +67,8 @@ export class TeamsController {
   @Post(':teamId/members/:memberId/decline')
   async declineMemberInvite(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
-    @Param('memberId', ParseIntPipe) memberId: number
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('memberId', IntIdPipe) memberId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.teamsService.declineMemberInvite(teamId, memberId, user.id);
@@ -82,7 +83,7 @@ export class TeamsController {
   @Get(':id/members')
   async getTeamMembers(
     @Headers('authorization') authHeader: string,
-    @Param('id', ParseIntPipe) teamId: number
+    @Param('id', IntIdPipe) teamId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.teamsService.getTeamMembers(teamId, user.id);
@@ -92,7 +93,7 @@ export class TeamsController {
   @Post(':teamId/phantom-members')
   async createPhantomMember(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
+    @Param('teamId', IntIdPipe) teamId: number,
     @Body() dto: CreatePhantomMemberDto
   ) {
     const user = await this.authService.validateToken(authHeader);
@@ -102,8 +103,8 @@ export class TeamsController {
   @Patch(':teamId/members/:memberId')
   async updateMember(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
-    @Param('memberId', ParseIntPipe) memberId: number,
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('memberId', IntIdPipe) memberId: number,
     @Body() dto: UpdateMemberDto
   ) {
     const user = await this.authService.validateToken(authHeader);
@@ -113,8 +114,8 @@ export class TeamsController {
   @Delete(':teamId/members/:memberId')
   async removeMember(
     @Headers('authorization') authHeader: string,
-    @Param('teamId', ParseIntPipe) teamId: number,
-    @Param('memberId', ParseIntPipe) memberId: number
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('memberId', IntIdPipe) memberId: number
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.teamsService.removeMember(teamId, memberId, user.id);
@@ -123,7 +124,7 @@ export class TeamsController {
   @Patch(':id')
   async update(
     @Headers('authorization') authHeader: string,
-    @Param('id', ParseIntPipe) teamId: number,
+    @Param('id', IntIdPipe) teamId: number,
     @Body() dto: { name?: string; mainOffice?: string }
   ) {
     const user = await this.authService.validateToken(authHeader);

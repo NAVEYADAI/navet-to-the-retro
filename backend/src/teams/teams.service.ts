@@ -1,11 +1,19 @@
-import { Injectable, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, ConflictException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
 import { InvitesService } from '../invites/invites.service';
+import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto } from './dto/teams.dto';
 import { assertCanManageTeamContent } from './team-permissions.util';
 import { DEFAULT_CATEGORY_LABELS } from '../comments/comment-category-labels';
+import {
+  requireNonEmptyString,
+  assertOptionalString,
+  assertOptionalBoolean,
+  assertOptionalEnum
+} from '../common/validation';
 
 // Feature 9 (phantom members, §9.2): `isPhantom` must be included everywhere a team member's
 // `User` is selected, or the frontend badge has nothing to key off of. This is the shared
@@ -26,13 +34,35 @@ const ALLOWED_APPROVER_EMAILS = ['naveyadai@gmail.com', 'lironka13@gmail.com'];
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// BUG-15: values the Prisma `TeamRole` enum accepts — anything else would be a 500 from Prisma.
+const TEAM_ROLE_VALUES = ['TEAM_LEADER', 'PRODUCT_MANAGER', 'TESTER', 'DEVELOPER', 'DEVOPS'];
+const INVALID_ROLE_MESSAGE = 'תפקיד לא תקין';
+
 @Injectable()
 export class TeamsService {
+  private readonly logger = new Logger(TeamsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
-    private readonly invitesService: InvitesService
+    private readonly invitesService: InvitesService,
+    private readonly googleCalendarService: GoogleCalendarService
   ) {}
+
+  // BUG-11: serialize every admin-set change (demote / remove) of one team. The "is this the last
+  // active admin?" count and the write that follows must not interleave with another such
+  // request on the same team, or two admins can demote each other concurrently and both pass.
+  // Locking the Team row (SELECT ... FOR UPDATE) makes the second request wait until the first
+  // commits, and its count then runs on fresh data (READ COMMITTED re-snapshots per statement).
+  private async lockTeam(tx: Prisma.TransactionClient, teamId: number) {
+    await tx.$queryRaw`SELECT "id" FROM "Team" WHERE "id" = ${teamId} FOR UPDATE`;
+  }
+
+  // Only ACTIVE admins count: a PENDING (not-yet-accepted) admin can still decline, so it must
+  // never be what keeps the team from being admin-less.
+  private countActiveAdmins(tx: Prisma.TransactionClient, teamId: number) {
+    return tx.teamMember.count({ where: { teamId, isAdmin: true, status: 'ACTIVE' } });
+  }
 
   async getAllowedApprovers() {
     const users = await this.prisma.user.findMany({
@@ -54,6 +84,12 @@ export class TeamsService {
   }
 
   async create(dto: CreateTeamDto, creatorId: number) {
+    // BUG-15: explicit runtime validation (the DTO is just a type) — missing/non-string fields
+    // are a 400, not a TypeError/Prisma 500.
+    requireNonEmptyString(dto?.name, 'שם הצוות הוא שדה חובה');
+    assertOptionalString(dto.mainOffice, 'המשרד הראשי לא תקין');
+    requireNonEmptyString(dto.approverEmail, 'צריך להזין אימייל של מאשר/ת');
+
     if (!ALLOWED_APPROVER_EMAILS.includes(dto.approverEmail.toLowerCase())) {
       throw new ForbiddenException('רק כתובות אימייל מורשות יכולות לאשר יצירת צוות.');
     }
@@ -168,6 +204,9 @@ export class TeamsService {
   }
 
   async addMember(teamId: number, dto: AddMemberDto, requesterId: number) {
+    requireNonEmptyString(dto?.username, 'צריך להזין שם משתמש או אימייל');
+    assertOptionalEnum(dto.role, TEAM_ROLE_VALUES, INVALID_ROLE_MESSAGE);
+
     // Check if team exists
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
@@ -193,28 +232,31 @@ export class TeamsService {
       throw new ForbiddenException('Only team admins can add members to the team');
     }
 
-    // Find user to add by username or email
+    // Find user to add by username or email. BUG-19: email match is case-insensitive (usernames
+    // stay exact); `User.email` isn't @unique, so order deterministically like the other lookups.
+    const identifier = String(dto.username ?? '').trim();
     const userToJoin = await this.prisma.user.findFirst({
       where: {
         OR: [
-          { username: dto.username },
-          { email: dto.username }
+          { username: identifier },
+          { email: { equals: identifier, mode: 'insensitive' } }
         ]
-      }
+      },
+      orderBy: { id: 'asc' }
     });
     // BUG-01: a phantom belongs to exactly the team that created it — never addable elsewhere.
     // Reported as "not found" (same as a non-existent user) so it doesn't confirm the account exists.
     if (userToJoin?.isPhantom) {
-      throw new NotFoundException(`User with username or email '${dto.username}' not found`);
+      throw new NotFoundException(`User with username or email '${identifier}' not found`);
     }
     if (!userToJoin) {
       // No account yet — if a valid email was given, invite them to register instead of a
       // hard 404. Registering through that invite's link joins the team immediately
       // (see InvitesService.consumeInvite), skipping the accept/decline step below entirely.
-      if (EMAIL_PATTERN.test(dto.username)) {
-        return this.invitesService.createInvite(teamId, { email: dto.username, role: dto.role }, requesterId);
+      if (EMAIL_PATTERN.test(identifier)) {
+        return this.invitesService.createInvite(teamId, { email: identifier.toLowerCase(), role: dto.role }, requesterId);
       }
-      throw new NotFoundException(`User with username or email '${dto.username}' not found`);
+      throw new NotFoundException(`User with username or email '${identifier}' not found`);
     }
 
     // Check if already a member or already has a pending invite
@@ -357,6 +399,9 @@ export class TeamsService {
   }
 
   async updateMember(teamId: number, memberId: number, dto: UpdateMemberDto, requesterId: number) {
+    assertOptionalEnum(dto?.role, TEAM_ROLE_VALUES, INVALID_ROLE_MESSAGE);
+    assertOptionalBoolean(dto.isAdmin, 'ערך הרשאת מנהל לא תקין');
+
     // 1. Verify team exists
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
@@ -389,29 +434,49 @@ export class TeamsService {
       throw new NotFoundException('Team member not found in this team');
     }
 
-    // 4. If we are removing the admin status of the last admin, prevent it!
-    if (dto.isAdmin === false && targetMember.isAdmin) {
-      const adminCount = await this.prisma.teamMember.count({
-        where: {
-          teamId: teamId,
-          isAdmin: true
+    // Nothing that can change the admin set — no need to serialize on the team.
+    if (dto.isAdmin !== false) {
+      return this.prisma.teamMember.update({
+        where: { id: memberId },
+        data: {
+          role: dto.role,
+          isAdmin: dto.isAdmin
+        },
+        include: {
+          user: { select: TEAM_MEMBER_USER_SELECT }
         }
       });
-      if (adminCount <= 1) {
-        throw new ConflictException('Cannot remove admin status from the only admin in the team');
-      }
     }
 
-    // 5. Update target member
-    return this.prisma.teamMember.update({
-      where: { id: memberId },
-      data: {
-        role: dto.role,
-        isAdmin: dto.isAdmin
-      },
-      include: {
-        user: { select: TEAM_MEMBER_USER_SELECT }
+    // 4. Demoting an admin: never leave the team without an ACTIVE admin (BUG-11). The check and
+    // the write run under the team lock so concurrent demotions can't both pass the count.
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockTeam(tx, teamId);
+
+      // Re-read under the lock — the target may have been demoted/removed while we waited.
+      const lockedTarget = await tx.teamMember.findFirst({ where: { id: memberId, teamId } });
+      if (!lockedTarget) {
+        throw new NotFoundException('Team member not found in this team');
       }
+
+      if (lockedTarget.isAdmin && lockedTarget.status === 'ACTIVE') {
+        const activeAdmins = await this.countActiveAdmins(tx, teamId);
+        if (activeAdmins <= 1) {
+          throw new ConflictException('Cannot remove admin status from the only admin in the team');
+        }
+      }
+
+      // 5. Update target member
+      return tx.teamMember.update({
+        where: { id: memberId },
+        data: {
+          role: dto.role,
+          isAdmin: dto.isAdmin
+        },
+        include: {
+          user: { select: TEAM_MEMBER_USER_SELECT }
+        }
+      });
     });
   }
 
@@ -448,20 +513,36 @@ export class TeamsService {
       throw new NotFoundException('Team member not found in this team');
     }
 
-    // 4. Never leave the team without an admin
-    if (targetMember.isAdmin) {
-      const adminCount = await this.prisma.teamMember.count({
-        where: {
-          teamId: teamId,
-          isAdmin: true
-        }
-      });
-      if (adminCount <= 1) {
-        throw new ConflictException('Cannot remove the only admin in the team');
-      }
-    }
+    // 4. Never leave the team without an ACTIVE admin (BUG-11) — count only ACTIVE admins, and
+    // run the check + delete under the team lock so two concurrent removals can't both pass it.
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockTeam(tx, teamId);
 
-    await this.prisma.teamMember.delete({ where: { id: memberId } });
+      const lockedTarget = await tx.teamMember.findFirst({ where: { id: memberId, teamId } });
+      if (!lockedTarget) {
+        throw new NotFoundException('Team member not found in this team');
+      }
+
+      if (lockedTarget.isAdmin && lockedTarget.status === 'ACTIVE') {
+        const activeAdmins = await this.countActiveAdmins(tx, teamId);
+        if (activeAdmins <= 1) {
+          throw new ConflictException('Cannot remove the only admin in the team');
+        }
+      }
+
+      await tx.teamMember.delete({ where: { id: memberId } });
+    });
+
+    // BUG-52: best-effort — stop syncing sprint events to the removed member's Google Calendar
+    // (delete their events for this team). Never fails/blocks the removal itself.
+    try {
+      await this.googleCalendarService.removeMemberFromTeam(targetMember.userId, teamId);
+    } catch (err) {
+      this.logger.warn(
+        `Google Calendar cleanup failed for member ${targetMember.userId} removed from team ${teamId}`,
+        err instanceof Error ? err.stack : err
+      );
+    }
     return { success: true };
   }
 
@@ -471,9 +552,17 @@ export class TeamsService {
   // the team creator as a member. Same guard as the other two phantom-member actions (§9.0
   // decision #1).
   async createPhantomMember(teamId: number, dto: CreatePhantomMemberDto, requesterId: number) {
+    requireNonEmptyString(dto?.firstName, 'שם פרטי הוא שדה חובה');
+    assertOptionalString(dto.lastName, 'שם משפחה לא תקין');
+    assertOptionalEnum(dto.role, TEAM_ROLE_VALUES, INVALID_ROLE_MESSAGE);
+
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
     if (!team) {
       throw new NotFoundException('Team not found');
+    }
+    // BUG-36: a team still awaiting approval isn't usable yet (same rule as addMember).
+    if (team.status !== 'ACTIVE') {
+      throw new ConflictException('לא ניתן להוסיף חברים לצוות שטרם אושר');
     }
     await assertCanManageTeamContent(this.prisma, teamId, requesterId);
 
@@ -510,6 +599,13 @@ export class TeamsService {
   }
 
   async updateTeam(teamId: number, dto: { name?: string; mainOffice?: string }, requesterId: number) {
+    // BUG-39: a team that doesn't exist is a 404 (it used to fall through the membership check
+    // below and come back as a misleading 403).
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
     const membership = await this.prisma.teamMember.findUnique({
       where: {
         userId_teamId: {
@@ -522,12 +618,40 @@ export class TeamsService {
       throw new ForbiddenException('Only team admins can edit team details');
     }
 
-    return this.prisma.team.update({
+    // BUG-36: the approval e-mail already went out with the original name, so a team that is
+    // still awaiting approval can't be edited.
+    if (team.status !== 'ACTIVE') {
+      throw new ConflictException('לא ניתן לערוך צוות שטרם אושר');
+    }
+
+    // BUG-36: a provided name must not be empty/whitespace (undefined = leave unchanged).
+    let name = dto.name;
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) {
+        throw new BadRequestException('שם הצוות לא יכול להיות ריק');
+      }
+      name = name.trim();
+    }
+    assertOptionalString(dto.mainOffice, 'המשרד הראשי לא תקין');
+
+    const updatedTeam = await this.prisma.team.update({
       where: { id: teamId },
       data: {
-        name: dto.name,
+        name,
         mainOffice: dto.mainOffice
       }
     });
+
+    // BUG-52: a rename must reach the per-team Google calendars (best-effort, never fails the
+    // edit — same external-service pattern as sprint sync).
+    if (name !== undefined && name !== team.name) {
+      try {
+        await this.googleCalendarService.syncTeamRenamed(teamId, name);
+      } catch (err) {
+        this.logger.warn(`Google Calendar sync failed for renamed team ${teamId}`, err instanceof Error ? err.stack : err);
+      }
+    }
+
+    return updatedTeam;
   }
 }

@@ -5,9 +5,10 @@ import { PrismaService } from '../prisma.service';
 import { AuthModule } from '../auth/auth.module';
 import { EmailService } from '../email/email.service';
 import { InvitesModule } from '../invites/invites.module';
+import { GoogleCalendarModule } from '../google-calendar/google-calendar.module';
 
 @Module({
-  imports: [AuthModule, InvitesModule],
+  imports: [AuthModule, InvitesModule, GoogleCalendarModule],
   controllers: [TeamsController],
   providers: [TeamsService, PrismaService, EmailService],
   exports: [TeamsService]

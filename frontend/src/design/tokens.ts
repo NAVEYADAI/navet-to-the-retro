@@ -31,6 +31,15 @@ export const accentSchemesDark = {
 } as const;
 
 export type AccentScheme = keyof typeof accentSchemes;
+
+/** גווני עיגולי האווטאר (אות ראשונה של שם) — נבחרים לפי מזהה, כדי שכל חבר יקבל צבע קבוע. */
+export const avatarSchemes: AccentScheme[] = ['teal', 'purple', 'amber', 'rose', 'green', 'blue'];
+
+export function avatarColors(mode: ThemeMode, seed: number) {
+  const scheme = avatarSchemes[Math.abs(seed) % avatarSchemes.length];
+  const c = (mode === 'dark' ? accentSchemesDark : accentSchemes)[scheme];
+  return { bg: c.subtle, fg: c.base };
+}
 export type ThemeMode = 'light' | 'dark';
 export type Density = 'compact' | 'regular';
 

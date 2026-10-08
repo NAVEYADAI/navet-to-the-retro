@@ -23,9 +23,6 @@ async function openPanel() {
   const hook = await renderHook(() =>
     useTeamSettingsPanel({ teamId: 1, token: 'tok', teamName: 'T', teamOffice: null, onTeamDetailsUpdated: jest.fn() })
   );
-  await act(async () => {
-    hook.result.current.handleToggleExpand();
-  });
   await waitFor(() => expect(hook.result.current.selectedSprintIds).toEqual([1, 2]));
   await waitFor(() => expect(hook.result.current.isLoading).toBe(false));
   return hook;

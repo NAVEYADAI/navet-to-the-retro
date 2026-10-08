@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, type TextStyle } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Strings } from '@/constants/strings';
 import { TeamSprintsManager } from '@/features/sprints';
+import { getSprintState } from '@/features/sprints/sprint-lifecycle';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
-import { getRoleLabel, getMemberRank } from './roles';
+import { trackEvent } from '@/lib/analytics';
+import { getMemberRank } from './roles';
+import { TeamCardHeader } from './team-card-header';
+import { rnText } from './team-settings-panel.styles';
 import { TeamMemberRow } from './team-member-row';
-import { AddMemberForm } from './add-member-form';
-import { AddPhantomMemberForm } from './add-phantom-member-form';
+import { AddMemberModal } from './add-member-modal';
 import { TeamSettingsPanelNative } from './team-settings-panel';
 
 interface TeamCardProps {
@@ -20,17 +23,13 @@ interface TeamCardProps {
   onSelectSprint: (sprint: any, team: any) => void;
 }
 
-/** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
-function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
-  return {
-    fontSize: entry.fontSize,
-    lineHeight: Math.round(entry.fontSize * entry.lineHeight),
-    fontWeight: String(entry.fontWeight) as TextStyle['fontWeight'],
-  };
-}
+type OpenPanel = 'members' | 'settings' | null;
 
 export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSprint }: TeamCardProps) {
   const t = useTheme();
+  const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
+  const [activeSprintCount, setActiveSprintCount] = useState<number | null>(null);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
@@ -49,7 +48,21 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
   );
 
   const isPending = team.status === 'PENDING_APPROVAL';
+  const canAddMembers = canManageTeamContent && !isPending;
   const isMyPendingTeam = isPending && team.creatorId === userId;
+  const pendingMemberCount = sortedMembers.filter((m: any) => m.status === 'PENDING').length;
+
+  const summary = [
+    team.mainOffice,
+    pendingMemberCount > 0 ? Strings.teamList.summaryPending(pendingMemberCount) : null,
+    !isPending && activeSprintCount !== null ? Strings.teamList.summaryActiveSprints(activeSprintCount) : null,
+  ].filter(Boolean).join(' · ');
+
+  const togglePanel = (panel: Exclude<OpenPanel, null>) => {
+    const next = openPanel === panel ? null : panel;
+    trackEvent(panel === 'members' ? 'team_members_toggled' : 'team_settings_toggled', { open: next === panel });
+    setOpenPanel(next);
+  };
 
   const handleCancelPendingTeam = async () => {
     setCancelError(null);
@@ -66,132 +79,145 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
     }
   };
 
+  const sectionStyle = { borderTopWidth: 1, borderTopColor: t.color.border, paddingHorizontal: t.space[4], paddingTop: t.space[4] };
+  const panelStyle = { ...sectionStyle, backgroundColor: t.color.bg };
+
   return (
-    <View
-      style={{
-        backgroundColor: t.color.surface,
-        borderWidth: 1,
-        borderColor: t.color.border,
-        borderRadius: t.radius.card,
-        padding: t.space[3],
-        gap: t.space[3],
-      }}
-    >
-      <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
-        <View style={{ flex: 1 }}>
-          <Text style={[rnText(t.type.cardTitle), { color: t.color.text, textAlign: 'right' }]}>
-            {team.name}
-          </Text>
-        </View>
-        <View
-          style={{
-            backgroundColor: t.color.surfaceSubtle,
-            paddingHorizontal: t.space[2],
-            paddingVertical: t.space[1],
-            borderRadius: t.radius.badge,
-          }}
-        >
-          <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.text }]}>
-            {`${team.roleInTeam ? getRoleLabel(team.roleInTeam) : ''}${isTeamAdmin ? ' • מנהל' : ''}`}
-          </Text>
-        </View>
-      </View>
+    <View style={{ backgroundColor: t.color.surface, borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.card, overflow: 'hidden' }}>
+      <TeamCardHeader
+        teamName={team.name}
+        isTeamAdmin={isTeamAdmin}
+        summary={summary}
+        members={sortedMembers}
+        isMembersOpen={openPanel === 'members'}
+        onToggleMembers={() => togglePanel('members')}
+        onToggleSettings={canManageCategories && !isPending ? () => togglePanel('settings') : undefined}
+        isSettingsOpen={openPanel === 'settings'}
+      />
 
-      {isMyPendingTeam && (
-        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
-          <View
-            style={{
-              backgroundColor: t.color.accent.subtle,
-              borderWidth: 1,
-              borderColor: t.color.accent.border,
-              borderRadius: t.radius.badge,
-              paddingHorizontal: t.space[2],
-              paddingVertical: t.space[1],
-              flexShrink: 1,
-            }}
-          >
-            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base }]}>
-              {Strings.dashboard.pendingApprovalFromLabel(team.pendingApprover?.email || '')}
+      {openPanel === 'members' && (
+        <View style={{ ...panelStyle, paddingBottom: t.space[2] }}>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: t.space[3], marginBottom: t.space[1], minHeight: t.layout.minTouchTarget }}>
+            <Text style={[rnText(t.type.overline), { color: t.color.textMuted, textAlign: 'right' }]}>
+              {Strings.teamList.membersHeader}
             </Text>
+            {canAddMembers && (
+              <TouchableOpacity
+                onPress={() => {
+                  trackEvent('add_member_modal_opened');
+                  setIsAddMemberOpen(true);
+                }}
+                style={{
+                  flexDirection: 'row-reverse',
+                  alignItems: 'center',
+                  gap: t.space[2],
+                  minHeight: t.layout.minTouchTarget,
+                  paddingHorizontal: t.space[4],
+                  borderRadius: t.radius.field,
+                  backgroundColor: t.color.accent.base,
+                }}
+              >
+                <Icon name="user-plus" size="md" tone="inverse" />
+                <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+                  {Strings.teamList.addMemberToggle}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
-          <TouchableOpacity onPress={handleCancelPendingTeam} disabled={cancelLoading}>
-            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.status.danger.fg }]}>
-              {Strings.dashboard.cancelPendingTeamButton}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      {isMyPendingTeam && !!cancelError && (
-        <View
-          style={{
-            backgroundColor: t.color.status.danger.bg,
-            borderWidth: 1,
-            borderColor: t.color.status.danger.border,
-            borderRadius: t.radius.field,
-            padding: t.space[2],
-          }}
-        >
-          <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
-            {cancelError}
-          </Text>
+          {sortedMembers.map((member: any) => (
+            <TeamMemberRow
+              key={member.id}
+              member={member}
+              teamId={team.id}
+              token={token}
+              isTeamAdmin={isTeamAdmin}
+              isMe={member.userId === userId}
+              onChanged={onAddMemberSuccess}
+              canManageTeamContent={canManageTeamContent}
+            />
+          ))}
         </View>
       )}
 
-      {!!team.mainOffice && (
-        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', gap: t.space[1] }}>
-          <Icon name="map-pin" size="sm" tone="muted" />
-          <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
-            {Strings.teamList.officeLocationLabel}
-          </Text>
-          <Text style={[rnText(t.type.body), { color: t.color.text, textAlign: 'right', flexShrink: 1 }]}>
-            {team.mainOffice}
-          </Text>
-        </View>
-      )}
-
-      <View style={{ gap: t.space[2] }}>
-        <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
-          {Strings.teamList.membersHeader(team.members?.length || 0)}
-        </Text>
-        {sortedMembers.map((member: any) => (
-          <TeamMemberRow
-            key={member.id}
-            member={member}
+      {openPanel === 'settings' && (
+        <View style={{ ...panelStyle, paddingBottom: t.space[5] }}>
+          <TeamSettingsPanelNative
             teamId={team.id}
             token={token}
             isTeamAdmin={isTeamAdmin}
-            isMe={member.userId === userId}
-            onChanged={onAddMemberSuccess}
-            canManageTeamContent={canManageTeamContent}
+            teamName={team.name}
+            teamOffice={team.mainOffice}
+            onTeamDetailsUpdated={onAddMemberSuccess}
           />
-        ))}
-      </View>
-
-      {isTeamAdmin && !isPending && (
-        <AddMemberForm teamId={team.id} token={token} onInviteSent={onAddMemberSuccess} />
+        </View>
       )}
 
-      {canManageTeamContent && !isPending && (
-        <AddPhantomMemberForm teamId={team.id} token={token} onCreated={onAddMemberSuccess} />
-      )}
-
-      {canManageCategories && !isPending && (
-        <TeamSettingsPanelNative
-          teamId={team.id}
-          token={token}
-          isTeamAdmin={isTeamAdmin}
-          teamName={team.name}
-          teamOffice={team.mainOffice}
-          onTeamDetailsUpdated={onAddMemberSuccess}
-        />
+      {isMyPendingTeam && (
+        <View style={{ ...sectionStyle, paddingBottom: t.space[4], gap: t.space[2] }}>
+          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
+            <View
+              style={{
+                backgroundColor: t.color.accent.subtle,
+                borderWidth: 1,
+                borderColor: t.color.accent.border,
+                borderRadius: t.radius.badge,
+                paddingHorizontal: t.space[2],
+                paddingVertical: t.space[1],
+                flexShrink: 1,
+              }}
+            >
+              <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base }]}>
+                {Strings.dashboard.pendingApprovalFromLabel(team.pendingApprover?.email || '')}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={handleCancelPendingTeam} disabled={cancelLoading}>
+              <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.status.danger.fg }]}>
+                {Strings.dashboard.cancelPendingTeamButton}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {!!cancelError && (
+            <View
+              style={{
+                backgroundColor: t.color.status.danger.bg,
+                borderWidth: 1,
+                borderColor: t.color.status.danger.border,
+                borderRadius: t.radius.field,
+                padding: t.space[2],
+              }}
+            >
+              <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+                {cancelError}
+              </Text>
+            </View>
+          )}
+        </View>
       )}
 
       {!isPending && (
-        <TeamSprintsManager
-          team={team}
+        <View style={{ ...sectionStyle, paddingBottom: t.space[2] }}>
+          <TeamSprintsManager
+            team={team}
+            token={token}
+            isAdmin={isTeamAdmin}
+            onSelectSprint={onSelectSprint}
+            onSprintsLoaded={(sprints) =>
+              setActiveSprintCount(sprints.filter((s) => getSprintState(s.startDate, s.endDate) === 'active').length)
+            }
+          />
+        </View>
+      )}
+
+      {canAddMembers && (
+        <AddMemberModal
+          open={isAddMemberOpen}
+          onClose={() => setIsAddMemberOpen(false)}
+          teamId={team.id}
+          teamName={team.name}
           token={token}
-          isAdmin={isTeamAdmin}
-          onSelectSprint={onSelectSprint}
+          canInvite={isTeamAdmin}
+          canAddPhantom={canManageTeamContent}
+          onMemberAdded={onAddMemberSuccess}
         />
       )}
     </View>

@@ -1,4 +1,4 @@
-import { formatDate, formatTime, formatDateRange } from '../format-date';
+import { formatDate, formatTime, formatDateRange, formatDateCompact } from '../format-date';
 
 describe('format-date (BUG-58: one he-IL formatter)', () => {
   const sample = new Date(2026, 8, 28, 14, 5); // 28 Sep 2026 14:05 local
@@ -19,5 +19,11 @@ describe('format-date (BUG-58: one he-IL formatter)', () => {
 
   it('formats a range with " - " between he-IL dates', () => {
     expect(formatDateRange(sample, new Date(2026, 9, 12))).toBe('28.9.2026 - 12.10.2026');
+  });
+
+  it('drops the year for dates in the current year only (compact sprint rows)', () => {
+    const now = new Date(2026, 9, 8);
+    expect(formatDateCompact(new Date(2026, 9, 13), now)).toBe('13.10');
+    expect(formatDateCompact(new Date(2025, 8, 28), now)).toBe('28.9.2025');
   });
 });

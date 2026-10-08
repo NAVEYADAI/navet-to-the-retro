@@ -32,6 +32,9 @@ export function Segmented<T extends string>({ value, onChange, options }: Segmen
             sx={{
               display: 'inline-flex',
               alignItems: 'center',
+              justifyContent: 'center',
+              // כשההורה מותח את הבורר לרוחב מלא (flex column), האפשרויות ממלאות אותו — בלי רווח ריק בצד.
+              flex: '1 1 auto',
               gap: '5px',
               ...t.type.label,
               fontFamily: t.type.overline.fontFamily,
@@ -44,6 +47,7 @@ export function Segmented<T extends string>({ value, onChange, options }: Segmen
               paddingInline: '14px',
               cursor: 'pointer',
               userSelect: 'none',
+              whiteSpace: 'nowrap',
             }}
           >
             {o.icon && <Icon name={o.icon} size="sm" tone={active ? 'default' : 'muted'} />}

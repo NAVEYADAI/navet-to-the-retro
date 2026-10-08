@@ -33,33 +33,8 @@ export function getTeamSettingsPanelStyles(t: AppTheme) {
   };
 
   return {
-    root: {
-      gap: t.space[3],
-      paddingTop: t.space[4],
-      borderTopWidth: 1,
-      borderTopColor: t.color.border,
-    } as ViewStyle,
-    entryButton: {
-      flexDirection: 'row-reverse',
-      alignItems: 'center',
-      gap: t.space[1],
-      borderWidth: 1,
-      borderColor: t.color.borderStrong,
-      borderRadius: t.radius.field,
-      minHeight: t.layout.minTouchTarget,
-      paddingHorizontal: t.space[3],
-      justifyContent: 'center',
-      alignSelf: 'flex-end',
-    } as ViewStyle,
-    entryButtonText: { ...rnText(t.type.bodyStrong), color: t.color.text } as TextStyle,
-    panel: {
-      gap: t.space[6],
-      padding: t.space[5],
-      borderRadius: t.radius.card,
-      borderWidth: 1,
-      borderColor: t.color.border,
-      backgroundColor: t.color.bg,
-    } as ViewStyle,
+    // The card supplies the panel's background/padding (team-card.tsx) — this is just the stack.
+    panel: { gap: t.space[6] } as ViewStyle,
     sectionLabel,
     input,
 

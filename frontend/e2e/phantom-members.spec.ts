@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { openMemberActions, openMembers, openAddMemberModal } from './team-members-ui';
 
 const BACKEND_URL = 'http://localhost:5006';
 // Team creation only accepts a hardcoded approver allowlist (backend/src/teams/teams.service.ts)
@@ -91,7 +92,7 @@ test.describe('Phantom members (product-backlog/09-phantom-members.md)', () => {
     await loginViaLocalStorage(page, leader.token);
     await page.getByText(teamName).waitFor();
 
-    await page.getByText(Strings.teamList.addPhantomMemberToggle).click();
+    await openAddMemberModal(page, 'phantom');
     await page.getByPlaceholder(Strings.teamList.phantomFirstNameLabel).fill('Phanto');
     await page.getByPlaceholder(Strings.teamList.phantomLastNamePlaceholder).fill('Mm');
     await page.getByText(Strings.teamList.addPhantomMemberButton).click();
@@ -144,13 +145,16 @@ test.describe('Phantom members (product-backlog/09-phantom-members.md)', () => {
     await expect(page.getByText(Strings.retroBoard.postOnBehalfOtherOption)).toHaveCount(0);
     await page.getByText(Strings.retroBoard.backButton).click();
     await page.getByText(teamName).waitFor();
-    await expect(page.getByText(Strings.teamList.addPhantomMemberToggle)).toHaveCount(0);
+    await openMembers(page);
+    await expect(page.getByText(Strings.teamList.addMemberToggle, { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: Strings.teamList.manageMemberLabel('Phanto Mm') })).toHaveCount(0);
     await expect(page.getByText(Strings.invites.sendConversionLinkButton)).toHaveCount(0);
 
     // --- Browser, back as the leader: send a conversion link from the phantom's own card ---
     await page.evaluate((token) => localStorage.setItem('userToken', token), leader.token);
     await page.reload();
     await page.getByText(teamName).waitFor();
+    await openMemberActions(page, 'Phanto Mm');
 
     await page.getByText(Strings.invites.sendConversionLinkButton).click();
     await page.getByText(Strings.invites.conversionLinkCreatedText).waitFor();

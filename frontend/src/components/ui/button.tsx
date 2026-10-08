@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button as MuiButton } from '@mui/material';
+import { Box, Button as MuiButton } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
 import { Icon, type IconName } from './icon';
 
@@ -18,6 +18,8 @@ export interface ButtonProps {
   icon?: IconName;
   /** `submit` בתוך `<form>` כדי לאפשר שליחה במקש Enter מתוך שדה טקסט. */
   type?: 'button' | 'submit';
+  /** בטלפון מוצג רק האייקון (הטקסט נשאר כתווית נגישות). דורש `icon` וטקסט מחרוזת. */
+  iconOnlyOnMobile?: boolean;
 }
 
 const ICON_TONE_BY_VARIANT = {
@@ -40,6 +42,7 @@ export function Button({
   fullWidth,
   icon,
   type = 'button',
+  iconOnlyOnMobile = false,
 }: ButtonProps) {
   const t = useTheme();
   const pad = size === 'sm' ? { py: '7px', px: '14px' } : { py: '10px', px: '18px' };
@@ -76,6 +79,7 @@ export function Button({
     <MuiButton
       type={type}
       onClick={onPress}
+      aria-label={iconOnlyOnMobile && typeof children === 'string' ? children : undefined}
       disabled={disabled || loading}
       fullWidth={fullWidth}
       disableElevation
@@ -90,7 +94,10 @@ export function Button({
         borderRadius: `${t.radius.field}px`,
         minHeight: t.layout.minTouchTarget - 8,
         paddingBlock: pad.py,
-        paddingInline: pad.px,
+        paddingInline: iconOnlyOnMobile ? { xs: '10px', sm: pad.px } : pad.px,
+        minWidth: iconOnlyOnMobile ? { xs: t.layout.minTouchTarget, sm: 64 } : undefined,
+        // כפתור ghost (בלי מסגרת ורקע) שנמתח לרוחב ההורה נראה כמו טקסט שצף באמצע רווח ריק — הוא תמיד ברוחב התוכן.
+        width: variant === 'ghost' && !fullWidth ? 'fit-content' : undefined,
         boxShadow: 'none',
         transition: `background-color ${t.motion.fast}, border-color ${t.motion.fast}`,
         ...skins[variant],
@@ -105,7 +112,7 @@ export function Button({
       {icon && !loading && (
         <Icon name={icon} size="sm" tone={disabled ? 'muted' : ICON_TONE_BY_VARIANT[variant]} />
       )}
-      {loading ? '...' : children}
+      {loading ? '...' : iconOnlyOnMobile ? <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{children}</Box> : children}
     </MuiButton>
   );
 }

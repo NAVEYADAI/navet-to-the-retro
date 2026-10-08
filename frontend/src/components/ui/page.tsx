@@ -48,8 +48,9 @@ export function PageHeader({
         gap: `${t.space[3]}px`,
       }}
     >
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px`, minWidth: 0 }}>
-        <Typography component="h1" sx={{ ...t.type.pageTitle, color: t.color.text, margin: 0 }}>
+      {/* בסיס 200px: פעולה קטנה (כמו רענן) נשארת באותה שורה עם הכותרת, ורק סט פעולות רחב יורד שורה. */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px`, flex: '1 1 200px', minWidth: 0 }}>
+        <Typography component="h1" sx={{ ...t.type.pageTitle, color: t.color.text, margin: 0, overflowWrap: 'anywhere' }}>
           {title}
         </Typography>
         {subtitle ? (

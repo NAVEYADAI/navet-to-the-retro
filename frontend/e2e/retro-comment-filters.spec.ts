@@ -54,7 +54,7 @@ test.describe('Sprint retro board — comment filters', () => {
     });
 
     // Must not be expired (see getSprintStatus in sprint-list-web/native.tsx) or the sprint
-    // renders collapsed under "ספרינטים קודמים שנסגרו" instead of directly enterable.
+    // renders collapsed under "ספרינטים שהסתיימו" instead of directly enterable.
     const today = new Date();
     const twoWeeksOut = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
     const sprintRes = await request.post(`${BACKEND_URL}/teams/${team.id}/sprints`, {

@@ -198,6 +198,9 @@ test.describe('Sprint screens are real routes (BUG-33)', () => {
     const { leader, team, sprint, commentContent } = await createTeamWithSprint(request, suffix, 'g');
 
     await loginAndGoto(page, leader.token);
+    // Let the dashboard's own sprint-list request finish first — otherwise it can be the one that
+    // hits the "fail once" route below, and the board's request then succeeds.
+    await page.getByText(sprint.name).waitFor();
     // Fail only the sprint-route's own sprint-list request, once.
     let failed = false;
     await page.route(`**/teams/${team.id}/sprints`, (route) => {

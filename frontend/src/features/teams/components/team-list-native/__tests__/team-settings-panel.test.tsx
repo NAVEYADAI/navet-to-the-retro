@@ -39,16 +39,10 @@ describe('TeamSettingsPanelNative', () => {
     jest.clearAllMocks();
   });
 
-  it('does not fetch categories until the panel is expanded', () => {
-    render(<TeamSettingsPanelNative {...defaultProps} />);
-    expect(mockedAxios.get).not.toHaveBeenCalled();
-  });
-
-  it('fetches and renders categories (with default/custom badges) on expand, and tracks the open', async () => {
+  it('fetches and renders categories (with default/custom badges) on mount (the card mounts it when the gear opens), and tracks the open', async () => {
     mockedAxios.get.mockResolvedValue({ data: [defaultCategory, customCategory] });
 
     const { getByText } = await render(<TeamSettingsPanelNative {...defaultProps} />);
-    await fireEvent.press(getByText(Strings.teamSettingsPanel.showButton));
 
     await waitFor(() => {
       expect(mockedAxios.get).toHaveBeenCalledWith(
@@ -68,7 +62,6 @@ describe('TeamSettingsPanelNative', () => {
     mockedAxios.get.mockResolvedValue({ data: [] });
 
     const { getByText } = await render(<TeamSettingsPanelNative {...defaultProps} />);
-    await fireEvent.press(getByText(Strings.teamSettingsPanel.showButton));
     await waitFor(() => expect(mockedAxios.get).toHaveBeenCalled());
 
     await fireEvent.press(getByText(Strings.categoryManagement.createButton));
@@ -83,7 +76,6 @@ describe('TeamSettingsPanelNative', () => {
     mockedAxios.post.mockResolvedValue({ data: { ...customCategory, isEnabled: true } });
 
     const { getByText, getByPlaceholderText } = await render(<TeamSettingsPanelNative {...defaultProps} />);
-    await fireEvent.press(getByText(Strings.teamSettingsPanel.showButton));
     // Expanding now fires two GETs — the sprint list (for the usage-count filter) plus categories.
     await waitFor(() => expect(mockedAxios.get).toHaveBeenCalledTimes(2));
 
@@ -109,7 +101,6 @@ describe('TeamSettingsPanelNative', () => {
     mockedAxios.patch.mockResolvedValue({ data: { ...defaultCategory, isEnabled: false } });
 
     const { getByText, getAllByRole } = await render(<TeamSettingsPanelNative {...defaultProps} />);
-    await fireEvent.press(getByText(Strings.teamSettingsPanel.showButton));
     await waitFor(() => expect(mockedAxios.get).toHaveBeenCalled());
 
     const [switchEl] = getAllByRole('switch');
@@ -131,7 +122,6 @@ describe('TeamSettingsPanelNative', () => {
     mockedAxios.patch.mockRejectedValue(new Error('network error'));
 
     const { getByText, getAllByRole } = await render(<TeamSettingsPanelNative {...defaultProps} />);
-    await fireEvent.press(getByText(Strings.teamSettingsPanel.showButton));
     await waitFor(() => expect(mockedAxios.get).toHaveBeenCalled());
 
     const [switchEl] = getAllByRole('switch');
@@ -152,7 +142,6 @@ describe('TeamSettingsPanelNative', () => {
     const { getByText, getByDisplayValue } = await render(
       <TeamSettingsPanelNative {...defaultProps} onTeamDetailsUpdated={onTeamDetailsUpdated} />
     );
-    await fireEvent.press(getByText(Strings.teamSettingsPanel.showButton));
     await waitFor(() => expect(mockedAxios.get).toHaveBeenCalled());
 
     expect(await getByText(Strings.teamSettingsPanel.teamDetailsSectionTitle)).toBeTruthy();
@@ -177,7 +166,6 @@ describe('TeamSettingsPanelNative', () => {
     const { getByText, getByDisplayValue, queryByDisplayValue } = await render(
       <TeamSettingsPanelNative {...defaultProps} />
     );
-    await fireEvent.press(getByText(Strings.teamSettingsPanel.showButton));
     await waitFor(() => expect(mockedAxios.get).toHaveBeenCalled());
 
     expect(await getByText(defaultProps.teamName)).toBeTruthy();
@@ -194,7 +182,6 @@ describe('TeamSettingsPanelNative', () => {
     const { getByText, queryByText } = await render(
       <TeamSettingsPanelNative {...defaultProps} isTeamAdmin={false} />
     );
-    await fireEvent.press(getByText(Strings.teamSettingsPanel.showButton));
     await waitFor(() => expect(mockedAxios.get).toHaveBeenCalled());
 
     expect(queryByText(Strings.teamSettingsPanel.teamDetailsSectionTitle)).toBeNull();

@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { openTeamSettings } from './team-members-ui';
 
 const BACKEND_URL = 'http://localhost:5006';
 // Team creation only accepts a hardcoded approver allowlist (backend/src/teams/teams.service.ts)
@@ -100,7 +101,7 @@ test.describe('Team comment categories (product-backlog/03-team-comment-categori
     await page.reload();
 
     await page.getByText(teamName).waitFor();
-    await page.getByText(Strings.teamSettingsPanel.showButton).click();
+    await openTeamSettings(page);
     await page.getByText(Strings.categoryManagement.loadingText).waitFor({ state: 'hidden' }).catch(() => {});
 
     // §3.1: every default category label from the seed list is present, badged as "דיפולטית".
@@ -152,7 +153,7 @@ test.describe('Team comment categories (product-backlog/03-team-comment-categori
     await page.getByText(teamName).waitFor();
 
     // The management panel's entry point is entirely absent from the DOM, not just hidden.
-    await expect(page.getByText(Strings.teamSettingsPanel.showButton)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: Strings.teamSettingsPanel.title })).toHaveCount(0);
 
     // The plain member's own compose form also only offers enabled categories (same guard client-side).
     await page.getByText(Strings.sprints.enterRetroButton).first().click();

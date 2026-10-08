@@ -29,6 +29,13 @@ export function createMuiTheme(t: AppTheme) {
     },
     shape: { borderRadius: t.radius.field },
     components: {
+      // דיאלוגים ותפריטים נפתחים ב-portal על body, מחוץ לקונטיינר ה-RTL של המסך — בלי זה הם יוצאים LTR.
+      MuiDialog: { defaultProps: { dir: 'rtl' } },
+      MuiPopover: { defaultProps: { dir: 'rtl' } },
+      MuiMenu: { defaultProps: { dir: 'rtl' } },
+      MuiPopper: { defaultProps: { dir: 'rtl' } },
+      MuiDrawer: { defaultProps: { dir: 'rtl' } },
+      MuiSnackbar: { defaultProps: { dir: 'rtl' } },
       MuiButton: {
         defaultProps: { disableElevation: true },
         styleOverrides: { root: { borderRadius: t.radius.field, paddingBlock: 10, paddingInline: 18 } },

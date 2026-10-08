@@ -96,6 +96,7 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
               variant="ghost"
               size="sm"
               icon="refresh"
+              iconOnlyOnMobile
               onPress={() => { trackEvent('refresh_clicked', { screen: 'sprint_summary' }); fetchComments(); }}
               disabled={isLoading}
             >

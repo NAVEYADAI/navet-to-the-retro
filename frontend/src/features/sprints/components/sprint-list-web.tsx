@@ -1,47 +1,96 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Box, Typography, CircularProgress, Alert } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert, Menu, MenuItem } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
-import { Badge, Button, Field, Segmented, StatusDot, type Tone } from '@/components/ui';
+import { Button, Field, Icon } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
-import { formatDate } from '@/lib/format-date';
 import { validateSprintDateRange } from '../sprint-validation';
+import { getSprintBucket } from '../sprint-lifecycle';
+import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup } from './sprint-rows-web';
 
 interface TeamSprintsManagerProps {
   team: any;
   token: string;
   isAdmin: boolean;
   onSelectSprint: (sprint: any, team: any) => void;
+  /** נקרא אחרי כל טעינה מוצלחת, כדי שכרטיס הצוות יוכל לספור ספרינטים פעילים בשורת הסיכום. */
+  onSprintsLoaded?: (sprints: any[]) => void;
 }
 
-type SprintState = 'active' | 'upcoming' | 'closed';
 type Filter = 'all' | 'active' | 'closed';
+const FILTERS: Filter[] = ['all', 'active', 'closed'];
 
-const STATE_LABEL: Record<SprintState, string> = { active: 'פעיל', upcoming: 'עתידי', closed: 'סגור' };
-const STATE_TONE: Record<SprintState, Tone> = { active: 'success', upcoming: 'warning', closed: 'neutral' };
-
-function getSprintState(startDateStr: string, endDateStr: string): SprintState {
-  const now = new Date();
-  const start = new Date(startDateStr);
-  const end = new Date(endDateStr);
-  now.setHours(0, 0, 0, 0);
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
-  if (now >= start && now <= end) return 'active';
-  if (now < start) return 'upcoming';
-  return 'closed';
+/** כפתור סינון קומפקטי (במקום שלושת הכפתורים) — כשמסונן הוא מסומן ומציג את שם הסינון. */
+function SprintFilterButton({ value, onChange }: { value: Filter; onChange: (value: Filter) => void }) {
+  const t = useTheme();
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const isFiltered = value !== 'all';
+  return (
+    <>
+      <Box
+        component="button"
+        type="button"
+        aria-label={Strings.sprints.filterButtonLabel}
+        aria-haspopup="menu"
+        aria-expanded={!!anchor}
+        onClick={(e: React.MouseEvent<HTMLElement>) => {
+          trackEvent('sprint_filter_opened');
+          setAnchor(e.currentTarget);
+        }}
+        sx={{
+          ...t.type.label,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: `${t.space[1]}px`,
+          minWidth: t.layout.minTouchTarget,
+          height: t.layout.minTouchTarget,
+          paddingInline: isFiltered ? `${t.space[3]}px` : 0,
+          color: isFiltered ? t.color.accent.base : t.color.textSecondary,
+          backgroundColor: isFiltered ? t.color.accent.subtle : 'transparent',
+          border: `1px solid ${isFiltered ? t.color.accent.border : 'transparent'}`,
+          borderRadius: `${t.radius.field}px`,
+          cursor: 'pointer',
+          transition: `background-color ${t.motion.fast}`,
+          '&:hover': { backgroundColor: isFiltered ? t.color.accent.subtle : t.color.surfaceSubtle },
+        }}
+      >
+        <Icon name="filter" size="sm" tone={isFiltered ? 'accent' : 'muted'} />
+        {isFiltered && Strings.sprints.filterOptions[value]}
+      </Box>
+      <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)}>
+        {FILTERS.map((option) => (
+          <MenuItem
+            key={option}
+            selected={option === value}
+            onClick={() => {
+              trackEvent('sprint_filter_changed', { filter: option });
+              onChange(option);
+              setAnchor(null);
+            }}
+            sx={{ ...t.type.body, gap: `${t.space[2]}px`, minHeight: t.layout.minTouchTarget, minWidth: 140 }}
+          >
+            <Box sx={{ display: 'inline-flex', width: 16, visibility: option === value ? 'visible' : 'hidden' }}>
+              <Icon name="check" size="sm" tone="accent" />
+            </Box>
+            {Strings.sprints.filterOptions[option]}
+          </MenuItem>
+        ))}
+      </Menu>
+    </>
+  );
 }
 
-export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: TeamSprintsManagerProps) {
+export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint, onSprintsLoaded }: TeamSprintsManagerProps) {
   const t = useTheme();
 
   const [sprints, setSprints] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // BUG-34: a failed load must not look like "no sprints yet" — it gets its own error state.
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>('all');
+  const [selectedFilter, setFilter] = useState<Filter>('all');
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState('');
@@ -50,7 +99,6 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
   const [endDate, setEndDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isExpiredExpanded, setIsExpiredExpanded] = useState(false);
 
   const fetchSprints = async () => {
     setIsLoading(true);
@@ -60,6 +108,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
         headers: { Authorization: `Bearer ${token}` },
       });
       setSprints(response.data);
+      onSprintsLoaded?.(response.data);
     } catch (err) {
       console.error('Failed to fetch sprints:', err);
       setLoadError(Strings.sprints.loadError);
@@ -104,42 +153,27 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
     }
   };
 
-  const withState = sprints.map((s) => ({ sprint: s, state: getSprintState(s.startDate, s.endDate) }));
-  const open = withState.filter((s) => s.state !== 'closed');
-  const closed = withState.filter((s) => s.state === 'closed');
+  const withBucket = sprints.map((s) => ({ sprint: s, bucket: getSprintBucket(s.startDate, s.endDate) }));
+  const open = withBucket
+    .filter((s) => s.bucket === 'active' || s.bucket === 'upcoming')
+    .map(({ sprint, bucket }) => ({ sprint, state: bucket as 'active' | 'upcoming' }));
+  const recent = withBucket.filter((s) => s.bucket === 'recent').map(({ sprint }) => sprint);
+  const expired = withBucket.filter((s) => s.bucket === 'expired').map(({ sprint }) => sprint);
+  // הסינון רלוונטי רק כשיש יותר מספרינט אחד בתצוגה (בלי ה"ספרינטים שהסתיימו" המקופלים).
+  const canFilter = open.length + recent.length > 1;
+  const filter: Filter = canFilter ? selectedFilter : 'all';
   // BUG-58: "פעילים" means sprints that are running now — upcoming ones appear under "הכל" only.
   const visibleOpen = filter === 'closed' ? [] : filter === 'active' ? open.filter((s) => s.state === 'active') : open;
-  const showClosedSection = filter !== 'active' && closed.length > 0;
-  const hasNothingToShow = visibleOpen.length === 0 && !showClosedSection;
-
-  const rowSx = {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: `${t.space[5]}px`,
-    paddingBlock: `${t.space[4]}px`,
-    paddingInline: `${t.space[5]}px`,
-    borderBottom: `1px solid ${t.color.border}`,
-    cursor: 'pointer',
-    transition: `background-color ${t.motion.fast}`,
-    '&:hover': { backgroundColor: t.color.surfaceHover },
-    '&:last-of-type': { borderBottom: 'none' },
-  };
+  const showRecentSection = filter !== 'active' && recent.length > 0;
+  const showExpiredSection = filter !== 'active' && expired.length > 0;
+  const hasNothingToShow = visibleOpen.length === 0 && !showRecentSection && !showExpiredSection;
 
   return (
     <Box
-      sx={{
-        marginBlockStart: `${t.space[5]}px`,
-        paddingBlockStart: `${t.space[5]}px`,
-        borderBlockStart: `1px solid ${t.color.border}`,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: `${t.space[4]}px`,
-      }}
+      sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}
     >
       <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[3]}px` }}>
-        <Typography sx={{ ...t.type.cardTitle, color: t.color.text, minWidth: 0 }}>{Strings.sprints.header}</Typography>
+        <Typography sx={{ ...t.type.overline, color: t.color.textMuted, textTransform: 'uppercase', minWidth: 0 }}>{Strings.sprints.header}</Typography>
         {/*
           `marginInlineStart: 'auto'` (לא רק ה-`justifyContent:'space-between'` של ההורה) — כי
           כש-flexWrap שובר לשתי שורות במובייל, האשכול הזה נופל לשורה משלו לבד, וב-justify-content
@@ -147,22 +181,12 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
           להישאר בצד שמאל כמו בדסקטופ. margin אוטומטי בצד ההתחלה דוחף אותו לקצה הנגדי בכל מצב.
         */}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[2] + 2}px`, marginInlineStart: 'auto' }}>
-          <Segmented
-            value={filter}
-            onChange={(value) => {
-              setFilter(value);
-              trackEvent('sprint_filter_changed', { filter: value });
-            }}
-            options={[
-              { value: 'all', label: 'הכל' },
-              { value: 'active', label: 'פעילים' },
-              { value: 'closed', label: 'סגורים' },
-            ]}
-          />
+          {canFilter && !loadError ? <SprintFilterButton value={filter} onChange={setFilter} /> : null}
           <Button
             variant="ghost"
             size="sm"
             icon="refresh"
+            iconOnlyOnMobile
             onPress={() => { trackEvent('refresh_clicked', { screen: 'sprint_list' }); fetchSprints(); }}
             disabled={isLoading}
           >
@@ -223,14 +247,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
           {isAdmin ? Strings.sprints.noSprintsTextAdmin : Strings.sprints.noSprintsTextMember}
         </Typography>
       ) : (
-        <Box
-          sx={{
-            border: `1px solid ${t.color.border}`,
-            borderRadius: `${t.radius.card}px`,
-            backgroundColor: t.color.surface,
-            overflow: 'hidden',
-          }}
-        >
+        <Box>
           {hasNothingToShow ? (
             <Typography sx={{ ...t.type.body, color: t.color.textSecondary, textAlign: 'center', paddingBlock: `${t.space[4]}px` }}>
               {Strings.sprints.noSprintsInFilterText}
@@ -238,74 +255,12 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
           ) : null}
 
           {visibleOpen.map(({ sprint, state }) => (
-            <Box key={sprint.id} onClick={() => onSelectSprint(sprint, team)} sx={rowSx}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[3]}px`, minWidth: 0 }}>
-                <StatusDot tone={STATE_TONE[state]} />
-                <Box sx={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <Typography sx={{ ...t.type.rowTitle, color: t.color.text }}>{sprint.name}</Typography>
-                  {sprint.description ? (
-                    <Typography sx={{ ...t.type.label, fontWeight: 400, color: t.color.textSecondary }}>
-                      {sprint.description}
-                    </Typography>
-                  ) : null}
-                </Box>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[5]}px`, flexShrink: 0 }}>
-                <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
-                  <bdi>{formatDate(sprint.startDate)}</bdi>
-                  {' — '}
-                  <bdi>{formatDate(sprint.endDate)}</bdi>
-                </Typography>
-                <Badge tone={STATE_TONE[state]}>{STATE_LABEL[state]}</Badge>
-                <Typography sx={{ ...t.type.label, fontFamily: t.type.overline.fontFamily, color: t.color.accent.base, minWidth: 60, textAlign: 'end' }}>
-                  {Strings.sprints.enterRetroButton}
-                </Typography>
-              </Box>
-            </Box>
+            <OpenSprintRow key={sprint.id} sprint={sprint} state={state} onPress={() => onSelectSprint(sprint, team)} />
           ))}
 
-          {showClosedSection ? (
-            <>
-              <Box
-                onClick={() => setIsExpiredExpanded(!isExpiredExpanded)}
-                sx={{
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingBlock: `${t.space[3]}px`,
-                  paddingInline: `${t.space[5]}px`,
-                  backgroundColor: t.color.surfaceSubtle,
-                  borderBlockStart: `1px solid ${t.color.border}`,
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                }}
-              >
-                <Typography sx={{ ...t.type.label, fontFamily: t.type.overline.fontFamily, color: t.color.textSecondary, minWidth: 0 }}>
-                  ספרינטים קודמים שנסגרו (<bdi>{closed.length}</bdi>)
-                </Typography>
-                <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
-                  {isExpiredExpanded ? 'הסתר' : 'הצג'}
-                </Typography>
-              </Box>
+          {showRecentSection ? <RecentSprintsGroup sprints={recent} onSelect={(sprint) => onSelectSprint(sprint, team)} /> : null}
 
-              {isExpiredExpanded
-                ? closed.map(({ sprint, state }) => (
-                    <Box key={sprint.id} onClick={() => onSelectSprint(sprint, team)} sx={rowSx}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[3]}px`, minWidth: 0 }}>
-                        <StatusDot tone={STATE_TONE[state]} />
-                        <Typography sx={{ ...t.type.rowTitle, color: t.color.text }}>{sprint.name}</Typography>
-                      </Box>
-                      <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
-                        <bdi>{formatDate(sprint.startDate)}</bdi>
-                        {' — '}
-                        <bdi>{formatDate(sprint.endDate)}</bdi>
-                      </Typography>
-                    </Box>
-                  ))
-                : null}
-            </>
-          ) : null}
+          {showExpiredSection ? <ExpiredSprintsGroup sprints={expired} onSelect={(sprint) => onSelectSprint(sprint, team)} /> : null}
         </Box>
       )}
     </Box>

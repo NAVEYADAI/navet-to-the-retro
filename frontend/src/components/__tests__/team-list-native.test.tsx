@@ -76,7 +76,9 @@ const pendingMembershipTeam = {
   myMembershipStatus: 'PENDING',
 };
 
-async function renderList(teams: any[]) {
+// The members list and the add-member flow now live behind a toggle + a modal: `members` opens the
+// list, `addMember` additionally opens the add-member modal on the given tab.
+async function renderList(teams: any[], opts: { members?: boolean; addMember?: 'existing' | 'phantom' | 'link' } = {}) {
   const onAddMemberSuccess = jest.fn();
   const utils = await render(
     <TeamListNative
@@ -87,6 +89,16 @@ async function renderList(teams: any[]) {
       onSelectSprint={jest.fn()}
     />
   );
+  if (opts.members || opts.addMember) {
+    await fireEvent.press(utils.getByTestId('toggle-team-members'));
+  }
+  if (opts.addMember) {
+    await fireEvent.press(utils.getByText(Strings.teamList.addMemberToggle));
+    if (opts.addMember === 'link') await fireEvent.press(utils.getByText(Strings.teamList.addMemberTabLink));
+    // A single-option modal (leader who isn't admin) renders no tab strip — the phantom form is already open.
+    const phantomTab = utils.queryByText(Strings.teamList.addMemberTabPhantom);
+    if (opts.addMember === 'phantom' && phantomTab) await fireEvent.press(phantomTab);
+  }
   return { ...utils, onAddMemberSuccess };
 }
 
@@ -187,7 +199,7 @@ describe('TeamListNative — dual-approval UI', () => {
     expect(getByText(Strings.dashboard.approveTeamButton)).toBeTruthy();
     expect(getByText(Strings.dashboard.declineTeamButton)).toBeTruthy();
     // Not shown as an active member yet — no member list / sprints for an unaccepted invite.
-    expect(queryByText(Strings.teamList.membersHeader(1))).toBeNull();
+    expect(queryByText(Strings.teamList.membersHeader)).toBeNull();
   });
 
   it('accepting a member invite posts to /teams/:id/members/:memberId/accept', async () => {
@@ -218,18 +230,25 @@ describe('TeamListNative — dual-approval UI', () => {
     expect(onAddMemberSuccess).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a remove control for every member (including myself) when I am a team admin', async () => {
-    const { getAllByText } = await renderList([activeTeamAsAdmin]);
+  // Role editing and removal sit behind a pencil button on each row (one per member).
+  const manageOther = Strings.teamList.manageMemberLabel('Other User');
+  const manageMe = Strings.teamList.manageMemberLabel('Me');
 
-    expect(getAllByText('הסר')).toHaveLength(2);
+  it('shows a manage control for every member (including myself) when I am a team admin', async () => {
+    const { getByLabelText, queryByText } = await renderList([activeTeamAsAdmin], { members: true });
+
+    expect(getByLabelText(manageMe)).toBeTruthy();
+    expect(getByLabelText(manageOther)).toBeTruthy();
+    // The actions themselves stay hidden until a row's pencil is pressed.
+    expect(queryByText(Strings.teamList.removeMemberButton)).toBeNull();
   });
 
   it('removing a member sends DELETE /teams/:id/members/:memberId with the bearer token', async () => {
     mockedAxios.delete.mockResolvedValueOnce({ data: { success: true } });
-    const { getAllByText, getByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+    const { getByLabelText, getByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin], { members: true });
 
-    // members[0] is myself (remove disabled), members[1] is the other member.
-    await fireEvent.press(getAllByText('הסר')[1]);
+    await fireEvent.press(getByLabelText(manageOther));
+    await fireEvent.press(getByText(Strings.teamList.removeMemberButton));
     // BUG-31: the first press only opens the inline confirmation — nothing is deleted yet.
     expect(mockedAxios.delete).not.toHaveBeenCalled();
     await fireEvent.press(getByText(Strings.teamList.removeMemberConfirmButton));
@@ -242,9 +261,10 @@ describe('TeamListNative — dual-approval UI', () => {
   });
 
   it('cancelling the remove confirmation does not delete the member (BUG-31)', async () => {
-    const { getAllByText, getByText, queryByText } = await renderList([activeTeamAsAdmin]);
+    const { getByLabelText, getByText, queryByText } = await renderList([activeTeamAsAdmin], { members: true });
 
-    await fireEvent.press(getAllByText('הסר')[1]);
+    await fireEvent.press(getByLabelText(manageOther));
+    await fireEvent.press(getByText(Strings.teamList.removeMemberButton));
     expect(getByText(Strings.teamList.removeMemberConfirmButton)).toBeTruthy();
     await fireEvent.press(getByText(Strings.teamList.removeMemberCancelButton));
 
@@ -253,9 +273,10 @@ describe('TeamListNative — dual-approval UI', () => {
   });
 
   it('does not remove myself when pressing my own (disabled) remove control', async () => {
-    const { getAllByText } = await renderList([activeTeamAsAdmin]);
+    const { getByLabelText, getByText } = await renderList([activeTeamAsAdmin], { members: true });
 
-    await fireEvent.press(getAllByText('הסר')[0]);
+    await fireEvent.press(getByLabelText(manageMe));
+    await fireEvent.press(getByText(Strings.teamList.removeMemberButton));
 
     expect(mockedAxios.delete).not.toHaveBeenCalled();
   });
@@ -264,9 +285,10 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.delete.mockRejectedValueOnce(
       Object.assign(new Error('failed'), { response: { data: { message: 'לא ניתן להסיר את המנהל/ת האחרון/ה' } } })
     );
-    const { getAllByText, getByText, findByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+    const { getByLabelText, getByText, findByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin], { members: true });
 
-    await fireEvent.press(getAllByText('הסר')[1]);
+    await fireEvent.press(getByLabelText(manageOther));
+    await fireEvent.press(getByText(Strings.teamList.removeMemberButton));
     await fireEvent.press(getByText(Strings.teamList.removeMemberConfirmButton));
 
     expect(await findByText('לא ניתן להסיר את המנהל/ת האחרון/ה')).toBeTruthy();
@@ -276,7 +298,7 @@ describe('TeamListNative — dual-approval UI', () => {
   it('shows an "invite email sent" message (not the pending-invite callback) when adding an unregistered email', async () => {
     const invitedEmail = 'unregistered@example.com';
     mockedAxios.post.mockResolvedValueOnce({ data: { email: invitedEmail } });
-    const { getByText, getByPlaceholderText, findByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+    const { getByText, getByPlaceholderText, findByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin], { addMember: 'existing' });
 
     await fireEvent.changeText(getByPlaceholderText(Strings.teamList.addMemberPlaceholder), invitedEmail);
     await fireEvent.press(getByText(Strings.teamList.addMemberButton));
@@ -287,7 +309,7 @@ describe('TeamListNative — dual-approval UI', () => {
 
   it('reports success normally (no email-invite message) when the added member is already registered', async () => {
     mockedAxios.post.mockResolvedValueOnce({ data: { id: 99 } });
-    const { getByText, getByPlaceholderText, queryByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+    const { getByText, getByPlaceholderText, queryByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin], { addMember: 'existing' });
 
     await fireEvent.changeText(getByPlaceholderText(Strings.teamList.addMemberPlaceholder), 'existinguser');
     await fireEvent.press(getByText(Strings.teamList.addMemberButton));
@@ -296,11 +318,10 @@ describe('TeamListNative — dual-approval UI', () => {
     expect(queryByText(Strings.teamList.emailInviteSentText('existinguser'))).toBeNull();
   });
 
-  it('shows the invite-links toggle for a team admin and expands it to reveal the create-link button', async () => {
+  it('opens the add-member modal on the invite-link tab and shows the create-link button', async () => {
     mockedAxios.get.mockResolvedValueOnce({ data: [] });
-    const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
 
     expect(await findByText(Strings.invites.createLinkButton)).toBeTruthy();
     expect(await findByText(Strings.invites.noLinksText)).toBeTruthy();
@@ -309,9 +330,8 @@ describe('TeamListNative — dual-approval UI', () => {
   it('creates an invite link with the entered expiry/max-uses and displays the shareable URL', async () => {
     mockedAxios.get.mockResolvedValue({ data: [] });
     mockedAxios.post.mockResolvedValueOnce({ data: { id: 1, token: 'abc123' } });
-    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.createLinkButton));
 
     await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2027-01-01');
@@ -329,9 +349,8 @@ describe('TeamListNative — dual-approval UI', () => {
 
   it('rejects a past expiry date client-side without calling the API', async () => {
     mockedAxios.get.mockResolvedValue({ data: [] });
-    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.createLinkButton));
 
     await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2020-01-01');
@@ -345,9 +364,8 @@ describe('TeamListNative — dual-approval UI', () => {
     const namedInvite = { id: 8, name: 'לינק לצוות פיתוח', token: 'named1', isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 };
     mockedAxios.get.mockResolvedValue({ data: [] });
     mockedAxios.post.mockResolvedValueOnce({ data: { id: 8, token: 'named1' } });
-    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.createLinkButton));
     await fireEvent.changeText(getByPlaceholderText(Strings.invites.namePlaceholder), namedInvite.name);
     mockedAxios.get.mockResolvedValueOnce({ data: [namedInvite] });
@@ -363,9 +381,8 @@ describe('TeamListNative — dual-approval UI', () => {
 
   it('shows a fallback label for an unnamed link with no personal email', async () => {
     mockedAxios.get.mockResolvedValue({ data: [{ id: 9, token: 't', isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 }] });
-    const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
 
     expect(await findByText(Strings.invites.unnamedLinkLabel)).toBeTruthy();
   });
@@ -374,9 +391,8 @@ describe('TeamListNative — dual-approval UI', () => {
     const invite = { id: 11, token: 'existing-token', isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 };
     mockedAxios.get.mockResolvedValue({ data: [invite] });
     const shareSpy = jest.spyOn(Share, 'share').mockResolvedValue({ action: 'sharedAction' } as any);
-    const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.copyLinkButton));
 
     expect(shareSpy).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining(invite.token) }));
@@ -387,9 +403,8 @@ describe('TeamListNative — dual-approval UI', () => {
     const invite = { id: 7, token: 'xyz', isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 };
     mockedAxios.get.mockResolvedValue({ data: [invite] });
     mockedAxios.patch.mockResolvedValueOnce({ data: { ...invite, isRevoked: true } });
-    const { getByText, findByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.revokeButton));
 
     expect(mockedAxios.patch).toHaveBeenCalledWith(
@@ -400,9 +415,8 @@ describe('TeamListNative — dual-approval UI', () => {
   });
   it('rejects maxUses of 0 or a negative number client-side (BUG-32)', async () => {
     mockedAxios.get.mockResolvedValue({ data: [] });
-    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.createLinkButton));
 
     await fireEvent.changeText(getByPlaceholderText('5'), '0');
@@ -418,9 +432,8 @@ describe('TeamListNative — dual-approval UI', () => {
   it('accepts today as the expiry date (BUG-32)', async () => {
     mockedAxios.get.mockResolvedValue({ data: [] });
     mockedAxios.post.mockResolvedValueOnce({ data: { id: 1, token: 'today1' } });
-    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
     await fireEvent.press(await findByText(Strings.invites.createLinkButton));
 
     const d = new Date();
@@ -440,11 +453,87 @@ describe('TeamListNative — dual-approval UI', () => {
   it('shows an error instead of "no links yet" when loading the invite links fails (BUG-34)', async () => {
     jest.spyOn(console, 'error').mockImplementation(() => {});
     mockedAxios.get.mockRejectedValue(new Error('Network Error'));
-    const { getByText, findByText, queryByText } = await renderList([activeTeamAsAdmin]);
+    const { getByText, findByText, queryByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
 
     expect(await findByText(Strings.invites.loadError)).toBeTruthy();
     expect(queryByText(Strings.invites.noLinksText)).toBeNull();
+  });
+});
+
+describe('TeamListNative — collapsed members + add-member modal', () => {
+  const leaderOnlyTeam = {
+    ...activeTeamAsAdmin,
+    id: 6,
+    name: 'Team F',
+    members: [
+      { id: 60, userId: currentUserId, role: 'TEAM_LEADER', isAdmin: false, user: { username: 'me', firstName: 'Me', lastName: '' } },
+      { id: 61, userId: 201, role: 'DEVELOPER', isAdmin: false, user: { username: 'dev', firstName: 'Dev', lastName: 'One' } },
+    ],
+  };
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('hides the members list until the members button is pressed', async () => {
+    const { getByTestId, queryByText, getByText } = await renderList([activeTeamAsAdmin]);
+
+    expect(queryByText(Strings.teamList.addMemberToggle)).toBeNull();
+    expect(getByText(Strings.teamList.membersToggleLabel(2))).toBeTruthy();
+
+    await fireEvent.press(getByTestId('toggle-team-members'));
+
+    expect(getByText(Strings.teamList.membersHeader)).toBeTruthy();
+    expect(getByText(Strings.teamList.addMemberToggle)).toBeTruthy();
+  });
+
+  it('opens team settings from the gear, and only one panel at a time', async () => {
+    mockedAxios.get.mockResolvedValue({ data: [] });
+    const { getByTestId, getByLabelText, queryByText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByTestId('toggle-team-members'));
+    await fireEvent.press(getByLabelText(Strings.teamSettingsPanel.title));
+
+    expect(await findByText(Strings.categoryManagement.categorySectionTitle)).toBeTruthy();
+    expect(queryByText(Strings.teamList.membersHeader)).toBeNull();
+  });
+
+  it('summarises pending members under the team name, without repeating the member count from the chip', async () => {
+    // (@/features/sprints is mocked here, so the active-sprint count is covered by the e2e spec.)
+    const withPending = {
+      ...activeTeamAsAdmin,
+      members: [...activeTeamAsAdmin.members, { id: 52, userId: 300, role: 'DEVELOPER', isAdmin: false, status: 'PENDING', user: { username: 'p', firstName: 'Pen', lastName: 'Ding' } }],
+    };
+    const { findByText, queryByText } = await renderList([withPending]);
+
+    expect(await findByText(Strings.teamList.summaryPending(1))).toBeTruthy();
+    expect(queryByText(/3 חברים/)).toBeNull();
+  });
+
+  it('offers all three ways to add a member to a team admin, in one modal', async () => {
+    const { getByText } = await renderList([activeTeamAsAdmin], { addMember: 'existing' });
+
+    expect(getByText(Strings.teamList.addMemberModalTitle)).toBeTruthy();
+    expect(getByText(Strings.teamList.addMemberTabExisting)).toBeTruthy();
+    expect(getByText(Strings.teamList.addMemberTabPhantom)).toBeTruthy();
+    expect(getByText(Strings.teamList.addMemberTabLink)).toBeTruthy();
+  });
+
+  it('lets a non-admin team leader add only phantom members', async () => {
+    const { getByText, queryByText, getByPlaceholderText } = await renderList([leaderOnlyTeam], { addMember: 'phantom' });
+
+    expect(queryByText(Strings.teamList.addMemberTabExisting)).toBeNull();
+    expect(queryByText(Strings.teamList.addMemberTabLink)).toBeNull();
+    expect(getByPlaceholderText(Strings.teamList.phantomFirstNameLabel)).toBeTruthy();
+    expect(getByText(Strings.teamList.addPhantomMemberButton)).toBeTruthy();
+  });
+
+  it('shows no gear and no add-member button to a plain developer', async () => {
+    const { getByTestId, queryByText, queryByLabelText } = await renderList([activeTeam]);
+    await fireEvent.press(getByTestId('toggle-team-members'));
+
+    expect(queryByText(Strings.teamList.addMemberToggle)).toBeNull();
+    expect(queryByLabelText(Strings.teamSettingsPanel.title)).toBeNull();
   });
 });

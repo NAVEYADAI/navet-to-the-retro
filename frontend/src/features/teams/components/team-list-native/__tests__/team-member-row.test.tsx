@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react-native';
+import { render, fireEvent } from '@testing-library/react-native';
 import { TeamMemberRow } from '../team-member-row';
 import { Strings } from '@/constants/strings';
 
@@ -50,26 +50,31 @@ describe('TeamMemberRow — phantom member badge + conversion link gating', () =
   });
 
   it('shows the "send registration link" action for a phantom member when the viewer can manage team content', async () => {
-    const { getByText } = await render(
+    const { getByText, getByLabelText } = await render(
       <TeamMemberRow {...baseProps} member={phantomMember} isTeamAdmin={false} canManageTeamContent={true} />
     );
 
+    // Behind the row's pencil button, like every other member action.
+    await fireEvent.press(getByLabelText(Strings.teamList.manageMemberLabel('Phanto Mm')));
     expect(getByText(Strings.invites.sendConversionLinkButton)).toBeTruthy();
   });
 
   it('does not render the "send registration link" action at all for a plain (non-admin, non-leader) viewer', async () => {
-    const { queryByText } = await render(
+    const { queryByText, queryByLabelText } = await render(
       <TeamMemberRow {...baseProps} member={phantomMember} isTeamAdmin={false} canManageTeamContent={false} />
     );
 
+    expect(queryByLabelText(Strings.teamList.manageMemberLabel('Phanto Mm'))).toBeNull();
     expect(queryByText(Strings.invites.sendConversionLinkButton)).toBeNull();
   });
 
   it('does not render the "send registration link" action for a real (already-converted/non-phantom) member, even for a manager', async () => {
-    const { queryByText } = await render(
+    const { queryByText, queryByLabelText } = await render(
       <TeamMemberRow {...baseProps} member={realMember} isTeamAdmin={false} canManageTeamContent={true} />
     );
 
+    // A leader who isn't an admin has nothing to do on a real member's row — no pencil at all.
+    expect(queryByLabelText(Strings.teamList.manageMemberLabel('Real User'))).toBeNull();
     expect(queryByText(Strings.invites.sendConversionLinkButton)).toBeNull();
   });
 });

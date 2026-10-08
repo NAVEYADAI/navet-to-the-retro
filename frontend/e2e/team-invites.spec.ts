@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { openAddMemberModal } from './team-members-ui';
 
 const BACKEND_URL = 'http://localhost:5006';
 // Team creation only accepts a hardcoded approver allowlist (backend/src/teams/teams.service.ts)
@@ -57,10 +58,8 @@ test.describe('Team invites — email invites for unregistered users + shareable
     // Drive the real dashboard UI as the creator/admin to generate the invite link.
     await loginViaLocalStorage(page, creator.token);
     await page.getByText(teamName).waitFor();
-    // Invite links now live inside "הוסף חבר צוות" as a mode switch, not a separate standalone
-    // toggle — open the add-member panel first, then switch it to link mode.
-    await page.getByText(Strings.teamList.addMemberToggle).click();
-    await page.getByText(Strings.teamList.addMemberModeLinkLabel).click();
+    // Invite links live in the add-member modal (members list -> "הוסף חבר" -> link tab).
+    await openAddMemberModal(page, 'link');
     // The "show form" button and the form's submit button reuse the same label, so clicking
     // this text twice back-to-back is a race: on a slower render (e.g. Mobile Chrome) the second
     // click can fire before the form (and its real submit button) has mounted, and the click never
@@ -123,8 +122,8 @@ test.describe('Team invites — email invites for unregistered users + shareable
 
     await loginViaLocalStorage(page, creator.token);
     await page.getByText(teamName).waitFor();
-    // The add-member form is collapsed behind this toggle by default (team-card.tsx web).
-    await page.getByText(Strings.teamList.addMemberToggle).click();
+    // The add-member flow is a modal opened from the (collapsed) members list (team-card.tsx web).
+    await openAddMemberModal(page, 'existing');
 
     await page.getByPlaceholder('הכנס כתובת אימייל').fill(invitedEmail);
     await page.getByText(Strings.teamList.addMemberButton).click();
@@ -157,10 +156,8 @@ test.describe('Team invites — email invites for unregistered users + shareable
 
     await loginViaLocalStorage(page, creator.token);
     await page.getByText(teamName).waitFor();
-    // Invite links now live inside "הוסף חבר צוות" as a mode switch, not a separate standalone
-    // toggle — open the add-member panel first, then switch it to link mode.
-    await page.getByText(Strings.teamList.addMemberToggle).click();
-    await page.getByText(Strings.teamList.addMemberModeLinkLabel).click();
+    // Invite links live in the add-member modal (members list -> "הוסף חבר" -> link tab).
+    await openAddMemberModal(page, 'link');
     await page.getByText(Strings.invites.createLinkButton).click();
     await page.getByPlaceholder(Strings.invites.namePlaceholder).waitFor();
     await page.getByText(Strings.invites.createLinkButton).click();
@@ -173,8 +170,7 @@ test.describe('Team invites — email invites for unregistered users + shareable
     // the only place a copy action used to exist. The persisted list row must offer one too.
     await page.reload();
     await page.getByText(teamName).waitFor();
-    await page.getByText(Strings.teamList.addMemberToggle).click();
-    await page.getByText(Strings.teamList.addMemberModeLinkLabel).click();
+    await openAddMemberModal(page, 'link');
     await page.getByText(Strings.invites.copyLinkButton).click();
 
     const clipboardText = await page.evaluate(() => navigator.clipboard.readText());

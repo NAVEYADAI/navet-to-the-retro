@@ -80,19 +80,7 @@ export function AddPhantomMemberForm({ teamId, token, onCreated }: AddPhantomMem
   ];
 
   return (
-    <View
-      style={{
-        gap: t.space[2],
-        marginTop: t.space[2],
-        paddingTop: t.space[2],
-        borderTopWidth: 1,
-        borderTopColor: t.color.border,
-      }}
-    >
-      <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
-        {Strings.teamList.addPhantomMemberHeader}
-      </Text>
-
+    <View style={{ gap: t.space[2] }}>
       {!!error && (
         <View
           style={{

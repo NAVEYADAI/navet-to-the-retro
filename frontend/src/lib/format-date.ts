@@ -14,3 +14,14 @@ export function formatTime(value: string | number | Date): string {
 export function formatDateRange(start: string | number | Date, end: string | number | Date): string {
   return `${formatDate(start)} - ${formatDate(end)}`;
 }
+
+/**
+ * תאריך קצר לשורות צפופות (רשימת הספרינטים): בלי שנה כשהתאריך בשנה הנוכחית ("13.10"),
+ * ועם שנה מלאה אחרת ("28.9.2025") — כדי שהטווח ייכנס בשורה אחת גם בטלפון.
+ */
+export function formatDateCompact(value: string | number | Date, now: Date = new Date()): string {
+  const d = new Date(value);
+  return d.getFullYear() === now.getFullYear()
+    ? d.toLocaleDateString(LOCALE, { day: 'numeric', month: 'numeric' })
+    : formatDate(d);
+}

@@ -6,7 +6,6 @@ import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import { ROLES } from '@/constants/roles';
-import { InviteLinksPanel } from './invite-links-panel';
 
 interface AddMemberFormProps {
   teamId: number;
@@ -25,7 +24,6 @@ function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: numbe
 
 export function AddMemberForm({ teamId, token, onInviteSent }: AddMemberFormProps) {
   const t = useTheme();
-  const [mode, setMode] = useState<'email' | 'link'>('email');
   const [username, setUsername] = useState('');
   const [role, setRole] = useState('DEVELOPER');
   const [isLoading, setIsLoading] = useState(false);
@@ -67,47 +65,8 @@ export function AddMemberForm({ teamId, token, onInviteSent }: AddMemberFormProp
   };
 
   return (
-    <View
-      style={{
-        gap: t.space[2],
-        marginTop: t.space[2],
-        paddingTop: t.space[2],
-        borderTopWidth: 1,
-        borderTopColor: t.color.border,
-      }}
-    >
-      <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right' }]}>
-        הזמנת חבר צוות חדש
-      </Text>
-
-      <View style={{ flexDirection: 'row-reverse', gap: 3, padding: 3, backgroundColor: t.color.surfaceSubtle, borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.field, alignSelf: 'flex-end' }}>
-        {(['email', 'link'] as const).map((m) => {
-          const active = mode === m;
-          return (
-            <TouchableOpacity
-              key={m}
-              onPress={() => setMode(m)}
-              style={{
-                flexDirection: 'row-reverse',
-                alignItems: 'center',
-                gap: 5,
-                paddingVertical: 6,
-                paddingHorizontal: 14,
-                borderRadius: t.radius.badge,
-                backgroundColor: active ? t.color.surface : 'transparent',
-              }}
-            >
-              <Icon name={m === 'email' ? 'user-plus' : 'link'} size="sm" tone={active ? 'default' : 'muted'} />
-              <Text style={[rnText({ ...t.type.label, fontWeight: active ? 600 : 500 }), { color: active ? t.color.text : t.color.textSecondary }]}>
-                {m === 'email' ? Strings.teamList.addMemberModeEmailLabel : Strings.teamList.addMemberModeLinkLabel}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {mode === 'email' ? (
-        <>
+    <View style={{ gap: t.space[2] }}>
+      <>
           {!!error && (
             <View
               style={{
@@ -203,10 +162,7 @@ export function AddMemberForm({ teamId, token, onInviteSent }: AddMemberFormProp
               </>
             )}
           </TouchableOpacity>
-        </>
-      ) : (
-        <InviteLinksPanel teamId={teamId} token={token} />
-      )}
+      </>
     </View>
   );
 }

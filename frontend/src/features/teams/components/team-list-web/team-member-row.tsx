@@ -1,17 +1,11 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
 import { getBackendUrl } from '@/api/config';
 import { Strings } from '@/constants/strings';
-import {
-  Box,
-  Typography,
-  Alert,
-  ListItem,
-  Collapse,
-} from '@mui/material';
+import { Box, Typography, Alert } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
-import { Button, Icon, Badge, Switch } from '@/components/ui';
+import { Avatar, Button, Icon, Badge, Switch } from '@/components/ui';
+import { memberDisplayName } from '@/features/teams/member-display';
 import { getRoleLabel } from './roles';
 import { ROLES } from '@/constants/roles';
 import { trackEvent } from '@/lib/analytics';
@@ -30,9 +24,13 @@ interface TeamMemberRowProps {
   canManageTeamContent?: boolean;
 }
 
+/**
+ * שורת חבר כמו במוקאפ: אווטאר, שם, תפקיד ותגים. הפעולות (תפקיד/הרשאות, קישור הרשמה לפנטום,
+ * הסרה) מוסתרות מאחורי כפתור עיפרון אחד ונפתחות מתחת לשורה, כדי שהרשימה תישאר נקייה.
+ */
 export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChanged, canManageTeamContent }: TeamMemberRowProps) {
   const t = useTheme();
-  const [isEditing, setIsEditing] = useState(false);
+  const [isManaging, setIsManaging] = useState(false);
   const [editRole, setEditRole] = useState(member.role);
   const [editIsAdmin, setEditIsAdmin] = useState(member.isAdmin);
   const [editLoading, setEditLoading] = useState(false);
@@ -43,14 +41,26 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
-  const startEdit = () => {
-    setEditRole(member.role);
-    setEditIsAdmin(member.isAdmin);
-    setEditError(null);
-    setIsEditing(true);
+  const fullName = memberDisplayName(member);
+  const isPhantom = member.user?.isPhantom === true;
+  const isPendingMember = member.status === 'PENDING';
+  const isPhantomManageable = isPhantom && !!canManageTeamContent;
+  const canManageRow = isTeamAdmin || isPhantomManageable;
+  const conversion = usePhantomConversionLink({ teamId, memberId: member.id, token });
+
+  const toggleManage = () => {
+    trackEvent('team_member_manage_toggled', { teamId, open: !isManaging });
+    if (!isManaging) {
+      setEditRole(member.role);
+      setEditIsAdmin(member.isAdmin);
+      setEditError(null);
+      setConfirmingRemove(false);
+    }
+    setIsManaging(!isManaging);
   };
 
   const handleSaveEdit = async () => {
+    trackEvent('team_member_role_saved', { teamId });
     setEditError(null);
     setEditLoading(true);
     try {
@@ -60,7 +70,7 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
       }, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      setIsEditing(false);
+      setIsManaging(false);
       onChanged();
     } catch (err: any) {
       setEditError(err.response?.data?.message || err.message || 'שמירת השינויים נכשלה.');
@@ -97,150 +107,79 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
     }
   };
 
-  const fullName = member.user?.firstName || member.user?.lastName
-    ? `${member.user?.firstName || ''} ${member.user?.lastName || ''}`.trim()
-    : `@${member.user?.username || ''}`;
-  const roleBadgeLabel = getRoleLabel(member.role);
-  const currentRoleIcon = ROLES.find((r) => r.value === member.role)?.icon;
-  const isPhantomManageable = member.user?.isPhantom === true && canManageTeamContent;
-  const conversion = usePhantomConversionLink({ teamId, memberId: member.id, token });
-
   return (
-    <ListItem
-      sx={{
-        padding: 0,
-        justifyContent: 'space-between',
-        backgroundColor: t.color.surface,
-        borderRadius: `${t.radius.card}px`,
-        paddingInline: `${t.space[3]}px`,
-        paddingBlock: `${t.space[2]}px`,
-        border: `1px solid ${t.color.border}`,
-        // MUI's ListItem hardcodes textAlign:'left' in its own base styles — override back to
-        // the logical default so descendant text blocks (e.g. the isEditing form below) don't
-        // silently render left-aligned under RTL.
-        textAlign: 'start',
-      }}
-    >
-      <Box sx={{ width: '100%', display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
-        {!isEditing && (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
-            {!!removeError && (
-              <Alert severity="error" sx={{ ...t.type.body }}>
-                {removeError}
-              </Alert>
-            )}
-            {/*
-              שני clusters נפרדים בטור, לא שורה אחת עם justify-content:space-between+flexWrap.
-              עם 4-5 badge/כפתור בצד השני, ה-wrap-כשצריך היה נשבר בנקודה לא-עקבית (תלוי אורך שם/גלגול
-              טקסט) ותמיד היה נראה "מלא מדי" גם כשטכנית נכנס בשורה — ראה UI-GUIDELINES §11 "שורת מידע +
-              אשכול פעולות".
-            */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
-              <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${t.space[2]}px`, flexWrap: 'wrap', minWidth: 0 }}>
-                <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
-                  <bdi>{fullName}</bdi>
-                </Typography>
-                {member.status === 'PENDING' && <Badge tone="accent">{Strings.teamList.pendingMemberBadge}</Badge>}
-                {member.user?.isPhantom === true && <Badge tone="neutral" icon="ghost">{Strings.teamList.phantomBadge}</Badge>}
-              </Box>
+    <Box component="li" sx={{ listStyle: 'none', borderBlockEnd: `1px solid ${t.color.border}` }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[3]}px`, paddingBlock: '10px' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: `${t.space[3]}px`,
+            flex: '1 1 auto',
+            minWidth: 0,
+            opacity: isPhantom || isPendingMember ? 0.78 : 1,
+          }}
+        >
+          <Avatar name={fullName} seed={member.id} />
+          <Box sx={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minWidth: 0 }}>
+            <Typography sx={{ ...t.type.bodyStrong, color: t.color.text, overflowWrap: 'anywhere' }}>
+              <bdi>{fullName}</bdi>
+            </Typography>
+            <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>
+              {getRoleLabel(member.role)}
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: `${t.space[1]}px` }}>
+            {member.isAdmin && <Badge tone="accent">{Strings.teamList.adminBadge}</Badge>}
+            {isPhantom && <Badge tone="neutral">{Strings.teamList.phantomBadge}</Badge>}
+            {isPendingMember && <Badge tone="warning">{Strings.teamList.pendingMemberBadge}</Badge>}
+          </Box>
+        </Box>
 
-              <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: `${t.space[2]}px`, flexWrap: 'wrap' }}>
-                {member.isAdmin && <Badge tone="neutral">{Strings.teamList.adminBadge}</Badge>}
-                {isPhantomManageable && <PhantomConversionButton state={conversion} />}
-                <Box
-                  sx={{
-                    ...t.type.caption,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: `${t.space[1] + 2}px`,
-                    fontWeight: 700,
-                    borderRadius: `${t.radius.pill}px`,
-                    border: `1.5px solid ${t.color.accent.base}`,
-                    backgroundColor: t.color.accent.subtle,
-                    color: t.color.accent.base,
-                    paddingBlock: '7px',
-                    paddingInline: `${t.space[4]}px`,
-                  }}
-                >
-                  {currentRoleIcon ? <Icon name={currentRoleIcon} size="sm" tone="accent" /> : null}
-                  {roleBadgeLabel}
-                </Box>
-                {isTeamAdmin && (
-                  <Button size="sm" variant="ghost" icon="edit" onPress={startEdit}>
-                    ערוך
-                  </Button>
-                )}
-                {isTeamAdmin && (
-                  <Button size="sm" variant="danger" icon="trash" onPress={handleRemoveClicked} disabled={isMe || isRemoving || confirmingRemove} loading={isRemoving}>
-                    {Strings.teamList.removeMemberButton}
-                  </Button>
-                )}
-              </Box>
-
-              {confirmingRemove && (
-                <Box
-                  role="alertdialog"
-                  aria-label={Strings.teamList.removeMemberConfirmText(fullName)}
-                  sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: `${t.space[2]}px`,
-                    padding: `${t.space[3]}px`,
-                    borderRadius: `${t.radius.card}px`,
-                    backgroundColor: t.color.status.danger.bg,
-                    border: `1px solid ${t.color.status.danger.border}`,
-                  }}
-                >
-                  <Typography sx={{ ...t.type.bodyStrong, color: t.color.status.danger.fg }}>
-                    {Strings.teamList.removeMemberConfirmText(fullName)}
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
-                    <Button size="sm" variant="danger" onPress={handleRemove} disabled={isRemoving} loading={isRemoving}>
-                      {Strings.teamList.removeMemberConfirmButton}
-                    </Button>
-                    <Button size="sm" variant="secondary" onPress={handleRemoveCancelled} disabled={isRemoving}>
-                      {Strings.teamList.removeMemberCancelButton}
-                    </Button>
-                  </Box>
-                </Box>
-              )}
-
-              {isPhantomManageable && <PhantomConversionPanel state={conversion} />}
-            </Box>
+        {canManageRow && (
+          <Box
+            component="button"
+            type="button"
+            aria-label={Strings.teamList.manageMemberLabel(fullName)}
+            aria-expanded={isManaging}
+            onClick={toggleManage}
+            sx={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              width: t.layout.minTouchTarget,
+              height: t.layout.minTouchTarget,
+              backgroundColor: isManaging ? t.color.accent.subtle : 'transparent',
+              border: `1px solid ${isManaging ? t.color.accent.border : 'transparent'}`,
+              borderRadius: `${t.radius.field}px`,
+              cursor: 'pointer',
+              transition: `background-color ${t.motion.fast}`,
+              '&:hover': { backgroundColor: isManaging ? t.color.accent.subtle : t.color.surfaceSubtle },
+            }}
+          >
+            <Icon name="edit" size="sm" tone={isManaging ? 'accent' : 'muted'} />
           </Box>
         )}
+      </Box>
 
-        <Collapse in={isEditing} timeout="auto" unmountOnExit>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
-            {/* AnimatePresence's own exit (not a manual delayed-unmount) so the title fades
-                out while the Collapse itself shrinks — same concurrency as the entrance,
-                where it fades in while the Collapse grows. Same two states either way. */}
-            <AnimatePresence initial={false}>
-              {isEditing && (
-                <motion.div
-                  key="edit-title"
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -12 }}
-                  transition={{ duration: 0.7, ease: 'easeInOut' }}
-                  style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: `${t.space[1] + 2}px` }}
-                >
-                  <Icon name="edit" size="sm" tone="accent" />
-                  <Typography sx={{ ...t.type.bodyStrong, color: t.color.text }}>
-                    עריכת תפקיד עבור: <bdi>{fullName}</bdi>
-                  </Typography>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            {editError && (
-              <Alert severity="error" sx={{ ...t.type.body }}>
-                {editError}
-              </Alert>
-            )}
+      {isManaging && (
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: `${t.space[3]}px`,
+            paddingBlockEnd: `${t.space[3]}px`,
+            // מיושר לטקסט של השורה, לא לאווטאר
+            paddingInlineStart: `${36 + t.space[3]}px`,
+          }}
+        >
+          {!!editError && <Alert severity="error" sx={{ ...t.type.body }}>{editError}</Alert>}
+          {!!removeError && <Alert severity="error" sx={{ ...t.type.body }}>{removeError}</Alert>}
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1] + 2}px` }}>
-              <Typography sx={{ ...t.type.label, color: t.color.textSecondary }}>תפקיד</Typography>
-              <Box sx={{ display: 'flex', gap: `${t.space[2]}px`, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+          {isTeamAdmin && (
+            <>
+              <Box sx={{ display: 'flex', gap: `${t.space[2]}px`, flexWrap: 'wrap' }}>
                 {ROLES.map((r) => {
                   const selected = editRole === r.value;
                   return (
@@ -248,6 +187,7 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
                       key={r.value}
                       component="button"
                       type="button"
+                      aria-pressed={selected}
                       onClick={() => setEditRole(r.value)}
                       sx={{
                         ...t.type.caption,
@@ -256,17 +196,14 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
                         gap: `${t.space[1] + 2}px`,
                         fontWeight: selected ? 700 : 500,
                         borderRadius: `${t.radius.pill}px`,
-                        border: `1.5px solid ${selected ? t.color.accent.base : t.color.border}`,
+                        border: `1px solid ${selected ? t.color.accent.border : t.color.border}`,
                         backgroundColor: selected ? t.color.accent.subtle : t.color.surface,
                         color: selected ? t.color.accent.base : t.color.textSecondary,
                         paddingBlock: '7px',
-                        paddingInline: `${t.space[4]}px`,
+                        paddingInline: `${t.space[3]}px`,
                         cursor: 'pointer',
-                        transition: `background-color ${t.motion.fast}, border-color ${t.motion.fast}, color ${t.motion.fast}`,
-                        '&:hover': {
-                          borderColor: selected ? t.color.accent.hover : t.color.borderStrong,
-                          backgroundColor: selected ? t.color.accent.subtle : t.color.surfaceHover,
-                        },
+                        transition: `background-color ${t.motion.fast}, border-color ${t.motion.fast}`,
+                        '&:hover': { borderColor: selected ? t.color.accent.base : t.color.borderStrong },
                       }}
                     >
                       <Icon name={r.icon} size="sm" tone={selected ? 'accent' : 'muted'} />
@@ -275,26 +212,58 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
                   );
                 })}
               </Box>
-            </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[2]}px` }}>
+                <Typography sx={{ ...t.type.body, color: t.color.text }}>{Strings.teamList.teamAdminPrivileges}</Typography>
+                <Switch checked={editIsAdmin} onChange={setEditIsAdmin} disabled={isMe} />
+              </Box>
+            </>
+          )}
 
-            <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: `${t.space[2]}px` }}>
-              <Typography sx={{ ...t.type.body, color: t.color.text }}>
-                {Strings.teamList.teamAdminPrivileges}
+          {confirmingRemove ? (
+            <Box
+              role="alertdialog"
+              aria-label={Strings.teamList.removeMemberConfirmText(fullName)}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: `${t.space[2]}px`,
+                padding: `${t.space[3]}px`,
+                borderRadius: `${t.radius.field}px`,
+                backgroundColor: t.color.status.danger.bg,
+                border: `1px solid ${t.color.status.danger.border}`,
+              }}
+            >
+              <Typography sx={{ ...t.type.bodyStrong, color: t.color.status.danger.fg }}>
+                {Strings.teamList.removeMemberConfirmText(fullName)}
               </Typography>
-              <Switch checked={editIsAdmin} onChange={setEditIsAdmin} disabled={isMe} />
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
+                <Button size="sm" variant="danger" onPress={handleRemove} disabled={isRemoving} loading={isRemoving}>
+                  {Strings.teamList.removeMemberConfirmButton}
+                </Button>
+                <Button size="sm" variant="secondary" onPress={handleRemoveCancelled} disabled={isRemoving}>
+                  {Strings.teamList.removeMemberCancelButton}
+                </Button>
+              </Box>
             </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[2]}px` }}>
+              {isTeamAdmin && (
+                <Button size="sm" variant="primary" onPress={handleSaveEdit} disabled={editLoading} loading={editLoading}>
+                  {Strings.teamList.saveButton}
+                </Button>
+              )}
+              {isPhantomManageable && <PhantomConversionButton state={conversion} />}
+              {isTeamAdmin && (
+                <Button size="sm" variant="danger" icon="trash" onPress={handleRemoveClicked} disabled={isMe || isRemoving}>
+                  {Strings.teamList.removeMemberButton}
+                </Button>
+              )}
+            </Box>
+          )}
 
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'flex-end', gap: `${t.space[2]}px` }}>
-              <Button size="sm" variant="primary" onPress={handleSaveEdit} disabled={editLoading} loading={editLoading}>
-                {Strings.teamList.saveButton}
-              </Button>
-              <Button size="sm" variant="secondary" onPress={() => setIsEditing(false)}>
-                {Strings.teamList.cancelButton}
-              </Button>
-            </Box>
-          </Box>
-        </Collapse>
-      </Box>
-    </ListItem>
+          {isPhantomManageable && <PhantomConversionPanel state={conversion} />}
+        </Box>
+      )}
+    </Box>
   );
 }

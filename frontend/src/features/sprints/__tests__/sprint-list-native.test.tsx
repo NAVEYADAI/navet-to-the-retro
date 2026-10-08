@@ -26,7 +26,7 @@ describe('TeamSprintsManagerNative (sprint screen bug fixes)', () => {
 
   it('BUG-34: a failed load shows the error instead of "no sprints yet"; refresh recovers', async () => {
     mockedAxios.get.mockRejectedValueOnce(new Error('Network Error'));
-    const { findByText, queryByText, getByText } = await renderList();
+    const { findByText, queryByText, getByLabelText } = await renderList();
 
     expect(await findByText(Strings.sprints.loadError)).toBeTruthy();
     expect(queryByText(Strings.sprints.noSprintsTextAdmin)).toBeNull();
@@ -34,7 +34,7 @@ describe('TeamSprintsManagerNative (sprint screen bug fixes)', () => {
     mockedAxios.get.mockResolvedValueOnce({
       data: [{ id: 1, name: 'Sprint A', startDate: new Date(Date.now() - 86400000).toISOString(), endDate: new Date(Date.now() + 86400000).toISOString() }],
     });
-    await fireEvent.press(getByText(Strings.common.refreshButton));
+    await fireEvent.press(getByLabelText(Strings.common.refreshButton));
     expect(await findByText('Sprint A')).toBeTruthy();
     expect(queryByText(Strings.sprints.loadError)).toBeNull();
   });
@@ -119,5 +119,33 @@ describe('TeamSprintsManagerNative (sprint screen bug fixes)', () => {
     await findByText(Strings.sprints.noSprintsTextAdmin);
     await fireEvent.press(getByText(Strings.sprints.newSprintButton));
     expect(trackEvent).toHaveBeenCalledWith('sprint_create_form_toggled', { open: true });
+  });
+});
+
+describe('TeamSprintsManagerNative (sprint lifecycle grouping)', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const iso = (offsetDays: number) => new Date(Date.now() + offsetDays * DAY).toISOString();
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('keeps a sprint that ended within 3 days in the main list; older ones sit in the collapsed expired group', async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      data: [
+        { id: 1, name: 'Sprint Just Ended', startDate: iso(-15), endDate: iso(-2) },
+        { id: 2, name: 'Sprint Long Gone', startDate: iso(-40), endDate: iso(-30) },
+      ],
+    });
+    const { findByText, queryByText, getByText, getByTestId } = await renderList();
+
+    expect(await findByText('Sprint Just Ended')).toBeTruthy();
+    expect(getByText(Strings.sprints.recentHeader)).toBeTruthy();
+    expect(getByText(Strings.sprints.endedBadge)).toBeTruthy();
+    expect(getByText(Strings.sprints.expiredHeader(1))).toBeTruthy();
+    expect(queryByText('Sprint Long Gone')).toBeNull();
+
+    await fireEvent.press(getByTestId('toggle-expired-sprints'));
+    expect(await findByText('Sprint Long Gone')).toBeTruthy();
   });
 });

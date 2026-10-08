@@ -17,7 +17,6 @@ interface Params {
  * native (React Native) panels, since none of this logic is platform-specific; only the two
  * platforms' presentational section components differ. */
 export function useTeamSettingsPanel({ teamId, token, teamName, teamOffice, onTeamDetailsUpdated }: Params) {
-  const [isExpanded, setIsExpanded] = useState(false);
   const [categories, setCategories] = useState<TeamCategory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,8 +71,10 @@ export function useTeamSettingsPanel({ teamId, token, teamName, teamOffice, onTe
     }
   }, [teamId, token]);
 
+  // The panel is mounted only while it's open (the card's gear button), so loading on mount is
+  // loading on open — and every re-open resets to "all sprints", per the spec's stated default.
   useEffect(() => {
-    if (!isExpanded) return;
+    trackEvent('category_management_opened', { teamId });
     let cancelled = false;
     (async () => {
       try {
@@ -92,26 +93,9 @@ export function useTeamSettingsPanel({ teamId, token, teamName, teamOffice, onTe
       }
     })();
     return () => { cancelled = true; };
-    // Deliberately only on open — re-opening always resets to "all sprints" (matches spec's
-    // stated default), not whatever filter was left selected last time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isExpanded, teamId, token]);
+  }, [teamId, token]);
 
-  const handleToggleExpand = () => {
-    setIsExpanded((prev) => {
-      const next = !prev;
-      if (next) {
-        trackEvent('category_management_opened', { teamId });
-        // Reset drafts to the latest known team details every time the panel (re)opens, not
-        // whatever was left typed last time. Also always re-open in display mode, never mid-edit.
-        setNameDraft(teamName);
-        setOfficeDraft(teamOffice || '');
-        setDetailsMessage(null);
-        setIsEditingDetails(false);
-      }
-      return next;
-    });
-  };
 
   const handleStartEditDetails = () => {
     setNameDraft(teamName);
@@ -208,8 +192,6 @@ export function useTeamSettingsPanel({ teamId, token, teamName, teamOffice, onTe
     : Strings.categoryManagement.sprintFilterSelectedLabel(selectedSprintIds.length, sprints.length);
 
   return {
-    isExpanded,
-    handleToggleExpand,
 
     categories,
     isLoading,

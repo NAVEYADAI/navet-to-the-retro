@@ -4,34 +4,19 @@ import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
-import { sprintTone } from '@/design/tokens';
 import { Icon } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 import { validateSprintDates, getSprintApiErrorMessage } from '../sprint-validation';
+import { getSprintBucket } from '../sprint-lifecycle';
+import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup } from './sprint-rows-native';
 
 interface TeamSprintsManagerProps {
   team: any;
   token: string;
   isAdmin: boolean;
   onSelectSprint: (sprint: any, team: any) => void;
-}
-
-type SprintState = keyof typeof sprintTone;
-
-const STATE_LABEL: Record<SprintState, string> = { active: 'פעיל', upcoming: 'עתידי', closed: 'סגור' };
-
-function getSprintState(startDateStr: string, endDateStr: string): SprintState {
-  const now = new Date();
-  const start = new Date(startDateStr);
-  const end = new Date(endDateStr);
-
-  now.setHours(0, 0, 0, 0);
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
-
-  if (now >= start && now <= end) return 'active';
-  if (now < start) return 'upcoming';
-  return 'closed';
+  /** נקרא אחרי כל טעינה מוצלחת, כדי שכרטיס הצוות יוכל לספור ספרינטים פעילים בשורת הסיכום. */
+  onSprintsLoaded?: (sprints: any[]) => void;
 }
 
 /** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
@@ -43,7 +28,7 @@ function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: numbe
   };
 }
 
-export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint }: TeamSprintsManagerProps) {
+export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint, onSprintsLoaded }: TeamSprintsManagerProps) {
   const t = useTheme();
 
   const [sprints, setSprints] = useState<any[]>([]);
@@ -59,8 +44,6 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [isExpiredExpanded, setIsExpiredExpanded] = useState(false);
-
   const fetchSprints = async () => {
     setIsLoading(true);
     setLoadError(null);
@@ -69,6 +52,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
         headers: { Authorization: `Bearer ${token}` },
       });
       setSprints(response.data);
+      onSprintsLoaded?.(response.data);
     } catch (err) {
       console.error('Failed to fetch sprints:', err);
       setLoadError(Strings.sprints.loadError);
@@ -115,8 +99,11 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
     }
   };
 
-  const activeSprints = sprints.filter((s) => getSprintState(s.startDate, s.endDate) !== 'closed');
-  const expiredSprints = sprints.filter((s) => getSprintState(s.startDate, s.endDate) === 'closed');
+  const activeSprints = sprints
+    .map((sprint) => ({ sprint, bucket: getSprintBucket(sprint.startDate, sprint.endDate) }))
+    .filter((s): s is { sprint: any; bucket: 'active' | 'upcoming' } => s.bucket === 'active' || s.bucket === 'upcoming');
+  const recentSprints = sprints.filter((s) => getSprintBucket(s.startDate, s.endDate) === 'recent');
+  const expiredSprints = sprints.filter((s) => getSprintBucket(s.startDate, s.endDate) === 'expired');
 
   const inputStyle: TextStyle = {
     ...rnText(t.type.body),
@@ -130,78 +117,9 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
     backgroundColor: t.color.surface,
   };
 
-  function renderSprintCard(sprint: any, muted: boolean) {
-    const state = getSprintState(sprint.startDate, sprint.endDate);
-    const statusColor = t.color.status[sprintTone[state]];
-
-    return (
-      <View
-        key={sprint.id}
-        style={{
-          backgroundColor: t.color.surface,
-          borderWidth: 1,
-          borderColor: t.color.border,
-          borderRadius: t.radius.card,
-          padding: t.space[3],
-          gap: t.space[1],
-          opacity: muted ? 0.8 : 1,
-        }}
-      >
-        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[1] }}>
-          <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, flexShrink: 1 }]}>{sprint.name}</Text>
-          <View
-            style={{
-              backgroundColor: statusColor.bg,
-              paddingHorizontal: t.space[2],
-              paddingVertical: t.space[1] / 2,
-              borderRadius: t.radius.pill,
-            }}
-          >
-            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: statusColor.fg }]}>
-              {STATE_LABEL[state]}
-            </Text>
-          </View>
-        </View>
-
-        {!!sprint.description && (
-          <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
-            {sprint.description}
-          </Text>
-        )}
-
-        <TouchableOpacity
-          style={{
-            backgroundColor: muted ? t.color.surfaceSubtle : t.color.accent.base,
-            borderRadius: t.radius.field,
-            paddingHorizontal: t.space[3],
-            paddingVertical: t.space[1] + 2,
-            alignSelf: 'flex-start',
-            marginTop: t.space[1],
-          }}
-          onPress={() => { trackEvent('sprint_opened', { sprintId: sprint.id }); onSelectSprint(sprint, team); }}
-        >
-          <Text
-            style={[
-              rnText({ ...t.type.caption, fontWeight: 700 }),
-              { color: muted ? t.color.text : t.color.accent.onBase },
-            ]}
-          >
-            {Strings.sprints.enterRetroButton}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <View
-      style={{
-        gap: t.space[2],
-        marginTop: t.space[2],
-        paddingTop: t.space[2],
-        borderTopWidth: 1,
-        borderTopColor: t.color.border,
-      }}
+      style={{ gap: t.space[2] }}
     >
       <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
         <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2] }}>
@@ -224,18 +142,18 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
               </Text>
             </TouchableOpacity>
           )}
+          {/* בטלפון רענון הוא אייקון בלבד — הטקסט נשאר כתווית נגישות. */}
           <TouchableOpacity
-            style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[1], paddingVertical: t.space[1] }}
+            accessibilityRole="button"
+            accessibilityLabel={Strings.common.refreshButton}
+            style={{ width: t.layout.minTouchTarget, height: t.layout.minTouchTarget, alignItems: 'center', justifyContent: 'center' }}
             onPress={() => { trackEvent('refresh_clicked', { screen: 'sprint_list' }); fetchSprints(); }}
             disabled={isLoading}
           >
             <Icon name="refresh" size="sm" tone="muted" />
-            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.textSecondary }]}>
-              {Strings.common.refreshButton}
-            </Text>
           </TouchableOpacity>
         </View>
-        <Text style={[rnText(t.type.bodyStrong), { color: t.color.text, textAlign: 'right', flexShrink: 1 }]}>
+        <Text style={[rnText(t.type.overline), { color: t.color.textMuted, textAlign: 'right', flexShrink: 1 }]}>
           {Strings.sprints.header}
         </Text>
       </View>
@@ -348,33 +266,22 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
             {loadError}
           </Text>
         </View>
-      ) : activeSprints.length === 0 && expiredSprints.length === 0 ? (
+      ) : activeSprints.length === 0 && recentSprints.length === 0 && expiredSprints.length === 0 ? (
         <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
           {isAdmin ? Strings.sprints.noSprintsTextAdmin : Strings.sprints.noSprintsTextMember}
         </Text>
       ) : (
-        <View style={{ gap: t.space[2] }}>
-          {activeSprints.map((sprint) => renderSprintCard(sprint, false))}
+        <View>
+          {activeSprints.map(({ sprint, bucket }) => (
+            <OpenSprintRow key={sprint.id} sprint={sprint} state={bucket} onPress={() => onSelectSprint(sprint, team)} />
+          ))}
+
+          {recentSprints.length > 0 && (
+            <RecentSprintsGroup sprints={recentSprints} onSelect={(sprint) => onSelectSprint(sprint, team)} />
+          )}
 
           {expiredSprints.length > 0 && (
-            <View style={{ marginTop: t.space[2] }}>
-              <TouchableOpacity
-                testID="toggle-expired-sprints"
-                onPress={() => { trackEvent('sprint_expired_toggled', { open: !isExpiredExpanded }); setIsExpiredExpanded(!isExpiredExpanded); }}
-                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1] + 2, paddingVertical: t.space[1] }}
-              >
-                <Icon name="chevron-down" size="sm" tone="muted" rotate={isExpiredExpanded ? 180 : 0} />
-                <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.textSecondary }]}>
-                  {`ספרינטים קודמים שנסגרו (${expiredSprints.length})`}
-                </Text>
-              </TouchableOpacity>
-
-              {isExpiredExpanded && (
-                <View style={{ gap: t.space[2], marginTop: t.space[2] }}>
-                  {expiredSprints.map((sprint) => renderSprintCard(sprint, true))}
-                </View>
-              )}
-            </View>
+            <ExpiredSprintsGroup sprints={expiredSprints} onSelect={(sprint) => onSelectSprint(sprint, team)} />
           )}
         </View>
       )}

@@ -109,6 +109,7 @@ export function MemoryBoardWeb({ sprint, team, token, onBack }: MemoryBoardWebPr
               variant="ghost"
               size="sm"
               icon="refresh"
+              iconOnlyOnMobile
               onPress={() => { trackEvent('refresh_clicked', { screen: 'memory_board' }); fetchComments(); }}
               disabled={isLoading}
             >

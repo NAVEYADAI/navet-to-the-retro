@@ -12,23 +12,8 @@ export function getTeamSettingsPanelStyles(t: AppTheme) {
   };
 
   return {
-    root: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: `${t.space[3]}px`,
-      paddingBlockStart: `${t.space[4]}px`,
-      borderBlockStart: `1px solid ${t.color.border}`,
-    } as SxProps<Theme>,
-
-    panel: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: `${t.space[6]}px`,
-      padding: `${t.space[5]}px`,
-      backgroundColor: t.color.bg,
-      border: `1px solid ${t.color.border}`,
-      borderRadius: `${t.radius.card}px`,
-    } as SxProps<Theme>,
+    // The card supplies the panel's background/padding (team-card.tsx) — this is just the stack.
+    panel: { display: 'flex', flexDirection: 'column', gap: `${t.space[6]}px` } as SxProps<Theme>,
 
     sectionLabel,
 

@@ -33,6 +33,7 @@ export function DashboardWeb() {
             variant="ghost"
             size="sm"
             icon="refresh"
+            iconOnlyOnMobile
             onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
             disabled={isLoadingTeams || isRefreshing}
           >

@@ -282,37 +282,37 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
       <PageHeader
         title={sprintData.name}
         action={
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[3]}px` }}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
-              {canEditSprint ? (
-                <Button variant="ghost" size="sm" icon="edit" onPress={startEditingSprint}>
-                  {Strings.retroBoard.editSprintButton}
-                </Button>
-              ) : null}
-              {canExportSummary ? (
-                <Button variant="ghost" size="sm" icon="presentation" onPress={() => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); }}>
-                  {Strings.sprintSummary.openButton}
-                </Button>
-              ) : null}
-              {/* Any team member can open — no isAdmin/role gate, see product-backlog/08-memory-board.md §8.0 decision #7. */}
-              <Button
-                variant="ghost"
-                size="sm"
-                icon="eye"
-                onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); onOpenMemory(); }}
-              >
-                {Strings.memoryBoard.openButton}
+          // שורה אחת שנשברת לפי הצורך — לא קבוצות מקוננות, שבטלפון השאירו כל כפתור בשורה משלו עם רווח ריק לצדו.
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: { xs: `${t.space[1]}px`, sm: `${t.space[2]}px` } }}>
+            {canEditSprint ? (
+              <Button variant="ghost" size="sm" icon="edit" onPress={startEditingSprint}>
+                {Strings.retroBoard.editSprintButton}
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                icon="refresh"
-                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); }}
-                disabled={isLoading}
-              >
-                {Strings.common.refreshButton}
+            ) : null}
+            {canExportSummary ? (
+              <Button variant="ghost" size="sm" icon="presentation" onPress={() => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); }}>
+                {Strings.sprintSummary.openButton}
               </Button>
-            </Box>
+            ) : null}
+            {/* Any team member can open — no isAdmin/role gate, see product-backlog/08-memory-board.md §8.0 decision #7. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="eye"
+              onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); onOpenMemory(); }}
+            >
+              {Strings.memoryBoard.openButton}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="refresh"
+              iconOnlyOnMobile
+              onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); }}
+              disabled={isLoading}
+            >
+              {Strings.common.refreshButton}
+            </Button>
             <Button variant="ghost" size="sm" onPress={onBack}>{Strings.retroBoard.backButton}</Button>
           </Box>
         }

@@ -7,6 +7,7 @@ interface TeamSprintsManagerProps {
   token: string;
   isAdmin: boolean;
   onSelectSprint: (sprint: any, team: any) => void;
+  onSprintsLoaded?: (sprints: any[]) => void;
 }
 
 export function TeamSprintsManager(props: TeamSprintsManagerProps) {

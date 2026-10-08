@@ -3,12 +3,14 @@ import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { Strings } from '@/constants/strings';
 import { TeamSprintsManager } from '@/features/sprints';
-import { Box, Typography, List, Alert } from '@mui/material';
+import { getSprintState } from '@/features/sprints/sprint-lifecycle';
+import { Box, Typography, Alert } from '@mui/material';
+import { trackEvent } from '@/lib/analytics';
 import { useTheme } from '@/design/theme-context';
-import { Card, Button, Badge, Icon } from '@/components/ui';
+import { Card, Button, Badge } from '@/components/ui';
+import { TeamCardHeader } from './team-card-header';
 import { TeamMemberRow } from './team-member-row';
-import { AddMemberForm } from './add-member-form';
-import { AddPhantomMemberForm } from './add-phantom-member-form';
+import { AddMemberModal } from './add-member-modal';
 import { TeamSettingsPanelWeb } from './team-settings-panel';
 import { getMemberRank } from './roles';
 
@@ -20,10 +22,13 @@ interface TeamCardProps {
   onSelectSprint: (sprint: any, team: any) => void;
 }
 
+type OpenPanel = 'members' | 'settings' | null;
+
 export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSprint }: TeamCardProps) {
   const t = useTheme();
-  const [isAddMemberFormVisible, setIsAddMemberFormVisible] = useState(false);
-  const [isAddPhantomFormVisible, setIsAddPhantomFormVisible] = useState(false);
+  const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [activeSprintCount, setActiveSprintCount] = useState<number | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
@@ -43,6 +48,20 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
 
   const isPending = team.status === 'PENDING_APPROVAL';
   const isMyPendingTeam = isPending && team.creatorId === userId;
+  const canAddMembers = canManageTeamContent && !isPending;
+  const pendingMemberCount = sortedMembers.filter((m: any) => m.status === 'PENDING').length;
+
+  const summary = [
+    team.mainOffice,
+    pendingMemberCount > 0 ? Strings.teamList.summaryPending(pendingMemberCount) : null,
+    !isPending && activeSprintCount !== null ? Strings.teamList.summaryActiveSprints(activeSprintCount) : null,
+  ].filter(Boolean).join(' · ');
+
+  const togglePanel = (panel: Exclude<OpenPanel, null>) => {
+    const next = openPanel === panel ? null : panel;
+    trackEvent(panel === 'members' ? 'team_members_toggled' : 'team_settings_toggled', { open: next === panel });
+    setOpenPanel(next);
+  };
 
   const handleCancelPendingTeam = async () => {
     setCancelError(null);
@@ -59,118 +78,111 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
     }
   };
 
+  const sectionSx = {
+    borderBlockStart: `1px solid ${t.color.border}`,
+    // בטלפון ריווח צדדי קטן יותר — הכרטיס כבר בתוך שוליים של הדף. מיושר לראש הכרטיס.
+    paddingInline: { xs: `${t.space[4]}px`, sm: `${t.space[5]}px` },
+    paddingBlockStart: `${t.space[4]}px`,
+  };
+  const panelSx = { ...sectionSx, backgroundColor: t.color.bg };
+  const panelTitleSx = { ...t.type.overline, color: t.color.textMuted, textTransform: 'uppercase', minWidth: 0 };
+
   return (
-    <Card>
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          paddingBlockEnd: `${t.space[3]}px`,
-          borderBlockEnd: `1px solid ${t.color.border}`,
-        }}
-      >
-        <Typography sx={{ ...t.type.cardTitle, color: t.color.text, minWidth: 0 }}>
-          {team.name}
-        </Typography>
-        {!!team.mainOffice && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px` }}>
-            <Icon name="map-pin" size="sm" tone="muted" />
-            <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
-              {Strings.teamList.officeLocationLabel}{team.mainOffice}
-            </Typography>
+    <Card padding={0}>
+      <TeamCardHeader
+        teamName={team.name}
+        isTeamAdmin={isTeamAdmin}
+        summary={summary}
+        members={sortedMembers}
+        isMembersOpen={openPanel === 'members'}
+        onToggleMembers={() => togglePanel('members')}
+        onToggleSettings={canManageCategories && !isPending ? () => togglePanel('settings') : undefined}
+        isSettingsOpen={openPanel === 'settings'}
+      />
+
+      {openPanel === 'members' && (
+        <Box sx={{ ...panelSx, paddingBlockEnd: `${t.space[2]}px` }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[3]}px`, marginBlockEnd: `${t.space[1]}px`, minHeight: t.layout.minTouchTarget }}>
+            <Typography sx={panelTitleSx}>{Strings.teamList.membersHeader}</Typography>
+            {canAddMembers && (
+              <Button
+                variant="primary"
+                icon="user-plus"
+                onPress={() => {
+                  trackEvent('add_member_modal_opened');
+                  setIsAddMemberOpen(true);
+                }}
+              >
+                {Strings.teamList.addMemberToggle}
+              </Button>
+            )}
           </Box>
-        )}
-      </Box>
+          <Box component="ul" sx={{ margin: 0, padding: 0 }}>
+            {sortedMembers.map((member: any) => (
+              <TeamMemberRow
+                key={member.id}
+                member={member}
+                teamId={team.id}
+                token={token}
+                isTeamAdmin={isTeamAdmin}
+                isMe={member.userId === userId}
+                onChanged={onAddMemberSuccess}
+                canManageTeamContent={canManageTeamContent}
+              />
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {openPanel === 'settings' && (
+        <Box sx={{ ...panelSx, paddingBlockEnd: `${t.space[5]}px` }}>
+          <TeamSettingsPanelWeb
+            teamId={team.id}
+            token={token}
+            isTeamAdmin={isTeamAdmin}
+            teamName={team.name}
+            teamOffice={team.mainOffice}
+            onTeamDetailsUpdated={onAddMemberSuccess}
+          />
+        </Box>
+      )}
 
       {isMyPendingTeam && (
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[3]}px` }}>
-          <Badge tone="accent">{Strings.dashboard.pendingApprovalFromLabel(team.pendingApprover?.email || '')}</Badge>
-          <Button size="sm" variant="danger" disabled={cancelLoading} loading={cancelLoading} onPress={handleCancelPendingTeam}>
-            {Strings.dashboard.cancelPendingTeamButton}
-          </Button>
-        </Box>
-      )}
-      {isMyPendingTeam && cancelError && (
-        <Alert severity="error" sx={{ ...t.type.body }}>
-          {cancelError}
-        </Alert>
-      )}
-
-      <Box>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBlockEnd: `${t.space[4]}px`, gap: `${t.space[2]}px` }}>
-          <Typography sx={{ ...t.type.bodyStrong, color: t.color.text, minWidth: 0 }}>
-            {Strings.teamList.membersHeader(team.members?.length || 0)}
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
-            {isTeamAdmin && !isPending && (
-              <Button size="sm" variant="secondary" icon={isAddMemberFormVisible ? undefined : 'plus'} onPress={() => setIsAddMemberFormVisible(v => !v)}>
-                {isAddMemberFormVisible ? Strings.dashboard.closeButton : Strings.teamList.addMemberToggle}
-              </Button>
-            )}
-            {canManageTeamContent && !isPending && (
-              <Button size="sm" variant="secondary" icon={isAddPhantomFormVisible ? undefined : 'user-plus'} onPress={() => setIsAddPhantomFormVisible(v => !v)}>
-                {isAddPhantomFormVisible ? Strings.dashboard.closeButton : Strings.teamList.addPhantomMemberToggle}
-              </Button>
-            )}
+        <Box sx={{ ...sectionSx, paddingBlockEnd: `${t.space[4]}px`, display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[3]}px` }}>
+            <Badge tone="accent">{Strings.dashboard.pendingApprovalFromLabel(team.pendingApprover?.email || '')}</Badge>
+            <Button size="sm" variant="danger" disabled={cancelLoading} loading={cancelLoading} onPress={handleCancelPendingTeam}>
+              {Strings.dashboard.cancelPendingTeamButton}
+            </Button>
           </Box>
+          {cancelError && <Alert severity="error" sx={{ ...t.type.body }}>{cancelError}</Alert>}
         </Box>
-
-        <List sx={{ padding: 0, display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
-          {sortedMembers.map((member: any) => (
-            <TeamMemberRow
-              key={member.id}
-              member={member}
-              teamId={team.id}
-              token={token}
-              isTeamAdmin={isTeamAdmin}
-              isMe={member.userId === userId}
-              onChanged={onAddMemberSuccess}
-              canManageTeamContent={canManageTeamContent}
-            />
-          ))}
-        </List>
-      </Box>
-
-      <AddMemberForm
-        teamId={team.id}
-        token={token}
-        isVisible={isAddMemberFormVisible && !isPending}
-        onInviteSent={() => {
-          setIsAddMemberFormVisible(false);
-          onAddMemberSuccess();
-        }}
-      />
-
-      <AddPhantomMemberForm
-        teamId={team.id}
-        token={token}
-        isVisible={isAddPhantomFormVisible && !isPending}
-        onCreated={() => {
-          setIsAddPhantomFormVisible(false);
-          onAddMemberSuccess();
-        }}
-      />
-
-      {canManageCategories && !isPending && (
-        <TeamSettingsPanelWeb
-          teamId={team.id}
-          token={token}
-          isTeamAdmin={isTeamAdmin}
-          teamName={team.name}
-          teamOffice={team.mainOffice}
-          onTeamDetailsUpdated={onAddMemberSuccess}
-        />
       )}
 
       {!isPending && (
-        <TeamSprintsManager
-          team={team}
+        <Box sx={{ ...sectionSx, paddingBlockEnd: `${t.space[2]}px` }}>
+          <TeamSprintsManager
+            team={team}
+            token={token}
+            isAdmin={isTeamAdmin}
+            onSelectSprint={onSelectSprint}
+            onSprintsLoaded={(sprints) =>
+              setActiveSprintCount(sprints.filter((s) => getSprintState(s.startDate, s.endDate) === 'active').length)
+            }
+          />
+        </Box>
+      )}
+
+      {canAddMembers && (
+        <AddMemberModal
+          open={isAddMemberOpen}
+          onClose={() => setIsAddMemberOpen(false)}
+          teamId={team.id}
+          teamName={team.name}
           token={token}
-          isAdmin={isTeamAdmin}
-          onSelectSprint={onSelectSprint}
+          canInvite={isTeamAdmin}
+          canAddPhantom={canManageTeamContent}
+          onMemberAdded={onAddMemberSuccess}
         />
       )}
     </Card>

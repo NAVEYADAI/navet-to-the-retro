@@ -22,7 +22,7 @@ test.describe('Auth — registration + expired-session handling', () => {
       const page = await context.newPage();
       await registerThroughUi(page, `${local}@${domain}`);
       // Logged in = the auth form is gone and the dashboard's refresh button is shown.
-      await expect(page.getByText(Strings.common.refreshButton).first()).toBeVisible();
+      await expect(page.getByRole('button', { name: Strings.common.refreshButton }).first()).toBeVisible();
       await context.close();
     }
   });
@@ -46,13 +46,13 @@ test.describe('Auth — registration + expired-session handling', () => {
     await page.goto('/');
     await page.evaluate((t) => localStorage.setItem('userToken', t), accessToken);
     await page.reload();
-    await expect(page.getByText(Strings.common.refreshButton).first()).toBeVisible();
+    await expect(page.getByRole('button', { name: Strings.common.refreshButton }).first()).toBeVisible();
 
     // Simulate the JWT expiring while the tab stays open.
     await page.route('**/teams/user/me', (route) =>
       route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ message: 'Invalid token' }) })
     );
-    await page.getByText(Strings.common.refreshButton).first().click();
+    await page.getByRole('button', { name: Strings.common.refreshButton }).first().click();
 
     await expect(page.getByText(Strings.auth.loginButton).first()).toBeVisible();
     await expect(page.getByText(Strings.dashboard.createFirstTeamTitle)).toHaveCount(0);

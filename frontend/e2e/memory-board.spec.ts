@@ -205,15 +205,10 @@ test.describe('Memory board (memory-game retro view)', () => {
 
     // Reload as the SAME user — product-backlog/08-memory-board.md §8.0 decision #4: flip state is `useState`
     // local to the component, never sent to the server, so a reload must show everything
-    // face-down again, not restore the flipped card. Team/sprint/board selection in this app is
-    // plain React state, not URL-routed (no route under src/app/ for it) — a reload always drops
-    // back to the team list, so re-navigate all the way back into the memory board before
-    // asserting on it; that renewed round trip through the same steps is itself further proof
-    // there is no persisted/restored flip state anywhere in this path.
+    // face-down again, not restore the flipped card. The memory board is a real route now
+    // (BUG-33), so the reload stays on it — no re-navigation needed — but the flip state is
+    // still dropped, which is exactly what this asserts.
     await page.reload();
-    await page.getByText(teamName).waitFor();
-    await page.getByText(Strings.sprints.enterRetroButton).first().click();
-    await page.getByText(Strings.memoryBoard.openButton).click();
     await page.getByText(Strings.memoryBoard.keepCanvasHeader).waitFor();
     await expect(page.getByText(keepContent)).toHaveCount(0);
     await expect(page.getByRole('button', { name: Strings.memoryBoard.flipCardHint })).toHaveCount(2);

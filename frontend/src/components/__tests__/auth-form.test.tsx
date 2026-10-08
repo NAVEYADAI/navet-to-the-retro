@@ -42,7 +42,7 @@ describe('AuthForm Component', () => {
     );
 
     // Login screen should have username and password
-    expect(getByPlaceholderText(Strings.auth.usernamePlaceholder)).toBeTruthy();
+    expect(getByPlaceholderText(Strings.auth.loginIdentifierLabel)).toBeTruthy();
     expect(getByPlaceholderText(Strings.auth.passwordPlaceholder)).toBeTruthy();
 
     // But should not have name fields
@@ -92,7 +92,7 @@ describe('AuthForm Component', () => {
         <AuthForm />
       );
 
-      const usernameInput = getByPlaceholderText(Strings.auth.usernamePlaceholder);
+      const usernameInput = getByPlaceholderText(Strings.auth.loginIdentifierLabel);
       const passwordInput = getByPlaceholderText(Strings.auth.passwordPlaceholder);
 
       await fireEvent.changeText(usernameInput, 'nave');
@@ -118,7 +118,7 @@ describe('AuthForm Component', () => {
         <AuthForm />
       );
 
-      await fireEvent.changeText(getByPlaceholderText(Strings.auth.usernamePlaceholder), 'nave');
+      await fireEvent.changeText(getByPlaceholderText(Strings.auth.loginIdentifierLabel), 'nave');
       await fireEvent.changeText(getByPlaceholderText(Strings.auth.passwordPlaceholder), 'wrong');
 
       await fireEvent.press(getByText(Strings.auth.loginButton));
@@ -167,7 +167,6 @@ describe('AuthForm Component', () => {
       expect(mockedAxios.post).toHaveBeenCalledWith(
         expect.stringContaining('/auth/register'),
         {
-          username: 'new@example.com',
           email: 'new@example.com',
           password: 'secret123',
           firstName: 'Dana',
@@ -176,6 +175,25 @@ describe('AuthForm Component', () => {
         }
       );
       expect(mockLogin).toHaveBeenCalledWith('token-xyz', { id: 2, email: 'new@example.com' });
+      // BUG-07: no client-derived username — the backend defaults it to the (unique) email.
+      expect(mockedAxios.post.mock.calls[0][1]).not.toHaveProperty('username');
+    });
+
+    it('maps a 409 (email already registered) to a Hebrew message instead of the generic error', async () => {
+      mockedAxios.post.mockRejectedValueOnce(
+        Object.assign(new Error('Request failed with status code 409'), {
+          response: { status: 409, data: { message: 'Username or email already exists' } },
+        })
+      );
+
+      const { getByPlaceholderText, getByText, findByText } = await renderInSignUpMode();
+
+      await fireEvent.changeText(getByPlaceholderText(Strings.auth.emailPlaceholder), 'dana@b.com');
+      await fireEvent.changeText(getByPlaceholderText(Strings.auth.passwordPlaceholder), 'secret123');
+      await fireEvent.press(getByText(Strings.auth.signUpButton));
+
+      expect(await findByText(Strings.auth.emailExistsError)).toBeTruthy();
+      expect(mockLogin).not.toHaveBeenCalled();
     });
 
     it('shows the server error and does not call login() when registration fails', async () => {

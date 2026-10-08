@@ -146,8 +146,9 @@ test.describe('Team comment categories (product-backlog/03-team-comment-categori
     await expect(page.getByText(testingComment)).toBeVisible();
 
     // --- Browser, as a plain (non-admin, non-leader) team member ---
+    // The board is a route now (BUG-33): a reload would stay on it, so go back to the dashboard.
     await page.evaluate((token) => localStorage.setItem('userToken', token), member.token);
-    await page.reload();
+    await page.goto('/');
     await page.getByText(teamName).waitFor();
 
     // The management panel's entry point is entirely absent from the DOM, not just hidden.

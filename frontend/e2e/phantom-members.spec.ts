@@ -128,8 +128,9 @@ test.describe('Phantom members (product-backlog/09-phantom-members.md)', () => {
     await expect(page.getByText(postedOnBehalfText)).toBeVisible();
 
     // --- Browser, as a plain (non-admin, non-leader) team member ---
+    // The board is a route now (BUG-33): a reload would stay on it, so go back to the dashboard.
     await page.evaluate((token) => localStorage.setItem('userToken', token), member.token);
-    await page.reload();
+    await page.goto('/');
     await page.getByText(teamName).waitFor();
 
     // §9.0 decision #2: the indicator naming the poster is visible to every team member, not

@@ -129,7 +129,7 @@ describe('SprintRetroBoard Component', () => {
         team={mockTeam}
         token={mockToken}
         user={mockUser}
-        onBack={mockBack}
+        onBack={mockBack} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()}
       />
     );
 
@@ -147,7 +147,7 @@ describe('SprintRetroBoard Component', () => {
         team={mockTeam}
         token={mockToken}
         user={mockUser}
-        onBack={mockBack}
+        onBack={mockBack} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()}
       />
     );
 
@@ -165,7 +165,7 @@ describe('SprintRetroBoard Component', () => {
         team={mockTeam}
         token={mockToken}
         user={mockUser}
-        onBack={mockBack}
+        onBack={mockBack} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()}
       />
     );
 
@@ -193,7 +193,7 @@ describe('SprintRetroBoard Component', () => {
         team={mockTeam}
         token={mockToken}
         user={mockUser}
-        onBack={mockBack}
+        onBack={mockBack} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()}
       />
     );
 
@@ -235,7 +235,7 @@ describe('SprintRetroBoard Component', () => {
           team={mockTeam}
           token={mockToken}
           user={mockUser}
-          onBack={jest.fn()}
+          onBack={jest.fn()} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()}
         />
       );
       await utils.findByText('Great velocity this sprint!');
@@ -340,7 +340,7 @@ describe('SprintRetroBoard Component', () => {
     it('the compose-form category picker never offers a disabled category, used or not', async () => {
       mockGetResponses(commentsWithDisabledCategoryInUse, categoriesWithOneDisabledInUse);
       const { getByText, queryAllByText, findByText } = await render(
-        <SprintRetroBoard sprint={mockSprint} team={mockTeam} token={mockToken} user={mockUser} onBack={jest.fn()} />
+        <SprintRetroBoard sprint={mockSprint} team={mockTeam} token={mockToken} user={mockUser} onBack={jest.fn()} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()} />
       );
       await findByText('Testing took too long.');
 
@@ -363,7 +363,7 @@ describe('SprintRetroBoard Component', () => {
     it('the filter bar still offers a disabled category referenced by an already-loaded comment, but not an unused disabled one', async () => {
       mockGetResponses(commentsWithDisabledCategoryInUse, categoriesWithOneDisabledInUse);
       const { getByText, getAllByText, queryAllByText, findByText } = await render(
-        <SprintRetroBoard sprint={mockSprint} team={mockTeam} token={mockToken} user={mockUser} onBack={jest.fn()} />
+        <SprintRetroBoard sprint={mockSprint} team={mockTeam} token={mockToken} user={mockUser} onBack={jest.fn()} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()} />
       );
       await findByText('Testing took too long.');
 
@@ -417,7 +417,7 @@ describe('SprintRetroBoard Component', () => {
       };
 
       const { queryByText, findByText } = await render(
-        <SprintRetroBoard sprint={mockSprint} team={plainMemberTeam} token={mockToken} user={adminUser} onBack={jest.fn()} />
+        <SprintRetroBoard sprint={mockSprint} team={plainMemberTeam} token={mockToken} user={adminUser} onBack={jest.fn()} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()} />
       );
       await findByText(Strings.retroBoard.writeNoteHeader);
 
@@ -426,7 +426,7 @@ describe('SprintRetroBoard Component', () => {
 
     it('lets an admin pick a target, sends onBehalfOfUserId, and hides the anonymous toggle once a target is chosen', async () => {
       const { getByText, getByLabelText, queryByLabelText, getByPlaceholderText, findByText } = await render(
-        <SprintRetroBoard sprint={mockSprint} team={teamWithTarget} token={mockToken} user={adminUser} onBack={jest.fn()} />
+        <SprintRetroBoard sprint={mockSprint} team={teamWithTarget} token={mockToken} user={adminUser} onBack={jest.fn()} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()} />
       );
       await findByText(Strings.retroBoard.writeNoteHeader);
 
@@ -476,7 +476,7 @@ describe('SprintRetroBoard Component', () => {
       };
 
       const { findByText } = await render(
-        <SprintRetroBoard sprint={mockSprint} team={teamWithPlainViewer} token={mockToken} user={plainMember} onBack={jest.fn()} />
+        <SprintRetroBoard sprint={mockSprint} team={teamWithPlainViewer} token={mockToken} user={plainMember} onBack={jest.fn()} onOpenSummary={jest.fn()} onOpenMemory={jest.fn()} />
       );
 
       expect(await findByText('A comment entered on behalf of a phantom member.')).toBeTruthy();

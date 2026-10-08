@@ -108,13 +108,67 @@ test.describe('Sprint editing', () => {
     await expect(page.getByText(sprintName, { exact: true })).toHaveCount(0);
 
     // --- Browser, as a plain (non-admin) team member: no edit control at all ---
+    // The board is a route now (BUG-33): a reload would stay on it, so go back to the dashboard.
     await page.evaluate((token) => localStorage.setItem('userToken', token), member.token);
-    await page.reload();
+    await page.goto('/');
 
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
 
     await expect(page.getByText(updatedSprintName)).toBeVisible();
     await expect(page.getByRole('button', { name: Strings.retroBoard.editSprintButton })).toHaveCount(0);
+  });
+  test('editing: end-before-start is blocked with a Hebrew error, and a description can be cleared', async ({ page, request }) => {
+    const suffix = `${Date.now()}_${test.info().project.name.replace(/\s+/g, '')}_val`;
+    const teamName = `E2E Validation Team ${suffix}`;
+    const sprintName = `E2E Validation Sprint ${suffix}`;
+    const description = `Description to clear ${suffix}`;
+
+    const admin = await registerAndLogin(request, `e2e_pw_val_admin_${suffix}`, `e2e_pw_val_admin_${suffix}@example.com`);
+    const approver = await ensureApprover(request, `e2e_pw_val_approver_${suffix}`);
+    const teamRes = await request.post(`${BACKEND_URL}/teams`, {
+      headers: { Authorization: `Bearer ${admin.token}` },
+      data: { name: teamName, approverEmail: APPROVER_EMAIL },
+    });
+    const team = await teamRes.json();
+    await request.post(`${BACKEND_URL}/teams/${team.id}/approve`, {
+      headers: { Authorization: `Bearer ${approver.token}` },
+    });
+
+    const today = new Date();
+    const twoWeeksOut = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+    await request.post(`${BACKEND_URL}/teams/${team.id}/sprints`, {
+      headers: { Authorization: `Bearer ${admin.token}` },
+      data: {
+        name: sprintName,
+        description,
+        startDate: today.toISOString().slice(0, 10),
+        endDate: twoWeeksOut.toISOString().slice(0, 10),
+      },
+    });
+
+    await page.goto('/');
+    await page.evaluate((token) => localStorage.setItem('userToken', token), admin.token);
+    await page.reload();
+    await page.getByText(teamName).waitFor();
+    await page.getByText(Strings.sprints.enterRetroButton).first().click();
+    await expect(page.getByText(description)).toBeVisible();
+
+    // BUG-12: end date before start date -> Hebrew error, edit form stays open.
+    await page.getByRole('button', { name: Strings.retroBoard.editSprintButton }).click();
+    const endDateInput = page.getByPlaceholder(Strings.sprints.endDateLabel);
+    await endDateInput.fill('');
+    await endDateInput.fill(new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+    await page.getByRole('button', { name: Strings.teamList.saveButton }).click();
+    await expect(page.getByText(Strings.sprints.endBeforeStartError)).toBeVisible();
+    await expect(page.getByText(Strings.retroBoard.editSprintHeader)).toBeVisible();
+
+    // BUG-27: restore a valid end date and clear the description -> it is really gone after save.
+    await endDateInput.fill('');
+    await endDateInput.fill(twoWeeksOut.toISOString().slice(0, 10));
+    await page.getByPlaceholder(Strings.sprints.descriptionPlaceholder).fill('');
+    await page.getByRole('button', { name: Strings.teamList.saveButton }).click();
+    await expect(page.getByText(Strings.retroBoard.editSprintHeader)).toHaveCount(0);
+    await expect(page.getByText(description)).toHaveCount(0);
   });
 });

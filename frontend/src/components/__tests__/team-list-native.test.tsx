@@ -226,16 +226,30 @@ describe('TeamListNative — dual-approval UI', () => {
 
   it('removing a member sends DELETE /teams/:id/members/:memberId with the bearer token', async () => {
     mockedAxios.delete.mockResolvedValueOnce({ data: { success: true } });
-    const { getAllByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+    const { getAllByText, getByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
 
     // members[0] is myself (remove disabled), members[1] is the other member.
     await fireEvent.press(getAllByText('הסר')[1]);
+    // BUG-31: the first press only opens the inline confirmation — nothing is deleted yet.
+    expect(mockedAxios.delete).not.toHaveBeenCalled();
+    await fireEvent.press(getByText(Strings.teamList.removeMemberConfirmButton));
 
     expect(mockedAxios.delete).toHaveBeenCalledWith(
       expect.stringContaining(`/teams/${activeTeamAsAdmin.id}/members/51`),
       { headers: { Authorization: `Bearer ${token}` } }
     );
     expect(onAddMemberSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancelling the remove confirmation does not delete the member (BUG-31)', async () => {
+    const { getAllByText, getByText, queryByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getAllByText('הסר')[1]);
+    expect(getByText(Strings.teamList.removeMemberConfirmButton)).toBeTruthy();
+    await fireEvent.press(getByText(Strings.teamList.removeMemberCancelButton));
+
+    expect(queryByText(Strings.teamList.removeMemberConfirmButton)).toBeNull();
+    expect(mockedAxios.delete).not.toHaveBeenCalled();
   });
 
   it('does not remove myself when pressing my own (disabled) remove control', async () => {
@@ -250,9 +264,10 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.delete.mockRejectedValueOnce(
       Object.assign(new Error('failed'), { response: { data: { message: 'לא ניתן להסיר את המנהל/ת האחרון/ה' } } })
     );
-    const { getAllByText, findByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
+    const { getAllByText, getByText, findByText, onAddMemberSuccess } = await renderList([activeTeamAsAdmin]);
 
     await fireEvent.press(getAllByText('הסר')[1]);
+    await fireEvent.press(getByText(Strings.teamList.removeMemberConfirmButton));
 
     expect(await findByText('לא ניתן להסיר את המנהל/ת האחרון/ה')).toBeTruthy();
     expect(onAddMemberSuccess).not.toHaveBeenCalled();
@@ -322,7 +337,7 @@ describe('TeamListNative — dual-approval UI', () => {
     await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2020-01-01');
     await fireEvent.press(getByText(Strings.invites.createLinkButton));
 
-    expect(await findByText('תאריך התפוגה חייב להיות בעתיד')).toBeTruthy();
+    expect(await findByText(Strings.invites.expiresAtPastError)).toBeTruthy();
     expect(mockedAxios.post).not.toHaveBeenCalled();
   });
 
@@ -382,5 +397,54 @@ describe('TeamListNative — dual-approval UI', () => {
       { isRevoked: true },
       { headers: { Authorization: `Bearer ${token}` } }
     );
+  });
+  it('rejects maxUses of 0 or a negative number client-side (BUG-32)', async () => {
+    mockedAxios.get.mockResolvedValue({ data: [] });
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
+    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+
+    await fireEvent.changeText(getByPlaceholderText('5'), '0');
+    await fireEvent.press(getByText(Strings.invites.createLinkButton));
+    expect(await findByText(Strings.invites.maxUsesInvalidError)).toBeTruthy();
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(getByPlaceholderText('5'), '-2');
+    await fireEvent.press(getByText(Strings.invites.createLinkButton));
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+  });
+
+  it('accepts today as the expiry date (BUG-32)', async () => {
+    mockedAxios.get.mockResolvedValue({ data: [] });
+    mockedAxios.post.mockResolvedValueOnce({ data: { id: 1, token: 'today1' } });
+    const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
+    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), today);
+    await fireEvent.press(getByText(Strings.invites.createLinkButton));
+
+    // Date-only string is sent as-is; the backend turns it into end-of-day.
+    expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect.stringContaining('/invites'),
+      { expiresAt: today },
+      expect.anything()
+    );
+    expect(await findByText(Strings.invites.linkCreatedText)).toBeTruthy();
+  });
+
+  it('shows an error instead of "no links yet" when loading the invite links fails (BUG-34)', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockedAxios.get.mockRejectedValue(new Error('Network Error'));
+    const { getByText, findByText, queryByText } = await renderList([activeTeamAsAdmin]);
+
+    await fireEvent.press(getByText(new RegExp(Strings.teamList.addMemberModeLinkLabel)));
+
+    expect(await findByText(Strings.invites.loadError)).toBeTruthy();
+    expect(queryByText(Strings.invites.noLinksText)).toBeNull();
   });
 });

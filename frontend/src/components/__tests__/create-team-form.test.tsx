@@ -139,4 +139,31 @@ describe('CreateTeamForm Component', () => {
 
     expect(await findByText(Strings.dashboard.approverListLoadError)).toBeTruthy();
   });
+  it('shows a failed creation exactly once, with the friendly message it was given (BUG-56)', async () => {
+    const mockSubmit = jest.fn().mockRejectedValue(new Error(Strings.dashboard.teamCreateFailedError));
+    const { getByPlaceholderText, getByText, findByText, findAllByText } = await render(
+      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} />
+    );
+    const approverChip = await findByText('Nave Yadai');
+    await fireEvent.changeText(getByPlaceholderText('שם הצוות (למשל R&D Core)'), 'Core Team');
+    await fireEvent.press(approverChip);
+    await fireEvent.press(getByText('צור צוות (ראש צוות)'));
+
+    expect(await findAllByText(Strings.dashboard.teamCreateFailedError)).toHaveLength(1);
+  });
+
+  it('maps a raw axios error that reaches the form to a Hebrew message, not axios text', async () => {
+    const axiosErr = Object.assign(new Error('Request failed with status code 500'), { response: { status: 500, data: {} } });
+    const mockSubmit = jest.fn().mockRejectedValue(axiosErr);
+    const { getByPlaceholderText, getByText, findByText, queryByText } = await render(
+      <CreateTeamForm onSubmit={mockSubmit} isLoading={false} />
+    );
+    const approverChip = await findByText('Nave Yadai');
+    await fireEvent.changeText(getByPlaceholderText('שם הצוות (למשל R&D Core)'), 'Core Team');
+    await fireEvent.press(approverChip);
+    await fireEvent.press(getByText('צור צוות (ראש צוות)'));
+
+    expect(await findByText(Strings.dashboard.teamCreateFailedError)).toBeTruthy();
+    expect(queryByText(/status code/)).toBeNull();
+  });
 });

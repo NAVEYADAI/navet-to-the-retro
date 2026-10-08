@@ -130,8 +130,9 @@ test.describe('Comment highlighting', () => {
     await expect(page.getByText('A plain, unhighlighted comment.')).toHaveCount(0);
 
     // --- Browser, as a plain (non-admin, non-leader) team member: no highlight control at all ---
+    // The board is a route now (BUG-33): a reload would stay on it, so go back to the dashboard.
     await page.evaluate((token) => localStorage.setItem('userToken', token), member.token);
-    await page.reload();
+    await page.goto('/');
 
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();

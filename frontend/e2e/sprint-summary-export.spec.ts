@@ -182,8 +182,9 @@ test.describe('Sprint summary export', () => {
     expect(download.suggestedFilename()).toBe(expectedExportFileName(sprintName));
 
     // --- Browser, as a plain non-creator, non-admin team member: no export button at all ---
+    // The summary is a route now (BUG-33): a reload would stay on it, so go back to the dashboard.
     await page.evaluate((token) => localStorage.setItem('userToken', token), member.token);
-    await page.reload();
+    await page.goto('/');
 
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
@@ -193,7 +194,7 @@ test.describe('Sprint summary export', () => {
 
     // --- Browser, as a non-creator team ADMIN: sees the button and can download too ---
     await page.evaluate((token) => localStorage.setItem('userToken', token), admin.token);
-    await page.reload();
+    await page.goto('/');
 
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();

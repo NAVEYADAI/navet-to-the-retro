@@ -156,8 +156,9 @@ test.describe('Sprint length audit log', () => {
     await expect(page.getByText(/אורך קודם:\s*21 ימים.*אורך חדש:\s*28 ימים/)).toBeVisible();
 
     // --- Browser, as a plain (non-admin, non-TEAM_LEADER) team member: no history control ---
+    // The board is a route now (BUG-33): a reload would stay on it, so go back to the dashboard.
     await page.evaluate((token) => localStorage.setItem('userToken', token), member.token);
-    await page.reload();
+    await page.goto('/');
 
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();

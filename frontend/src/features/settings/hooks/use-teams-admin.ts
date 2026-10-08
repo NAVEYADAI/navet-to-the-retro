@@ -2,6 +2,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { trackEvent } from '@/lib/analytics';
+import { getTeamCreateErrorMessage } from '@/features/teams/team-create-error';
+import { notifyTeamsChanged } from '@/features/dashboard/teams-changed-signal';
 
 // The create-team flow for the global /settings page. Editing an EXISTING team's own details
 // (name/office) used to live here too via an admin-teams list, but that duplicated the per-team
@@ -31,12 +33,13 @@ export function useTeamsAdmin(token: string | null | undefined) {
 
       setTeamMessage({ text: `הצוות "${name}" ממתין לאישור של ${approverEmail}.`, isError: false });
       trackEvent('team_created');
+      // The dashboard stays mounted behind /settings and only fetches on mount — tell it to refetch
+      // so the new team shows up without a manual refresh (BUG-29).
+      notifyTeamsChanged();
     } catch (err: any) {
-      setTeamMessage({
-        text: err.response?.data?.message || err.message || 'שגיאה ביצירת הצוות.',
-        isError: true,
-      });
-      throw err;
+      // Not stored in `teamMessage`: CreateTeamForm already shows the thrown message inline, and
+      // setting it here too rendered the error twice (BUG-56). Throw a ready Hebrew message.
+      throw new Error(getTeamCreateErrorMessage(err));
     } finally {
       setTeamCreateLoading(false);
     }

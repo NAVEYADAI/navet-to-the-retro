@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { Strings } from '@/constants/strings';
@@ -40,21 +40,35 @@ export function useTeamSettingsPanel({ teamId, token, teamName, teamOffice, onTe
   const [selectedSprintIds, setSelectedSprintIds] = useState<number[] | null>(null);
   const [isSprintFilterOpen, setIsSprintFilterOpen] = useState(false);
 
-  const fetchCategories = useCallback(async (sprintIds: number[]) => {
+  // Mirrors selectedSprintIds so toggle handlers read the latest selection without doing a side
+  // effect (a fetch) inside a setState updater — updaters may run twice, which doubled the request.
+  const selectedSprintIdsRef = useRef<number[] | null>(null);
+  // Monotonic request id: a response is applied only if it belongs to the latest request, so rapid
+  // checkbox toggles can't let a slower, older response overwrite a newer one (BUG-55 race).
+  const categoriesRequestRef = useRef(0);
+
+  // `sprintIds` null = no sprint scoping (counts span every sprint). An EMPTY array means the user
+  // unchecked every sprint: the backend treats an empty `sprintIds` param as "no filter" and would
+  // return counts for all sprints, so we ask without the param and zero the counts locally (BUG-55).
+  const fetchCategories = useCallback(async (sprintIds: number[] | null) => {
+    const requestId = ++categoriesRequestRef.current;
+    const noneSelected = sprintIds !== null && sprintIds.length === 0;
     setIsLoading(true);
     setError(null);
     try {
       // No enabledOnly query param — the management panel needs disabled categories too, so an
       // admin/TEAM_LEADER can re-enable them (team-categories.service.ts::listCategories default).
       const response = await axios.get(`${getBackendUrl()}/teams/${teamId}/categories`, {
-        params: { sprintIds: sprintIds.join(',') },
+        params: sprintIds && sprintIds.length > 0 ? { sprintIds: sprintIds.join(',') } : undefined,
         headers: { Authorization: `Bearer ${token}` }
       });
-      setCategories(response.data);
+      if (requestId !== categoriesRequestRef.current) return;
+      setCategories(noneSelected ? response.data.map((c: TeamCategory) => ({ ...c, commentCount: 0 })) : response.data);
     } catch (err: any) {
+      if (requestId !== categoriesRequestRef.current) return;
       setError(err.response?.data?.message || err.message || Strings.categoryManagement.loadErrorText);
     } finally {
-      setIsLoading(false);
+      if (requestId === categoriesRequestRef.current) setIsLoading(false);
     }
   }, [teamId, token]);
 
@@ -70,6 +84,7 @@ export function useTeamSettingsPanel({ teamId, token, teamName, teamOffice, onTe
         const options: TeamSprintOption[] = response.data.map((sp: any) => ({ id: sp.id, name: sp.name }));
         setSprints(options);
         const allIds = options.map((sp) => sp.id);
+        selectedSprintIdsRef.current = allIds;
         setSelectedSprintIds(allIds);
         await fetchCategories(allIds);
       } catch (err) {
@@ -155,7 +170,7 @@ export function useTeamSettingsPanel({ teamId, token, teamName, teamOffice, onTe
       setNewLabel('');
       setShowCreateForm(false);
       trackEvent('team_category_created', { teamId });
-      fetchCategories(selectedSprintIds ?? []);
+      fetchCategories(selectedSprintIdsRef.current);
     } catch (err: any) {
       setCreateError(err.response?.data?.message || err.message || Strings.categoryManagement.createErrorText);
     } finally {
@@ -181,12 +196,11 @@ export function useTeamSettingsPanel({ teamId, token, teamName, teamOffice, onTe
   };
 
   const handleToggleSprintSelected = (sprintId: number) => {
-    setSelectedSprintIds((prev) => {
-      const current = prev ?? [];
-      const next = current.includes(sprintId) ? current.filter((id) => id !== sprintId) : [...current, sprintId];
-      fetchCategories(next);
-      return next;
-    });
+    const current = selectedSprintIdsRef.current ?? [];
+    const next = current.includes(sprintId) ? current.filter((id) => id !== sprintId) : [...current, sprintId];
+    selectedSprintIdsRef.current = next;
+    setSelectedSprintIds(next);
+    fetchCategories(next);
   };
 
   const sprintFilterLabel = selectedSprintIds === null || selectedSprintIds.length === sprints.length

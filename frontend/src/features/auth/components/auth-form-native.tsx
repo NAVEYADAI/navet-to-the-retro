@@ -9,6 +9,7 @@ import { getBackendUrl, getFrontendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
+import { buildRegisterPayload, getAuthErrorMessage } from '../auth-helpers';
 
 interface AuthFormNativeProps {
   initialEmail?: string;
@@ -111,7 +112,7 @@ export function AuthFormNative({ initialEmail }: AuthFormNativeProps) {
     const endpoint = isLogin ? 'login' : 'register';
     const payload = isLogin
       ? { username, password }
-      : { username: email, email, password, firstName, lastName, role };
+      : buildRegisterPayload({ email, password, firstName, lastName, role });
 
     try {
       const response = await axios.post(`${getBackendUrl()}/auth/${endpoint}`, payload);
@@ -119,7 +120,7 @@ export function AuthFormNative({ initialEmail }: AuthFormNativeProps) {
       const token = data.accessToken || data.access_token;
       await login(token, data.user);
     } catch (err: any) {
-      setErrorMessage(err.response?.data?.message || err.message || 'שגיאה בתהליך ההתחברות/הרשמה.');
+      setErrorMessage(getAuthErrorMessage(err, isLogin));
     } finally {
       setFormLoading(false);
     }
@@ -191,7 +192,7 @@ export function AuthFormNative({ initialEmail }: AuthFormNativeProps) {
           {isLogin && (
             <TextInput
               style={inputStyle}
-              placeholder={Strings.auth.usernamePlaceholder}
+              placeholder={Strings.auth.loginIdentifierLabel}
               placeholderTextColor={t.color.textSecondary}
               value={username}
               onChangeText={setUsername}

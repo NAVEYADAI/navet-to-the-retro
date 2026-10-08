@@ -22,18 +22,25 @@ export function useGoogleCalendar(token: string | null | undefined) {
   const [connectLoading, setConnectLoading] = useState(false);
   const [disconnectLoading, setDisconnectLoading] = useState(false);
   const [message, setMessage] = useState<Message>(null);
+  // The status request itself failed — distinct from "not connected", so the card shows an error
+  // instead of a misleading "לא מחובר" + connect button (BUG-34).
+  const [statusError, setStatusError] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     if (!token) return;
     setStatusLoading(true);
+    setStatusError(false);
     try {
       const response = await axios.get(`${getBackendUrl()}/google-calendar/status`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setConnected(!!response.data?.connected);
       setGoogleAccountEmail(response.data?.googleAccountEmail);
+      setMessage((prev) => (prev?.text === Strings.settings.googleCalendarStatusLoadError ? null : prev));
     } catch (err) {
       console.error('Failed to fetch Google Calendar status:', err);
+      setStatusError(true);
+      setMessage({ text: Strings.settings.googleCalendarStatusLoadError, isError: true });
     } finally {
       setStatusLoading(false);
     }
@@ -108,6 +115,7 @@ export function useGoogleCalendar(token: string | null | undefined) {
     connected,
     googleAccountEmail,
     statusLoading,
+    statusError,
     connectLoading,
     disconnectLoading,
     message,

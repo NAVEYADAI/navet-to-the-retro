@@ -11,14 +11,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreateTeamForm, TeamList } from '@/features/teams';
-import { SprintRetroBoard } from '@/features/retro';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
 import { useAuth } from '@/context/auth-context';
 import { getBackendUrl } from '@/api/config';
+import { getTeamCreateErrorMessage } from '@/features/teams/team-create-error';
 import { Icon } from '@/components/ui';
 import { useTeamsData } from '../hooks/use-teams-data';
+import { openSprint } from '@/lib/sprint-routes';
 import { trackEvent } from '@/lib/analytics';
 
 /** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
@@ -36,16 +37,12 @@ export function DashboardNative() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
-  const [activeView, setActiveView] = useState<'dashboard' | 'retro'>('dashboard');
-  const [selectedSprint, setSelectedSprint] = useState<any>(null);
   const [teamCreateLoading, setTeamCreateLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
 
-  const { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams, refresh } = useTeamsData(token);
+  const { teams, isLoadingTeams, isRefreshing, loadError, fetchMyTeams, refresh } = useTeamsData(token);
 
   const handleCreateTeamSubmit = async (name: string, mainOffice: string, approverEmail: string) => {
-    setErrorMessage(null);
     setTeamCreateLoading(true);
     try {
       await axios.post(`${getBackendUrl()}/teams`, {
@@ -63,35 +60,14 @@ export function DashboardNative() {
         await fetchMyTeams(token);
       }
     } catch (err: any) {
-      setErrorMessage(err.response?.data?.message || err.message || 'שגיאה ביצירת הצוות.');
-      throw err;
+      // Shown once, inline, by CreateTeamForm (BUG-56) — not duplicated in a dashboard banner.
+      throw new Error(getTeamCreateErrorMessage(err));
     } finally {
       setTeamCreateLoading(false);
     }
   };
 
   if (!user) return null;
-
-  if (activeView === 'retro' && selectedSprint && selectedTeam) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', flexDirection: 'row', backgroundColor: t.color.bg }}>
-        <SafeAreaView style={{ flex: 1, maxWidth: MaxContentWidth, width: '100%' }}>
-          <SprintRetroBoard
-            sprint={selectedSprint}
-            team={selectedTeam}
-            token={token || ''}
-            user={user}
-            onBack={() => {
-              setActiveView('dashboard');
-              if (token) {
-                fetchMyTeams(token);
-              }
-            }}
-          />
-        </SafeAreaView>
-      </View>
-    );
-  }
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', flexDirection: 'row', backgroundColor: t.color.bg }}>
@@ -116,7 +92,7 @@ export function DashboardNative() {
               <TouchableOpacity
                 style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
                 onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
-                disabled={isLoadingTeams}
+                disabled={isLoadingTeams || isRefreshing}
               >
                 <Icon name="refresh" size="sm" tone="muted" />
                 <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.textSecondary }]}>
@@ -125,7 +101,7 @@ export function DashboardNative() {
               </TouchableOpacity>
             </View>
 
-            {!!errorMessage && (
+            {!!loadError && (
               <View
                 style={{
                   backgroundColor: t.color.status.danger.bg,
@@ -139,7 +115,7 @@ export function DashboardNative() {
                 }}
               >
                 <Text style={[rnText(t.type.body), { color: t.color.status.danger.fg, textAlign: 'center' }]}>
-                  {errorMessage}
+                  {loadError}
                 </Text>
               </View>
             )}
@@ -149,7 +125,7 @@ export function DashboardNative() {
                 <ActivityIndicator size="large" color={t.color.text} />
                 <Text style={rnText(t.type.body)}>{Strings.dashboard.loadingTeams}</Text>
               </View>
-            ) : teams.length === 0 ? (
+            ) : loadError && teams.length === 0 ? null : teams.length === 0 ? (
               <View
                 style={{
                   width: '100%',
@@ -210,15 +186,11 @@ export function DashboardNative() {
                 )}
 
                 <TeamList
-                  teams={teams}
+                          teams={teams}
                   token={token || ''}
                   userId={user.id}
                   onAddMemberSuccess={() => token && fetchMyTeams(token)}
-                  onSelectSprint={(sprint, team) => {
-                    setSelectedSprint(sprint);
-                    setSelectedTeam(team);
-                    setActiveView('retro');
-                  }}
+                  onSelectSprint={(sprint, team) => openSprint(team.id, sprint.id)}
                 />
               </View>
             )}

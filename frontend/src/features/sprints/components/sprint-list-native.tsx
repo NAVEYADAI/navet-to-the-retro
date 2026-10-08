@@ -7,6 +7,7 @@ import { useTheme } from '@/design/theme-context';
 import { sprintTone } from '@/design/tokens';
 import { Icon } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
+import { validateSprintDates, getSprintApiErrorMessage } from '../sprint-validation';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -47,6 +48,8 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
 
   const [sprints, setSprints] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // BUG-34: a failed load must not look like "no sprints yet".
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState('');
@@ -60,6 +63,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
 
   const fetchSprints = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/teams/${team.id}/sprints`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -67,6 +71,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
       setSprints(response.data);
     } catch (err) {
       console.error('Failed to fetch sprints:', err);
+      setLoadError(Strings.sprints.loadError);
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +84,12 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
   const handleCreateSprint = async () => {
     setError(null);
     if (!name.trim() || !startDate.trim() || !endDate.trim()) {
-      setError('שם, תאריך התחלה ותאריך סיום הם שדות חובה.');
+      setError(Strings.sprints.requiredFieldsError);
+      return;
+    }
+    const rangeError = validateSprintDates(startDate, endDate);
+    if (rangeError) {
+      setError(rangeError);
       return;
     }
 
@@ -99,7 +109,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
       trackEvent('sprint_created');
       await fetchSprints();
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'שגיאה בפתיחת ספרינט רטרו.');
+      setError(getSprintApiErrorMessage(err, Strings.sprints.createSprintErrorText));
     } finally {
       setIsSubmitting(false);
     }
@@ -168,7 +178,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
             alignSelf: 'flex-start',
             marginTop: t.space[1],
           }}
-          onPress={() => onSelectSprint(sprint, team)}
+          onPress={() => { trackEvent('sprint_opened', { sprintId: sprint.id }); onSelectSprint(sprint, team); }}
         >
           <Text
             style={[
@@ -204,7 +214,10 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
                 paddingHorizontal: t.space[2],
                 paddingVertical: t.space[1],
               }}
-              onPress={() => setShowCreateForm(!showCreateForm)}
+              onPress={() => {
+                trackEvent('sprint_create_form_toggled', { open: !showCreateForm });
+                setShowCreateForm(!showCreateForm);
+              }}
             >
               <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base }]}>
                 {showCreateForm ? Strings.sprints.cancelButton : Strings.sprints.newSprintButton}
@@ -321,6 +334,20 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
 
       {isLoading ? (
         <ActivityIndicator size="small" color={t.color.accent.base} />
+      ) : loadError ? (
+        <View
+          style={{
+            backgroundColor: t.color.status.danger.bg,
+            borderWidth: 1,
+            borderColor: t.color.status.danger.border,
+            borderRadius: t.radius.field,
+            padding: t.space[2],
+          }}
+        >
+          <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+            {loadError}
+          </Text>
+        </View>
       ) : activeSprints.length === 0 && expiredSprints.length === 0 ? (
         <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
           {isAdmin ? Strings.sprints.noSprintsTextAdmin : Strings.sprints.noSprintsTextMember}
@@ -333,7 +360,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint 
             <View style={{ marginTop: t.space[2] }}>
               <TouchableOpacity
                 testID="toggle-expired-sprints"
-                onPress={() => setIsExpiredExpanded(!isExpiredExpanded)}
+                onPress={() => { trackEvent('sprint_expired_toggled', { open: !isExpiredExpanded }); setIsExpiredExpanded(!isExpiredExpanded); }}
                 style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1] + 2, paddingVertical: t.space[1] }}
               >
                 <Icon name="chevron-down" size="sm" tone="muted" rotate={isExpiredExpanded ? 180 : 0} />

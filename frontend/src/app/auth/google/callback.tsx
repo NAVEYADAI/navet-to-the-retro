@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, TouchableOpacity, Platform, View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import axios from 'axios';
@@ -30,7 +30,14 @@ type Status = 'exchanging' | 'choosingRole' | 'completingRegistration' | 'error'
  * same way and simply finish registration, without repeating the Google consent screen.
  */
 export default function GoogleLoginCallbackPage() {
-  const { ticket, pendingTicket, error } = useLocalSearchParams<{ ticket?: string; pendingTicket?: string; error?: string }>();
+  const params = useLocalSearchParams<{ ticket?: string; pendingTicket?: string; error?: string }>();
+  // BUG-21: the one-time ticket must not stay in the address bar / browser history. We strip it
+  // from the URL right after reading it (below), which can make `useLocalSearchParams` go empty
+  // on a later render — so the values are captured once, on first render, and used from here on.
+  const initialParams = useRef(params);
+  const { ticket, pendingTicket, error } = initialParams.current;
+  // BUG-57: the exchange (a single-use ticket) must run exactly once per mount.
+  const exchangeStartedRef = useRef(false);
   const { login } = useAuth();
   const t = useTheme();
 
@@ -39,6 +46,13 @@ export default function GoogleLoginCallbackPage() {
   const [role, setRole] = useState('DEVELOPER');
 
   useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && (ticket || pendingTicket || error)) {
+      try {
+        window.history.replaceState(null, '', window.location.pathname);
+      } catch {
+        // history API unavailable — nothing more to do.
+      }
+    }
     trackEvent('google_login_callback_viewed', { hasTicket: !!ticket, hasPendingTicket: !!pendingTicket, hasError: !!error });
     // Only meant to run once per mount — params come from the initial query string.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -57,11 +71,11 @@ export default function GoogleLoginCallbackPage() {
   };
 
   useEffect(() => {
-    let cancelled = false;
+    if (exchangeStartedRef.current) return;
+    exchangeStartedRef.current = true;
 
     (async () => {
       if (error) {
-        if (cancelled) return;
         setErrorMessage(Strings.auth.googleCallbackErrorText);
         setStatus('error');
         trackEvent('google_login_failed', { reason: 'redirect_error' });
@@ -69,14 +83,12 @@ export default function GoogleLoginCallbackPage() {
       }
 
       if (pendingTicket) {
-        if (cancelled) return;
         setStatus('choosingRole');
         trackEvent('google_registration_role_step_viewed');
         return;
       }
 
       if (!ticket) {
-        if (cancelled) return;
         setErrorMessage(Strings.auth.googleCallbackErrorText);
         setStatus('error');
         trackEvent('google_login_failed', { reason: 'missing_ticket' });
@@ -85,20 +97,19 @@ export default function GoogleLoginCallbackPage() {
 
       try {
         const response = await axios.post(`${getBackendUrl()}/auth/google/exchange`, { ticket });
-        if (cancelled) return;
         await login(response.data.accessToken, response.data.user);
         trackEvent('google_login_succeeded');
         redirectHome();
       } catch (err: any) {
-        if (cancelled) return;
         setErrorMessage(err.response?.data?.message || Strings.auth.googleCallbackErrorText);
         setStatus('error');
         trackEvent('google_login_failed', { reason: 'exchange_failed' });
       }
     })();
-
-    return () => { cancelled = true; };
-  }, [ticket, pendingTicket, error, login]);
+    // Runs once per mount (guarded by `exchangeStartedRef`); `ticket`/`pendingTicket`/`error` are
+    // frozen on first render and `login` is stable (useCallback), so no re-run is ever wanted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCompleteRegistration = async () => {
     trackEvent('google_registration_role_selected', { role });

@@ -14,6 +14,7 @@ import { useTheme } from '@/design/theme-context';
 import { Button, Icon, Badge, Switch } from '@/components/ui';
 import { getRoleLabel } from './roles';
 import { ROLES } from '@/constants/roles';
+import { trackEvent } from '@/lib/analytics';
 import { usePhantomConversionLink, PhantomConversionButton, PhantomConversionPanel } from './phantom-conversion-link';
 
 interface TeamMemberRowProps {
@@ -38,6 +39,8 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
   const [editError, setEditError] = useState<string | null>(null);
 
   const [isRemoving, setIsRemoving] = useState(false);
+  // Removing a member is irreversible — "הסר" first opens an inline confirmation (BUG-31).
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
   const startEdit = () => {
@@ -66,7 +69,19 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
     }
   };
 
+  const handleRemoveClicked = () => {
+    trackEvent('team_member_remove_clicked', { teamId });
+    setRemoveError(null);
+    setConfirmingRemove(true);
+  };
+
+  const handleRemoveCancelled = () => {
+    trackEvent('team_member_remove_cancelled', { teamId });
+    setConfirmingRemove(false);
+  };
+
   const handleRemove = async () => {
+    trackEvent('team_member_remove_confirmed', { teamId });
     setRemoveError(null);
     setIsRemoving(true);
     try {
@@ -78,6 +93,7 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
       setRemoveError(err.response?.data?.message || err.message || 'הסרת חבר הצוות נכשלה.');
     } finally {
       setIsRemoving(false);
+      setConfirmingRemove(false);
     }
   };
 
@@ -155,11 +171,39 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
                   </Button>
                 )}
                 {isTeamAdmin && (
-                  <Button size="sm" variant="danger" icon="trash" onPress={handleRemove} disabled={isMe || isRemoving} loading={isRemoving}>
-                    הסר
+                  <Button size="sm" variant="danger" icon="trash" onPress={handleRemoveClicked} disabled={isMe || isRemoving || confirmingRemove} loading={isRemoving}>
+                    {Strings.teamList.removeMemberButton}
                   </Button>
                 )}
               </Box>
+
+              {confirmingRemove && (
+                <Box
+                  role="alertdialog"
+                  aria-label={Strings.teamList.removeMemberConfirmText(fullName)}
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: `${t.space[2]}px`,
+                    padding: `${t.space[3]}px`,
+                    borderRadius: `${t.radius.card}px`,
+                    backgroundColor: t.color.status.danger.bg,
+                    border: `1px solid ${t.color.status.danger.border}`,
+                  }}
+                >
+                  <Typography sx={{ ...t.type.bodyStrong, color: t.color.status.danger.fg }}>
+                    {Strings.teamList.removeMemberConfirmText(fullName)}
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
+                    <Button size="sm" variant="danger" onPress={handleRemove} disabled={isRemoving} loading={isRemoving}>
+                      {Strings.teamList.removeMemberConfirmButton}
+                    </Button>
+                    <Button size="sm" variant="secondary" onPress={handleRemoveCancelled} disabled={isRemoving}>
+                      {Strings.teamList.removeMemberCancelButton}
+                    </Button>
+                  </Box>
+                </Box>
+              )}
 
               {isPhantomManageable && <PhantomConversionPanel state={conversion} />}
             </Box>

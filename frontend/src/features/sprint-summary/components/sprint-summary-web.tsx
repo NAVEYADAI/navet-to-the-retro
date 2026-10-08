@@ -8,6 +8,7 @@ import { Page, PageHeader, Card, Button } from '@/components/ui';
 import { computeSprintSummaryStats } from '../stats';
 import { SPRINT_SUMMARY_TEMPLATES, type SprintSummaryTemplateId } from '../templates';
 import { trackEvent } from '@/lib/analytics';
+import { formatDateRange } from '@/lib/format-date';
 
 // Prefers the RFC 5987 `filename*=UTF-8''...` form the backend sends (carries the real Hebrew
 // name) over the plain ASCII-only `filename="..."` fallback.
@@ -30,12 +31,16 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
   const t = useTheme();
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // BUG-34: a failed load must not render as "no comments in this sprint" (and must hide the
+  // download button, which would export a summary the user hasn't seen).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templateId, setTemplateId] = useState<SprintSummaryTemplateId>('classic');
 
   const fetchComments = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -43,6 +48,7 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
       setComments(response.data);
     } catch (err) {
       console.error('Failed to fetch comments for summary:', err);
+      setLoadError(Strings.sprintSummary.loadError);
     } finally {
       setIsLoading(false);
     }
@@ -67,7 +73,8 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // BUG-58: revoking synchronously right after click() can cancel the download in Safari.
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (err) {
       console.error('Failed to export sprint summary:', err);
       setError(Strings.sprintSummary.downloadErrorText);
@@ -107,13 +114,15 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
         <Box sx={{ display: 'flex', justifyContent: 'center', paddingBlock: `${t.space[6]}px` }}>
           <CircularProgress sx={{ color: t.color.accent.base }} />
         </Box>
+      ) : loadError ? (
+        <Alert severity="error" sx={{ ...t.type.body }}>{loadError}</Alert>
       ) : (
         <Card>
           <Typography sx={{ ...t.type.cardTitle, color: t.color.text }}>{sprint.name}</Typography>
           <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
             {team.name} •{' '}
             <bdi>
-              {new Date(sprint.startDate).toLocaleDateString()} - {new Date(sprint.endDate).toLocaleDateString()}
+              {formatDateRange(sprint.startDate, sprint.endDate)}
             </bdi>
           </Typography>
 

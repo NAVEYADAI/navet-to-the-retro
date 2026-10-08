@@ -8,10 +8,10 @@ import { Page, PageHeader, Grid, Card, Button, Field, Segmented, Icon } from '@/
 import { CommentCardWeb } from './comment-card-web';
 import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
-import { SprintSummary } from '@/features/sprint-summary';
-import { MemoryBoard } from './memory-board';
 import { SprintLengthHistoryPanelWeb } from './sprint-length-history-panel-web';
 import { trackEvent } from '@/lib/analytics';
+import { formatDateRange } from '@/lib/format-date';
+import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
 
 interface SprintRetroBoardWebProps {
   sprint: any;
@@ -19,6 +19,9 @@ interface SprintRetroBoardWebProps {
   token: string;
   user: any;
   onBack: () => void;
+  /** Summary and memory board are their own routes (BUG-33) — the screen owns navigation. */
+  onOpenSummary: () => void;
+  onOpenMemory: () => void;
 }
 
 // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
@@ -34,12 +37,14 @@ interface TeamCategory {
   createdAt: string;
 }
 
-export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: SprintRetroBoardWebProps) {
+export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenSummary, onOpenMemory }: SprintRetroBoardWebProps) {
   const t = useTheme();
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showSummary, setShowSummary] = useState(false);
-  const [showMemoryBoard, setShowMemoryBoard] = useState(false);
+  // BUG-34: a failed comments load must not render as "no notes yet".
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // BUG-53: bumped after each successful sprint edit so the length-history panel refetches.
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -85,6 +90,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
 
   const fetchComments = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
         headers: {
@@ -94,6 +100,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
       setComments(response.data);
     } catch (err) {
       console.error('Failed to fetch comments:', err);
+      setLoadError(Strings.retroBoard.loadCommentsError);
     } finally {
       setIsLoading(false);
     }
@@ -208,7 +215,9 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
 
   const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
-  const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
+  // BUG-54: the "highlighted only" toggle is a filter too — with it on and zero hits the column
+  // must say "no results", not "no notes yet".
+  const isFilterActive = filterCategories.length > 0 || !!filterText.trim() || highlightedOnly;
 
   // Feature 3 §3.2: compose-form picker only offers enabled categories.
   const categoryOptions = [
@@ -246,29 +255,27 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
       setEditError('שם, תאריך התחלה ותאריך סיום הם שדות חובה.');
       return;
     }
+    const rangeError = validateSprintDateRange(editStartDate, editEndDate);
+    if (rangeError) {
+      setEditError(rangeError);
+      return;
+    }
     setIsSavingEdit(true);
     try {
       const response = await axios.patch(
         `${getBackendUrl()}/teams/${team.id}/sprints/${sprintData.id}`,
-        { name: editName.trim(), description: editDescription || undefined, startDate: editStartDate, endDate: editEndDate, reason: editReason.trim() || undefined },
+        { name: editName.trim(), description: editDescription.trim(), startDate: editStartDate, endDate: editEndDate, reason: editReason.trim() || undefined },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSprintData(response.data);
       setIsEditingSprint(false);
+      setHistoryRefreshKey((k) => k + 1);
     } catch (err: any) {
       setEditError(err.response?.data?.message || err.message || Strings.retroBoard.editSprintErrorText);
     } finally {
       setIsSavingEdit(false);
     }
   };
-
-  if (showSummary) {
-    return <SprintSummary sprint={sprintData} team={team} token={token} onBack={() => setShowSummary(false)} />;
-  }
-
-  if (showMemoryBoard) {
-    return <MemoryBoard sprint={sprintData} team={team} token={token} onBack={() => setShowMemoryBoard(false)} />;
-  }
 
   return (
     <Page>
@@ -283,7 +290,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
                 </Button>
               ) : null}
               {canExportSummary ? (
-                <Button variant="ghost" size="sm" icon="presentation" onPress={() => setShowSummary(true)}>
+                <Button variant="ghost" size="sm" icon="presentation" onPress={() => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); }}>
                   {Strings.sprintSummary.openButton}
                 </Button>
               ) : null}
@@ -292,7 +299,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
                 variant="ghost"
                 size="sm"
                 icon="eye"
-                onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); setShowMemoryBoard(true); }}
+                onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); onOpenMemory(); }}
               >
                 {Strings.memoryBoard.openButton}
               </Button>
@@ -347,7 +354,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
           <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
             {team.name} •{' '}
             <bdi>
-              {new Date(sprintData.startDate).toLocaleDateString()} - {new Date(sprintData.endDate).toLocaleDateString()}
+              {formatDateRange(sprintData.startDate, sprintData.endDate)}
             </bdi>
           </Typography>
 
@@ -360,7 +367,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
       )}
 
       {canViewLengthHistory && (
-        <SprintLengthHistoryPanelWeb teamId={team.id} sprintId={sprintData.id} token={token} />
+        <SprintLengthHistoryPanelWeb teamId={team.id} sprintId={sprintData.id} token={token} refreshKey={historyRefreshKey} />
       )}
 
       {/* Compose form */}
@@ -490,7 +497,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
       </Card>
 
       {/* Filters */}
-      {!isLoading && comments.length > 0 && (
+      {!isLoading && !loadError && comments.length > 0 && (
         <CommentFilterBarWeb
           categories={filterCategories}
           onCategoriesChange={setFilterCategories}
@@ -512,6 +519,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack }: Sprin
             {Strings.retroBoard.loadingBoard}
           </Typography>
         </Box>
+      ) : loadError ? (
+        <Alert severity="error" sx={{ ...t.type.body }}>{loadError}</Alert>
       ) : (
         <Grid columns={2}>
           {/* Column 1: KEEP */}

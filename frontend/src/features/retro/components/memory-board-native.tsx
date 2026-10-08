@@ -5,6 +5,7 @@ import { Strings } from '@/constants/strings';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
+import { LoadErrorNative } from '@/components/load-error-native';
 import { MemoryCardNative } from './memory-card-native';
 import { trackEvent } from '@/lib/analytics';
 
@@ -28,9 +29,12 @@ export function MemoryBoardNative({ sprint, team, token, onBack }: MemoryBoardNa
   const t = useTheme();
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // BUG-34: a failed load must not render as "no cards".
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchComments = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -38,6 +42,7 @@ export function MemoryBoardNative({ sprint, team, token, onBack }: MemoryBoardNa
       setComments(response.data);
     } catch (err) {
       console.error('Failed to fetch comments for memory board:', err);
+      setLoadError(Strings.memoryBoard.loadError);
     } finally {
       setIsLoading(false);
     }
@@ -156,6 +161,8 @@ export function MemoryBoardNative({ sprint, team, token, onBack }: MemoryBoardNa
             <ActivityIndicator size="large" color={t.color.text} />
             <Text style={[rnText(t.type.body), { color: t.color.text }]}>{Strings.memoryBoard.loadingBoard}</Text>
           </View>
+        ) : loadError ? (
+          <LoadErrorNative message={loadError} onRetry={fetchComments} screen="memory_board" />
         ) : (
           <View style={{ gap: t.space[6] }}>
             {renderCanvas(Strings.memoryBoard.keepCanvasHeader, 'check', 'success', keepComments, Strings.memoryBoard.emptyKeepText)}

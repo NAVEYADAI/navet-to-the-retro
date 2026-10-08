@@ -9,6 +9,7 @@ import { useTheme } from '@/design/theme-context';
 import { Card, Field, Button } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 import { RoleSelectorChips } from './role-selector-chips';
+import { buildRegisterPayload, getAuthErrorMessage } from '../auth-helpers';
 
 interface AuthFormWebProps {
   initialEmail?: string;
@@ -55,14 +56,7 @@ export function AuthFormWeb({ initialEmail }: AuthFormWebProps) {
     const endpoint = isLogin ? 'login' : 'register';
     const payload = isLogin
       ? { username, password }
-      : {
-          username: email.split('@')[0],
-          email,
-          password,
-          firstName,
-          lastName,
-          role,
-        };
+      : buildRegisterPayload({ email, password, firstName, lastName, role });
 
     try {
       const response = await axios.post(`${getBackendUrl()}/auth/${endpoint}`, payload);
@@ -70,9 +64,7 @@ export function AuthFormWeb({ initialEmail }: AuthFormWebProps) {
       const user = response.data.user;
       await login(token, user);
     } catch (err: any) {
-      setErrorMessage(
-          'שגיאה בתהליך ההתחברות/הרשמה.'
-      );
+      setErrorMessage(getAuthErrorMessage(err, isLogin));
     } finally {
       setFormLoading(false);
     }
@@ -123,8 +115,8 @@ export function AuthFormWeb({ initialEmail }: AuthFormWebProps) {
           >
             {isLogin && (
               <Field
-                label={Strings.auth.usernamePlaceholder}
-                placeholder={Strings.auth.usernamePlaceholder}
+                label={Strings.auth.loginIdentifierLabel}
+                placeholder={Strings.auth.loginIdentifierLabel}
                 value={username}
                 onChangeText={setUsername}
               />

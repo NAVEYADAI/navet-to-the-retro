@@ -7,6 +7,7 @@ import { useTheme } from '@/design/theme-context';
 import { Button, Card } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 import { formatUserDisplayName } from '../comment-display';
+import { formatDate, formatTime } from '@/lib/format-date';
 
 interface SprintLengthChangeEntry {
   id: number;
@@ -23,6 +24,8 @@ interface SprintLengthHistoryPanelWebProps {
   teamId: number;
   sprintId: number;
   token: string;
+  /** BUG-53: change this (e.g. a counter bumped after a sprint edit) to refetch an open panel. */
+  refreshKey?: number;
 }
 
 // "אורך" is always derived from the two dates (never a stored field) — see product-backlog/
@@ -33,14 +36,10 @@ function lengthInDays(start: string, end: string): number {
   return Math.round(ms / (1000 * 60 * 60 * 24));
 }
 
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('he-IL');
-}
-
 // Collapsible panel copying the isExpanded + fetch-only-on-open structure of InviteLinksPanel
 // (frontend/src/features/teams/components/team-list-web/invite-links-panel.tsx), per §5.2 —
 // only rendered by the caller for admin/TEAM_LEADER (assertCanManageTeamContent parity).
-export function SprintLengthHistoryPanelWeb({ teamId, sprintId, token }: SprintLengthHistoryPanelWebProps) {
+export function SprintLengthHistoryPanelWeb({ teamId, sprintId, token, refreshKey = 0 }: SprintLengthHistoryPanelWebProps) {
   const t = useTheme();
   const [isExpanded, setIsExpanded] = useState(false);
   const [history, setHistory] = useState<SprintLengthChangeEntry[]>([]);
@@ -65,7 +64,7 @@ export function SprintLengthHistoryPanelWeb({ teamId, sprintId, token }: SprintL
 
   useEffect(() => {
     if (isExpanded) fetchHistory();
-  }, [isExpanded, fetchHistory]);
+  }, [isExpanded, fetchHistory, refreshKey]);
 
   const handleToggle = () => {
     setIsExpanded((prev) => {
@@ -126,7 +125,7 @@ export function SprintLengthHistoryPanelWeb({ teamId, sprintId, token }: SprintL
                       {formatUserDisplayName(entry.changedBy)}
                     </Typography>
                     <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
-                      <bdi>{`${formatDate(entry.createdAt)} ${new Date(entry.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`}</bdi>
+                      <bdi>{`${formatDate(entry.createdAt)} ${formatTime(entry.createdAt)}`}</bdi>
                     </Typography>
                   </Box>
 

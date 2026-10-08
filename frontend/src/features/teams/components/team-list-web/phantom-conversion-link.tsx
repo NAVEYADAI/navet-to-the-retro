@@ -5,6 +5,7 @@ import { Strings } from '@/constants/strings';
 import { Box, Typography, Collapse, Alert } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
 import { Button } from '@/components/ui';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import { trackEvent } from '@/lib/analytics';
 
 interface PhantomConversionLinkArgs {
@@ -52,11 +53,10 @@ export function usePhantomConversionLink({ teamId, memberId, token }: PhantomCon
 
   const handleCopy = async () => {
     if (!linkToken) return;
-    try {
-      await navigator.clipboard.writeText(inviteUrl(linkToken));
+    if (await copyTextToClipboard(inviteUrl(linkToken))) {
       setCopied(true);
-    } catch (err) {
-      console.error('Failed to copy conversion link:', err);
+    } else {
+      setError(Strings.invites.copyFailedError);
     }
   };
 

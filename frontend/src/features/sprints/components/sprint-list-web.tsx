@@ -6,6 +6,8 @@ import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Badge, Button, Field, Segmented, StatusDot, type Tone } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
+import { formatDate } from '@/lib/format-date';
+import { validateSprintDateRange } from '../sprint-validation';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -37,6 +39,8 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
 
   const [sprints, setSprints] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // BUG-34: a failed load must not look like "no sprints yet" — it gets its own error state.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
 
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -50,6 +54,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
 
   const fetchSprints = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/teams/${team.id}/sprints`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -57,6 +62,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
       setSprints(response.data);
     } catch (err) {
       console.error('Failed to fetch sprints:', err);
+      setLoadError(Strings.sprints.loadError);
     } finally {
       setIsLoading(false);
     }
@@ -70,6 +76,11 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
     setError(null);
     if (!name.trim() || !startDate.trim() || !endDate.trim()) {
       setError('שם, תאריך התחלה ותאריך סיום הם שדות חובה.');
+      return;
+    }
+    const rangeError = validateSprintDateRange(startDate, endDate);
+    if (rangeError) {
+      setError(rangeError);
       return;
     }
     setIsSubmitting(true);
@@ -96,8 +107,10 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
   const withState = sprints.map((s) => ({ sprint: s, state: getSprintState(s.startDate, s.endDate) }));
   const open = withState.filter((s) => s.state !== 'closed');
   const closed = withState.filter((s) => s.state === 'closed');
-  const visibleOpen = filter === 'closed' ? [] : open;
+  // BUG-58: "פעילים" means sprints that are running now — upcoming ones appear under "הכל" only.
+  const visibleOpen = filter === 'closed' ? [] : filter === 'active' ? open.filter((s) => s.state === 'active') : open;
   const showClosedSection = filter !== 'active' && closed.length > 0;
+  const hasNothingToShow = visibleOpen.length === 0 && !showClosedSection;
 
   const rowSx = {
     display: 'flex',
@@ -203,6 +216,8 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
 
       {isLoading ? (
         <CircularProgress size={24} sx={{ alignSelf: 'center', color: t.color.accent.base, marginBlock: `${t.space[4]}px` }} />
+      ) : loadError ? (
+        <Alert severity="error" sx={{ ...t.type.body }}>{loadError}</Alert>
       ) : sprints.length === 0 ? (
         <Typography sx={{ ...t.type.body, color: t.color.textSecondary, textAlign: 'center', paddingBlock: `${t.space[4]}px` }}>
           {isAdmin ? Strings.sprints.noSprintsTextAdmin : Strings.sprints.noSprintsTextMember}
@@ -216,6 +231,12 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
             overflow: 'hidden',
           }}
         >
+          {hasNothingToShow ? (
+            <Typography sx={{ ...t.type.body, color: t.color.textSecondary, textAlign: 'center', paddingBlock: `${t.space[4]}px` }}>
+              {Strings.sprints.noSprintsInFilterText}
+            </Typography>
+          ) : null}
+
           {visibleOpen.map(({ sprint, state }) => (
             <Box key={sprint.id} onClick={() => onSelectSprint(sprint, team)} sx={rowSx}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[3]}px`, minWidth: 0 }}>
@@ -231,9 +252,9 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[5]}px`, flexShrink: 0 }}>
                 <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
-                  <bdi>{new Date(sprint.startDate).toLocaleDateString()}</bdi>
+                  <bdi>{formatDate(sprint.startDate)}</bdi>
                   {' — '}
-                  <bdi>{new Date(sprint.endDate).toLocaleDateString()}</bdi>
+                  <bdi>{formatDate(sprint.endDate)}</bdi>
                 </Typography>
                 <Badge tone={STATE_TONE[state]}>{STATE_LABEL[state]}</Badge>
                 <Typography sx={{ ...t.type.label, fontFamily: t.type.overline.fontFamily, color: t.color.accent.base, minWidth: 60, textAlign: 'end' }}>
@@ -276,9 +297,9 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint }: 
                         <Typography sx={{ ...t.type.rowTitle, color: t.color.text }}>{sprint.name}</Typography>
                       </Box>
                       <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
-                        <bdi>{new Date(sprint.startDate).toLocaleDateString()}</bdi>
+                        <bdi>{formatDate(sprint.startDate)}</bdi>
                         {' — '}
-                        <bdi>{new Date(sprint.endDate).toLocaleDateString()}</bdi>
+                        <bdi>{formatDate(sprint.endDate)}</bdi>
                       </Typography>
                     </Box>
                   ))

@@ -7,6 +7,7 @@ import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import { getRoleLabel } from './roles';
 import { ROLES } from '@/constants/roles';
+import { trackEvent } from '@/lib/analytics';
 import { usePhantomConversionLink, PhantomConversionButton, PhantomConversionPanel } from './phantom-conversion-link';
 
 interface TeamMemberRowProps {
@@ -40,6 +41,8 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
   const [editError, setEditError] = useState<string | null>(null);
 
   const [isRemoving, setIsRemoving] = useState(false);
+  // Removing a member is irreversible — "הסר" first opens an inline confirmation (BUG-31).
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
   const startEdit = () => {
@@ -68,7 +71,19 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
     }
   };
 
+  const handleRemoveClicked = () => {
+    trackEvent('team_member_remove_clicked', { teamId });
+    setRemoveError(null);
+    setConfirmingRemove(true);
+  };
+
+  const handleRemoveCancelled = () => {
+    trackEvent('team_member_remove_cancelled', { teamId });
+    setConfirmingRemove(false);
+  };
+
   const handleRemove = async () => {
+    trackEvent('team_member_remove_confirmed', { teamId });
     setRemoveError(null);
     setIsRemoving(true);
     try {
@@ -80,6 +95,7 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
       setRemoveError(err.response?.data?.message || err.message || 'הסרת חבר הצוות נכשלה.');
     } finally {
       setIsRemoving(false);
+      setConfirmingRemove(false);
     }
   };
 
@@ -345,8 +361,8 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
                 borderRadius: t.radius.field,
                 backgroundColor: isMe ? t.color.surfaceSubtle : t.color.status.danger.bg,
               }}
-              onPress={handleRemove}
-              disabled={isMe || isRemoving}
+              onPress={handleRemoveClicked}
+              disabled={isMe || isRemoving || confirmingRemove}
             >
               {isRemoving ? (
                 <ActivityIndicator size="small" color={t.color.status.danger.fg} />
@@ -354,7 +370,7 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
                 <>
                   <Icon name="trash" size="sm" tone={isMe ? 'muted' : 'danger'} />
                   <Text style={[rnText({ ...t.type.caption, fontWeight: 600 }), { color: isMe ? t.color.textMuted : t.color.status.danger.fg }]}>
-                    הסר
+                    {Strings.teamList.removeMemberButton}
                   </Text>
                 </>
               )}
@@ -362,6 +378,64 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
           )}
         </View>
       </View>
+
+      {confirmingRemove && (
+        <View
+          accessibilityRole="alert"
+          style={{
+            backgroundColor: t.color.status.danger.bg,
+            borderWidth: 1,
+            borderColor: t.color.status.danger.border,
+            borderRadius: t.radius.field,
+            padding: t.space[3],
+            gap: t.space[2],
+          }}
+        >
+          <Text style={[rnText(t.type.bodyStrong), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+            {Strings.teamList.removeMemberConfirmText(fullName)}
+          </Text>
+          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: t.color.status.danger.fg,
+                borderRadius: t.radius.field,
+                minHeight: t.layout.minTouchTarget,
+                paddingHorizontal: t.space[4],
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+              onPress={handleRemove}
+              disabled={isRemoving}
+            >
+              {isRemoving ? (
+                <ActivityIndicator size="small" color={t.color.accent.onBase} />
+              ) : (
+                <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+                  {Strings.teamList.removeMemberConfirmButton}
+                </Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                backgroundColor: t.color.surface,
+                borderWidth: 1,
+                borderColor: t.color.border,
+                borderRadius: t.radius.field,
+                minHeight: t.layout.minTouchTarget,
+                paddingHorizontal: t.space[4],
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+              onPress={handleRemoveCancelled}
+              disabled={isRemoving}
+            >
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
+                {Strings.teamList.removeMemberCancelButton}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {isPhantomManageable && <PhantomConversionPanel state={conversion} />}
     </View>

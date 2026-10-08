@@ -7,6 +7,7 @@ import { Strings } from '@/constants/strings';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
 import { getBackendUrl } from '@/api/config';
+import { getTeamCreateErrorMessage } from '../team-create-error';
 
 interface Approver {
   email: string;
@@ -78,7 +79,9 @@ export function CreateTeamForm({ onSubmit, isLoading, isFirstTeam = false, onCan
       setNewMainOffice('');
       setApproverEmail('');
     } catch (err: any) {
-      setLocalError(err.message || 'יצירת הצוות נכשלה.');
+      // The single place a create-team failure is shown. Callers throw an Error with a ready Hebrew
+      // message; a raw axios error (has `.response`) is mapped to a friendly one here (BUG-56).
+      setLocalError(err?.response ? getTeamCreateErrorMessage(err) : (err?.message || Strings.dashboard.teamCreateFailedError));
     }
   };
 

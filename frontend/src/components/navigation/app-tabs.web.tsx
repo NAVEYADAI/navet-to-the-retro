@@ -8,6 +8,7 @@ import {
   TabListProps,
 } from 'expo-router/ui';
 import { Pressable, View, TouchableOpacity, Platform, Image } from 'react-native';
+import { router, usePathname } from 'expo-router';
 import { ThemedText } from '../themed-text';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
@@ -23,6 +24,12 @@ const NAV_CLEARANCE = NAV_TOP + NAV_HEIGHT;
 
 export default function AppTabs() {
   const t = useTheme();
+  const pathname = usePathname();
+  // The sprint screens are routes inside the "ראשי" tab (BUG-33). The tab is already focused
+  // there, so the trigger's own press is a no-op — send a click on "ראשי" back to the dashboard.
+  const handleHomePress = () => {
+    if (pathname?.startsWith('/team/')) router.navigate('/');
+  };
   return (
     <Tabs>
       <TabSlot
@@ -37,9 +44,9 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            {/* Double-click drops straight back to the team list even from inside a sprint's
-                retro board (local state, not a route) — see HIDDEN-DETAILS.md. */}
-            <TabButton icon="home" onDoubleClick={triggerGoHome}>ראשי</TabButton>
+            {/* A click leaves a sprint route for the dashboard (handleHomePress); double-click also
+                resets the dashboard's team selection and refetches — see HIDDEN-DETAILS.md. */}
+            <TabButton icon="home" onPress={handleHomePress} onDoubleClick={triggerGoHome}>ראשי</TabButton>
           </TabTrigger>
           <TabTrigger name="settings" href="/settings" asChild>
             <TabButton icon="settings">הגדרות</TabButton>

@@ -8,6 +8,8 @@ interface SprintRetroBoardProps {
   token: string;
   user: any;
   onBack: () => void;
+  onOpenSummary: () => void;
+  onOpenMemory: () => void;
 }
 
 export function SprintRetroBoard(props: SprintRetroBoardProps) {

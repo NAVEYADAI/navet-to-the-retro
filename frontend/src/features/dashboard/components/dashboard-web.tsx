@@ -1,53 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { router } from 'expo-router';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
 import { TeamList } from '@/features/teams';
-import { SprintRetroBoard } from '@/features/retro';
 import { Strings } from '@/constants/strings';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
 import { Button, Card, Page, PageHeader } from '@/components/ui';
 import { useTeamsData } from '../hooks/use-teams-data';
 import { subscribeGoHome } from '../home-signal';
+import { openSprint } from '@/lib/sprint-routes';
 import { trackEvent } from '@/lib/analytics';
 
 export function DashboardWeb() {
   const t = useTheme();
   const { user, token } = useAuth();
 
-  const [activeView, setActiveView] = useState<'dashboard' | 'retro'>('dashboard');
-  const [selectedSprint, setSelectedSprint] = useState<any>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const { teams, isLoadingTeams, selectedTeam, setSelectedTeam, fetchMyTeams, refresh } = useTeamsData(token);
+  const { teams, isLoadingTeams, isRefreshing, loadError, setSelectedTeam, fetchMyTeams, refresh } = useTeamsData(token);
 
   useEffect(() => subscribeGoHome(() => {
-    setActiveView('dashboard');
-    setSelectedSprint(null);
     setSelectedTeam(null);
     if (token) fetchMyTeams(token);
   }), [token, fetchMyTeams, setSelectedTeam]);
 
   if (!user) return null;
-
-  if (activeView === 'retro' && selectedSprint && selectedTeam) {
-    return (
-      <Box sx={{ flex: 1, minHeight: '100vh', backgroundColor: t.color.bg }}>
-        <SprintRetroBoard
-          sprint={selectedSprint}
-          team={selectedTeam}
-          token={token || ''}
-          user={user}
-          onBack={() => {
-            setActiveView('dashboard');
-            if (token) {
-              fetchMyTeams(token);
-            }
-          }}
-        />
-      </Box>
-    );
-  }
 
   return (
     <Page>
@@ -59,16 +34,16 @@ export function DashboardWeb() {
             size="sm"
             icon="refresh"
             onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
-            disabled={isLoadingTeams}
+            disabled={isLoadingTeams || isRefreshing}
           >
             {Strings.common.refreshButton}
           </Button>
         }
       />
 
-      {errorMessage ? (
+      {loadError ? (
         <Alert severity="error" sx={{ ...t.type.body }}>
-          {errorMessage}
+          {loadError}
         </Alert>
       ) : null}
 
@@ -87,7 +62,7 @@ export function DashboardWeb() {
             {Strings.dashboard.loadingTeams}
           </Typography>
         </Box>
-      ) : teams.length === 0 ? (
+      ) : loadError && teams.length === 0 ? null : teams.length === 0 ? (
         <Card padding={6}>
           <Typography component="h2" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
             ברוך הבא!
@@ -108,11 +83,7 @@ export function DashboardWeb() {
           token={token || ''}
           userId={user.id}
           onAddMemberSuccess={() => token && fetchMyTeams(token)}
-          onSelectSprint={(sprint, team) => {
-            setSelectedSprint(sprint);
-            setSelectedTeam(team);
-            setActiveView('retro');
-          }}
+          onSelectSprint={(sprint, team) => openSprint(team.id, sprint.id)}
         />
       )}
     </Page>

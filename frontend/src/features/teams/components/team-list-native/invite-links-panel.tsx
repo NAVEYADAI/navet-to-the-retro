@@ -7,6 +7,7 @@ import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import type { AppTheme } from '@/design/tokens';
 import { trackEvent } from '@/lib/analytics';
+import { validateInviteInputs } from '../../invite-form';
 
 interface InviteLinksPanelProps {
   teamId: number;
@@ -36,6 +37,8 @@ function inviteStatus(invite: any, t: AppTheme): { label: string; fg: string; bg
 export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   const t = useTheme();
   const [invites, setInvites] = useState<any[]>([]);
+  // Set when loading/revoking fails, so a failure isn't shown as "no links yet" (BUG-34).
+  const [listError, setListError] = useState<string | null>(null);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState('');
@@ -46,6 +49,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   const [newLinkToken, setNewLinkToken] = useState<string | null>(null);
 
   const fetchInvites = useCallback(async () => {
+    setListError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/teams/${teamId}/invites`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -53,6 +57,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       setInvites(response.data);
     } catch (err) {
       console.error('Failed to fetch invite links:', err);
+      setListError(Strings.invites.loadError);
     }
   }, [teamId, token]);
 
@@ -62,8 +67,10 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
 
   const handleCreateLink = async () => {
     setCreateError(null);
-    if (expiresAt.trim() && new Date(expiresAt.trim()) <= new Date()) {
-      setCreateError('תאריך התפוגה חייב להיות בעתיד');
+    // Date-only expiresAt = end of that day on the backend, so "today" is valid (BUG-32).
+    const validationError = validateInviteInputs({ expiresAt, maxUses });
+    if (validationError) {
+      setCreateError(validationError);
       return;
     }
     setIsCreating(true);
@@ -83,7 +90,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       trackEvent('invite_link_created');
       fetchInvites();
     } catch (err: any) {
-      setCreateError(err.response?.data?.message || err.message || 'יצירת הקישור נכשלה.');
+      setCreateError(err.response?.data?.message || err.message || Strings.invites.createFailedError);
     } finally {
       setIsCreating(false);
     }
@@ -97,6 +104,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       fetchInvites();
     } catch (err) {
       console.error('Failed to revoke invite link:', err);
+      setListError(Strings.invites.revokeFailedError);
     }
   };
 
@@ -120,6 +128,21 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
 
   return (
     <View style={{ gap: t.space[2] }}>
+      {!!listError && (
+        <View
+          style={{
+            backgroundColor: t.color.status.danger.bg,
+            borderWidth: 1,
+            borderColor: t.color.status.danger.border,
+            borderRadius: t.radius.field,
+            padding: t.space[2],
+          }}
+        >
+          <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+            {listError}
+          </Text>
+        </View>
+      )}
       {newLinkToken && (
             <View
               style={{
@@ -286,11 +309,11 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
             </TouchableOpacity>
           )}
 
-          {invites.length === 0 ? (
+          {invites.length === 0 ? (listError ? null : (
             <Text style={[rnText(t.type.caption), { color: t.color.textMuted, textAlign: 'right' }]}>
               {Strings.invites.noLinksText}
             </Text>
-          ) : (
+          )) : (
             invites.map((invite) => {
               const status = inviteStatus(invite, t);
               const isActive = status.label === Strings.invites.statusActive;

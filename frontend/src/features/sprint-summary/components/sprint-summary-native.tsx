@@ -7,9 +7,11 @@ import { Strings } from '@/constants/strings';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
+import { LoadErrorNative } from '@/components/load-error-native';
 import { computeSprintSummaryStats } from '../stats';
 import { SPRINT_SUMMARY_TEMPLATES, type SprintSummaryTemplateId } from '../templates';
 import { trackEvent } from '@/lib/analytics';
+import { formatDateRange } from '@/lib/format-date';
 
 interface SprintSummaryNativeProps {
   sprint: any;
@@ -31,6 +33,9 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
   const t = useTheme();
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // BUG-34: a failed load must not render as "no comments in this sprint" (and must hide the
+  // download button, which would export a summary the user hasn't seen).
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -38,6 +43,7 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
 
   const fetchComments = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -45,6 +51,7 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
       setComments(response.data);
     } catch (err) {
       console.error('Failed to fetch comments for summary:', err);
+      setLoadError(Strings.sprintSummary.loadError);
     } finally {
       setIsLoading(false);
     }
@@ -123,6 +130,8 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
 
         {isLoading ? (
           <ActivityIndicator color={t.color.accent.base} style={{ marginTop: t.space[6] }} />
+        ) : loadError ? (
+          <LoadErrorNative message={loadError} onRetry={fetchComments} screen="sprint_summary" />
         ) : (
           <View
             style={{
@@ -138,7 +147,7 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
               {sprint.name}
             </Text>
             <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
-              {`${team.name} • ${new Date(sprint.startDate).toLocaleDateString()} - ${new Date(sprint.endDate).toLocaleDateString()}`}
+              {`${team.name} • ${formatDateRange(sprint.startDate, sprint.endDate)}`}
             </Text>
 
             {!!error && (

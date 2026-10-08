@@ -7,6 +7,8 @@ import { useTheme } from '@/design/theme-context';
 import { Button, Field, Badge } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
+import { copyTextToClipboard } from '@/lib/clipboard';
+import { validateInviteInputs } from '../../invite-form';
 
 interface InviteLinksPanelProps {
   teamId: number;
@@ -27,6 +29,9 @@ function inviteStatus(invite: any): { label: string; tone: Tone } {
 export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   const t = useTheme();
   const [invites, setInvites] = useState<any[]>([]);
+  // Set when loading/revoking fails, so a failure isn't shown as "no links yet" (BUG-34).
+  const [listError, setListError] = useState<string | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState('');
@@ -39,6 +44,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   const [copiedRowId, setCopiedRowId] = useState<number | null>(null);
 
   const fetchInvites = useCallback(async () => {
+    setListError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/teams/${teamId}/invites`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -46,6 +52,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       setInvites(response.data);
     } catch (err) {
       console.error('Failed to fetch invite links:', err);
+      setListError(Strings.invites.loadError);
     }
   }, [teamId, token]);
 
@@ -55,6 +62,11 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
 
   const handleCreateLink = async () => {
     setCreateError(null);
+    const validationError = validateInviteInputs({ expiresAt, maxUses });
+    if (validationError) {
+      setCreateError(validationError);
+      return;
+    }
     setIsCreating(true);
     try {
       const response = await axios.post(`${getBackendUrl()}/teams/${teamId}/invites`, {
@@ -73,7 +85,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       trackEvent('invite_link_created');
       fetchInvites();
     } catch (err: any) {
-      setCreateError(err.response?.data?.message || err.message || 'יצירת הקישור נכשלה.');
+      setCreateError(err.response?.data?.message || err.message || Strings.invites.createFailedError);
     } finally {
       setIsCreating(false);
     }
@@ -87,30 +99,41 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       fetchInvites();
     } catch (err) {
       console.error('Failed to revoke invite link:', err);
+      setListError(Strings.invites.revokeFailedError);
     }
   };
 
   const handleCopy = async (inviteToken: string) => {
-    try {
-      await navigator.clipboard.writeText(inviteUrl(inviteToken));
+    setCopyError(null);
+    if (await copyTextToClipboard(inviteUrl(inviteToken))) {
       setCopied(true);
-    } catch (err) {
-      console.error('Failed to copy invite link:', err);
+    } else {
+      setCopyError(Strings.invites.copyFailedError);
     }
   };
 
   const handleCopyRow = async (invite: { id: number; token: string }) => {
-    try {
-      await navigator.clipboard.writeText(inviteUrl(invite.token));
+    setCopyError(null);
+    if (await copyTextToClipboard(inviteUrl(invite.token))) {
       setCopiedRowId(invite.id);
       setTimeout(() => setCopiedRowId((current) => (current === invite.id ? null : current)), 1500);
-    } catch (err) {
-      console.error('Failed to copy invite link:', err);
+    } else {
+      setCopyError(Strings.invites.copyFailedError);
     }
   };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
+          {listError && (
+            <Alert severity="error" sx={{ ...t.type.body }}>
+              {listError}
+            </Alert>
+          )}
+          {copyError && (
+            <Alert severity="error" sx={{ ...t.type.body }}>
+              {copyError}
+            </Alert>
+          )}
           {newLinkToken && (
             <Box
               sx={{
@@ -196,11 +219,11 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
             </Button>
           )}
 
-          {invites.length === 0 ? (
+          {invites.length === 0 ? (listError ? null : (
             <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
               {Strings.invites.noLinksText}
             </Typography>
-          ) : (
+          )) : (
             invites.map((invite) => {
               const status = inviteStatus(invite);
               const isActive = status.label === Strings.invites.statusActive;

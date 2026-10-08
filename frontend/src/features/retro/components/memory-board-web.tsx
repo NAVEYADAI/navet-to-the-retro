@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Box, Typography, CircularProgress } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
@@ -24,9 +24,12 @@ export function MemoryBoardWeb({ sprint, team, token, onBack }: MemoryBoardWebPr
   const t = useTheme();
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // BUG-34: a failed load must not render as "no cards".
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchComments = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -34,6 +37,7 @@ export function MemoryBoardWeb({ sprint, team, token, onBack }: MemoryBoardWebPr
       setComments(response.data);
     } catch (err) {
       console.error('Failed to fetch comments for memory board:', err);
+      setLoadError(Strings.memoryBoard.loadError);
     } finally {
       setIsLoading(false);
     }
@@ -119,6 +123,8 @@ export function MemoryBoardWeb({ sprint, team, token, onBack }: MemoryBoardWebPr
         <Box sx={{ display: 'flex', justifyContent: 'center', paddingBlock: `${t.space[6]}px` }}>
           <CircularProgress sx={{ color: t.color.accent.base }} />
         </Box>
+      ) : loadError ? (
+        <Alert severity="error" sx={{ ...t.type.body }}>{loadError}</Alert>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[6]}px` }}>
           {renderCanvas(Strings.memoryBoard.keepCanvasHeader, 'check', 'success', keepComments, Strings.memoryBoard.emptyKeepText)}

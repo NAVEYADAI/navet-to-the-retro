@@ -14,6 +14,7 @@ export function GoogleCalendarCard() {
     connected,
     googleAccountEmail,
     statusLoading,
+    statusError,
     connectLoading,
     disconnectLoading,
     message,
@@ -45,7 +46,7 @@ export function GoogleCalendarCard() {
             {Strings.settings.googleCalendarStatusLoading}
           </Typography>
         </Box>
-      ) : connected ? (
+      ) : statusError ? null : connected ? (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[3]}px` }}>
           <Typography sx={{ ...t.type.bodyStrong, color: t.color.text, minWidth: 0 }}>
             {Strings.settings.googleCalendarConnectedLabel(googleAccountEmail || '')}

@@ -270,6 +270,33 @@ export default function InvitePage() {
       <ThemedView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.two, padding: Spacing.four }}>
         <ThemedText type="title">{Strings.invites.invalidInviteTitle}</ThemedText>
         {!!errorMessage && <ThemedText style={{ textAlign: 'center' }}>{errorMessage}</ThemedText>}
+        {/* Dead-end fix (BUG-58): an invalid/expired link used to offer no way out. */}
+        <TouchableOpacity
+          accessibilityRole="button"
+          style={{
+            minHeight: t.layout.minTouchTarget,
+            borderRadius: t.radius.field,
+            backgroundColor: t.color.accent.base,
+            paddingHorizontal: t.space[4],
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginTop: t.space[2],
+          }}
+          onPress={() => {
+            trackEvent('invalid_invite_back_to_app_clicked');
+            // Full reload on web, same reasoning as the join flow above (a client-side replace
+            // from a /invite Slot into <Tabs> crashes expo-router/ui).
+            if (Platform.OS === 'web' && typeof window !== 'undefined') {
+              window.location.href = '/';
+            } else {
+              router.replace('/');
+            }
+          }}
+        >
+          <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+            {Strings.invites.backToAppButton}
+          </Text>
+        </TouchableOpacity>
       </ThemedView>
     );
   }

@@ -18,11 +18,12 @@ import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
+import { LoadErrorNative } from '@/components/load-error-native';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
-import { SprintSummary } from '@/features/sprint-summary';
-import { MemoryBoard } from './memory-board';
 import { SprintLengthHistoryPanelNative } from './sprint-length-history-panel-native';
 import { trackEvent } from '@/lib/analytics';
+import { formatDate, formatTime, formatDateRange } from '@/lib/format-date';
+import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
 
 interface SprintRetroBoardProps {
@@ -31,6 +32,9 @@ interface SprintRetroBoardProps {
   token: string;
   user: any;
   onBack: () => void;
+  /** Summary and memory board are their own routes (BUG-33) — the screen owns navigation. */
+  onOpenSummary: () => void;
+  onOpenMemory: () => void;
 }
 
 // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
@@ -69,15 +73,15 @@ function editFieldStyle(t: ReturnType<typeof useTheme>): TextStyle {
   };
 }
 
-export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: SprintRetroBoardProps) {
+export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOpenSummary, onOpenMemory }: SprintRetroBoardProps) {
   const t = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showSummary, setShowSummary] = useState(false);
-  const [showMemoryBoard, setShowMemoryBoard] = useState(false);
+  // BUG-34: a failed comments load must not render as "no notes yet".
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -127,6 +131,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
 
   const fetchComments = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await axios.get(`${getBackendUrl()}/sprints/${sprint.id}/comments`, {
         headers: {
@@ -136,6 +141,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
       setComments(response.data);
     } catch (err) {
       console.error('Failed to fetch comments:', err);
+      setLoadError(Strings.retroBoard.loadCommentsError);
     } finally {
       setIsLoading(false);
     }
@@ -220,7 +226,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
 
   const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
-  const isFilterActive = filterCategories.length > 0 || !!filterText.trim();
+  // BUG-54: the "highlighted only" toggle is a filter too.
+  const isFilterActive = filterCategories.length > 0 || !!filterText.trim() || highlightedOnly;
 
   // Feature 3 §3.2: compose-form picker only offers enabled categories.
   const categoryOptions = teamCategories.filter((c) => c.isEnabled).map((c) => ({ value: String(c.id), label: c.label }));
@@ -353,7 +360,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             {authorName}
           </Text>
           <Text style={[rnText(t.type.caption), { color: t.color.textMuted }]}>
-            {`${new Date(comment.createdAt).toLocaleDateString('he-IL')} · ${new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`}
+            {`${formatDate(comment.createdAt)} · ${formatTime(comment.createdAt)}`}
           </Text>
         </View>
       </View>
@@ -377,6 +384,13 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
 
   const handleSaveSprintEdit = async () => {
     setEditError(null);
+    // BUG-12: same client-side check as the web board; any other rejection (e.g. unparseable date)
+    // comes back from the backend as a 400 whose message is shown below.
+    const rangeError = validateSprintDateRange(editStartDate, editEndDate);
+    if (rangeError) {
+      setEditError(rangeError);
+      return;
+    }
     setIsSavingEdit(true);
     try {
       const response = await axios.patch(
@@ -393,19 +407,12 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
       setSprintData(response.data);
       setIsEditingSprint(false);
     } catch (err: any) {
-      setEditError(err.response?.data?.message || Strings.retroBoard.editSprintErrorText);
+      const serverMessage = err.response?.data?.message;
+      setEditError((Array.isArray(serverMessage) ? serverMessage.join(' ') : serverMessage) || Strings.retroBoard.editSprintErrorText);
     } finally {
       setIsSavingEdit(false);
     }
   };
-
-  if (showSummary) {
-    return <SprintSummary sprint={sprintData} team={team} token={token} onBack={() => setShowSummary(false)} />;
-  }
-
-  if (showMemoryBoard) {
-    return <MemoryBoard sprint={sprintData} team={team} token={token} onBack={() => setShowMemoryBoard(false)} />;
-  }
 
   return (
     <ScrollView
@@ -452,7 +459,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
               {canExportSummary && (
                 <TouchableOpacity
                   style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                  onPress={() => setShowSummary(true)}
+                  onPress={() => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); }}
                 >
                   <Icon name="presentation" size="sm" tone="muted" />
                   <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
@@ -463,7 +470,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
               {/* Any team member can open — no isAdmin/role gate, see product-backlog/08-memory-board.md §8.0 decision #7. */}
               <TouchableOpacity
                 style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); setShowMemoryBoard(true); }}
+                onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); onOpenMemory(); }}
               >
                 <Icon name="eye" size="sm" tone="muted" />
                 <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
@@ -580,7 +587,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
                 {sprintData.name}
               </Text>
               <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>
-                {`${team.name} • ${new Date(sprintData.startDate).toLocaleDateString()} - ${new Date(sprintData.endDate).toLocaleDateString()}`}
+                {`${team.name} • ${formatDateRange(sprintData.startDate, sprintData.endDate)}`}
               </Text>
               {!!sprintData.description && (
                 <Text style={[rnText(t.type.caption), { color: t.color.textMuted, textAlign: 'right' }]}>
@@ -875,7 +882,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
         </View>
 
         {/* Filters */}
-        {!isLoading && comments.length > 0 && (
+        {!isLoading && !loadError && comments.length > 0 && (
           <View style={{ marginTop: t.space[2] }}>
             <CommentFilterBarNative
               categories={filterCategories}
@@ -898,6 +905,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack }: Sp
             <ActivityIndicator size="large" color={t.color.text} />
             <Text style={[rnText(t.type.body), { color: t.color.text }]}>{Strings.retroBoard.loadingBoard}</Text>
           </View>
+        ) : loadError ? (
+          <LoadErrorNative message={loadError} onRetry={fetchComments} screen="retro_board" />
         ) : (
           <View style={{ flexDirection: isDesktop ? 'row-reverse' : 'column', gap: t.space[4], marginTop: t.space[2] }}>
             {/* Column 1: KEEP */}

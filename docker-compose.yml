@@ -29,6 +29,7 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET}
       - BACKEND_URL=${BACKEND_URL}
+      - JWT_SECRET=${JWT_SECRET}
     volumes:
       - ./backend:/app
       - /app/node_modules

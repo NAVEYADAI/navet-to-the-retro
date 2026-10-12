@@ -59,6 +59,37 @@ function EnterLink() {
   );
 }
 
+/** "סיכום" בשורת ספרינט שהסתיים — כפתור אמיתי, כי הוא מוביל למקום אחר מהשורה עצמה (הלוח). */
+function SummaryLink({ onPress }: { onPress: () => void }) {
+  const t = useTheme();
+  return (
+    <Box
+      component="button"
+      type="button"
+      onClick={(e: React.MouseEvent) => {
+        e.stopPropagation();
+        onPress();
+      }}
+      sx={{
+        ...t.type.bodyStrong,
+        display: 'inline-flex',
+        alignItems: 'center',
+        minHeight: t.layout.minTouchTarget,
+        padding: 0,
+        color: t.color.accent.base,
+        backgroundColor: 'transparent',
+        border: 0,
+        whiteSpace: 'nowrap',
+        cursor: 'pointer',
+        '&:hover': { color: t.color.accent.hover },
+        '&:focus-visible': { outline: `2px solid ${t.color.accent.border}`, outlineOffset: 2, borderRadius: `${t.radius.badge}px` },
+      }}
+    >
+      {Strings.sprints.summaryLink}
+    </Box>
+  );
+}
+
 /** תג + קישור תמיד יחד, בקצה השורה, בלי להתכווץ. */
 function RowEnd({ children }: { children: React.ReactNode }) {
   const t = useTheme();
@@ -90,10 +121,43 @@ function SprintProgress({ sprint }: { sprint: any }) {
   );
 }
 
+/** ספרינטים קיימים אבל אף אחד לא רץ או מתוכנן — במקום רשימה ריקה. מנהל מקבל קישור לפתיחת ספרינט. */
+export function NoActiveSprintRow({ onCreate }: { onCreate?: () => void }) {
+  const t = useTheme();
+  return (
+    <Box
+      data-testid="no-active-sprint"
+      sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: `${t.space[3]}px`, paddingBlock: `${t.space[2]}px`, borderBlockEnd: `1px solid ${t.color.border}` }}
+    >
+      <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>{Strings.sprints.noActiveSprintText}</Typography>
+      {onCreate ? (
+        <Box
+          component="button"
+          type="button"
+          onClick={onCreate}
+          sx={{
+            ...t.type.bodyStrong,
+            minHeight: t.layout.minTouchTarget,
+            padding: 0,
+            color: t.color.accent.base,
+            backgroundColor: 'transparent',
+            border: 0,
+            cursor: 'pointer',
+            '&:hover': { color: t.color.accent.hover },
+            '&:focus-visible': { outline: `2px solid ${t.color.accent.border}`, outlineOffset: 2, borderRadius: `${t.radius.badge}px` },
+          }}
+        >
+          {Strings.sprints.createSprintLink}
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
+
 export function OpenSprintRow({ sprint, state, onPress }: { sprint: any; state: 'active' | 'upcoming'; onPress: () => void }) {
   const rowSx = useRowSx();
   return (
-    <Box data-testid="open-sprint-row" onClick={onPress} sx={rowSx}>
+    <Box data-testid="open-sprint-row" onClick={() => { trackEvent('sprint_opened', { sprintId: sprint.id }); onPress(); }} sx={rowSx}>
       <SprintTitle sprint={sprint} />
       {state === 'active' && <SprintProgress sprint={sprint} />}
       <RowEnd>
@@ -107,7 +171,8 @@ export function OpenSprintRow({ sprint, state, onPress }: { sprint: any; state: 
   );
 }
 
-export function RecentSprintsGroup({ sprints, onSelect }: { sprints: any[]; onSelect: (sprint: any) => void }) {
+/** `onOpenSummary` רק למי שמורשה לסיכום (מנהלים) — אחרת השורה מציגה "כניסה ללוח" כמו כל השאר. */
+export function RecentSprintsGroup({ sprints, onSelect, onOpenSummary }: { sprints: any[]; onSelect: (sprint: any) => void; onOpenSummary?: (sprint: any) => void }) {
   const t = useTheme();
   const rowSx = useRowSx(true);
   return (
@@ -116,11 +181,11 @@ export function RecentSprintsGroup({ sprints, onSelect }: { sprints: any[]; onSe
         {Strings.sprints.recentHeader}
       </Typography>
       {sprints.map((sprint) => (
-        <Box key={sprint.id} data-testid="recent-sprint-row" onClick={() => onSelect(sprint)} sx={rowSx}>
+        <Box key={sprint.id} data-testid="recent-sprint-row" onClick={() => { trackEvent('sprint_opened', { sprintId: sprint.id }); onSelect(sprint); }} sx={rowSx}>
           <SprintTitle sprint={sprint} />
           <RowEnd>
             <Badge tone="neutral">{Strings.sprints.endedBadge}</Badge>
-            <EnterLink />
+            {onOpenSummary ? <SummaryLink onPress={() => onOpenSummary(sprint)} /> : <EnterLink />}
           </RowEnd>
         </Box>
       ))}
@@ -168,7 +233,7 @@ export function ExpiredSprintsGroup({ sprints, onSelect }: { sprints: any[]; onS
           {sprints.map((sprint) => (
             <Box
               key={sprint.id}
-              onClick={() => onSelect(sprint)}
+              onClick={() => { trackEvent('sprint_opened', { sprintId: sprint.id }); onSelect(sprint); }}
               sx={{
                 display: 'flex',
                 flexWrap: 'wrap',

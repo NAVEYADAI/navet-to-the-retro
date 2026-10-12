@@ -332,7 +332,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.post.mockResolvedValueOnce({ data: { id: 1, token: 'abc123' } });
     const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+    await findByText(Strings.invites.createLinkButton); // the create form is open from the start
 
     await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2027-01-01');
     await fireEvent.changeText(getByPlaceholderText('5'), '3');
@@ -351,7 +351,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.get.mockResolvedValue({ data: [] });
     const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+    await findByText(Strings.invites.createLinkButton); // the create form is open from the start
 
     await fireEvent.changeText(getByPlaceholderText('YYYY-MM-DD'), '2020-01-01');
     await fireEvent.press(getByText(Strings.invites.createLinkButton));
@@ -366,7 +366,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.post.mockResolvedValueOnce({ data: { id: 8, token: 'named1' } });
     const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+    await findByText(Strings.invites.createLinkButton); // the create form is open from the start
     await fireEvent.changeText(getByPlaceholderText(Strings.invites.namePlaceholder), namedInvite.name);
     mockedAxios.get.mockResolvedValueOnce({ data: [namedInvite] });
     await fireEvent.press(getByText(Strings.invites.createLinkButton));
@@ -417,7 +417,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.get.mockResolvedValue({ data: [] });
     const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+    await findByText(Strings.invites.createLinkButton); // the create form is open from the start
 
     await fireEvent.changeText(getByPlaceholderText('5'), '0');
     await fireEvent.press(getByText(Strings.invites.createLinkButton));
@@ -434,7 +434,7 @@ describe('TeamListNative — dual-approval UI', () => {
     mockedAxios.post.mockResolvedValueOnce({ data: { id: 1, token: 'today1' } });
     const { getByText, getByPlaceholderText, findByText } = await renderList([activeTeamAsAdmin], { addMember: 'link' });
 
-    await fireEvent.press(await findByText(Strings.invites.createLinkButton));
+    await findByText(Strings.invites.createLinkButton); // the create form is open from the start
 
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

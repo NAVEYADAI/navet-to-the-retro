@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
+import { useTheme } from '@/design/theme-context';
 import { Modal, Segmented } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 import { AddMemberForm } from './add-member-form';
@@ -7,6 +9,13 @@ import { AddPhantomMemberForm } from './add-phantom-member-form';
 import { InviteLinksPanel } from './invite-links-panel';
 
 export type AddMemberTab = 'existing' | 'phantom' | 'link';
+
+/** משפט אחד מעל כל לשונית: מה יקרה למי שמוסיפים בדרך הזו. */
+const TAB_HINTS: Record<AddMemberTab, string> = {
+  existing: Strings.teamList.addMemberExistingHint,
+  phantom: Strings.teamList.addMemberPhantomHint,
+  link: Strings.teamList.addMemberLinkHint,
+};
 
 interface AddMemberModalProps {
   open: boolean;
@@ -24,6 +33,7 @@ interface AddMemberModalProps {
 // Single entry point for getting a person into the team (existing user / phantom / invite link),
 // opened from the "הוסף חבר" button in the team card's members panel.
 export function AddMemberModal({ open, onClose, teamId, teamName, token, canInvite, canAddPhantom, onMemberAdded }: AddMemberModalProps) {
+  const t = useTheme();
   const options: { value: AddMemberTab; label: string }[] = [];
   if (canInvite) options.push({ value: 'existing', label: Strings.teamList.addMemberTabExisting });
   if (canAddPhantom) options.push({ value: 'phantom', label: Strings.teamList.addMemberTabPhantom });
@@ -51,6 +61,7 @@ export function AddMemberModal({ open, onClose, teamId, teamName, token, canInvi
       closeLabel={Strings.teamList.closeModalLabel}
     >
       {options.length > 1 && <Segmented value={activeTab} onChange={handleTabChange} options={options} />}
+      {activeTab && <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>{TAB_HINTS[activeTab]}</Typography>}
       {activeTab === 'existing' && <AddMemberForm teamId={teamId} token={token} onInviteSent={handleDone} />}
       {activeTab === 'phantom' && <AddPhantomMemberForm teamId={teamId} token={token} onCreated={handleDone} />}
       {activeTab === 'link' && <InviteLinksPanel teamId={teamId} token={token} />}

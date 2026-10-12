@@ -10,6 +10,13 @@ import { InviteLinksPanel } from './invite-links-panel';
 
 export type AddMemberTab = 'existing' | 'phantom' | 'link';
 
+/** משפט אחד מעל כל לשונית: מה יקרה למי שמוסיפים בדרך הזו. */
+const TAB_HINTS: Record<AddMemberTab, string> = {
+  existing: Strings.teamList.addMemberExistingHint,
+  phantom: Strings.teamList.addMemberPhantomHint,
+  link: Strings.teamList.addMemberLinkHint,
+};
+
 interface AddMemberModalProps {
   open: boolean;
   onClose: () => void;
@@ -81,6 +88,9 @@ export function AddMemberModal({ open, onClose, teamId, teamName, token, canInvi
             );
           })}
         </View>
+      )}
+      {activeTab && (
+        <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>{TAB_HINTS[activeTab]}</Text>
       )}
       {activeTab === 'existing' && <AddMemberForm teamId={teamId} token={token} onInviteSent={handleDone} />}
       {activeTab === 'phantom' && <AddPhantomMemberForm teamId={teamId} token={token} onCreated={handleDone} />}

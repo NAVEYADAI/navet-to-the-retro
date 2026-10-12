@@ -50,6 +50,10 @@ async function openEditForm(c: HTMLElement) {
   await clickText(c, Strings.retroBoard.editSprintButton);
 }
 
+// Mounts the full board (MUI + real DOM) per test — ~0.5s alone, but past the 5s default when the
+// whole suite runs in parallel (e.g. under `npm run deploy`), and one timeout cascades into the rest.
+jest.setTimeout(20000);
+
 describe('SprintRetroBoardWeb', () => {
   it('BUG-33: the summary and memory-game buttons hand off to the route callbacks instead of swapping local views', async () => {
     const c = await render();

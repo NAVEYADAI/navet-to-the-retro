@@ -34,7 +34,11 @@ describe('Invites (e2e) — email invites for unregistered users + shareable joi
     app = moduleFixture.createNestApplication();
     prisma = moduleFixture.get<PrismaService>(PrismaService);
 
-    await prisma.user.deleteMany({ where: { username: { startsWith: 'test_e2e_invites_' } } });
+    // Also match on the allowlisted real emails these specs register: a leftover user holding one
+    // under a different username (an aborted run, an ad-hoc script) otherwise 409s every register.
+    await prisma.user.deleteMany({
+      where: { OR: [{ username: { startsWith: 'test_e2e_invites_' } }, { email: { in: [approver.email] } }] },
+    });
     await app.init();
 
     const creatorAuth = await registerAndLogin(creator);

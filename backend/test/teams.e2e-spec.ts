@@ -41,7 +41,11 @@ describe('TeamsController (e2e) — dual-approval flow', () => {
     app = moduleFixture.createNestApplication();
     prisma = moduleFixture.get<PrismaService>(PrismaService);
 
-    await prisma.user.deleteMany({ where: { username: { startsWith: 'test_e2e_teams_' } } });
+    // Also match on the allowlisted real emails these specs register: a leftover user holding one
+    // under a different username (an aborted run, an ad-hoc script) otherwise 409s every register.
+    await prisma.user.deleteMany({
+      where: { OR: [{ username: { startsWith: 'test_e2e_teams_' } }, { email: { in: [approver.email, selfApprover.email] } }] },
+    });
 
     await app.init();
 

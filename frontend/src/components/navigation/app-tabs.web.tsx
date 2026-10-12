@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Tabs,
   TabList,
@@ -7,20 +7,16 @@ import {
   TabTriggerSlotProps,
   TabListProps,
 } from 'expo-router/ui';
-import { Pressable, View, TouchableOpacity, Platform, Image } from 'react-native';
+import { Pressable, View, Platform, Image } from 'react-native';
 import { router, usePathname } from 'expo-router';
-import { ThemedText } from '../themed-text';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
 import { Icon, type IconName } from '@/components/ui';
-import { MaxContentWidth } from '@/constants/theme';
+import { Strings } from '@/constants/strings';
 import { triggerGoHome } from '@/features/dashboard/home-signal';
 import { trackEvent } from '@/lib/analytics';
-
-/** מיקום וגובה סרגל הניווט הצף (CustomTabList) — משמשים גם לחישוב ה-padding שמפנה לו מקום בתוכן המסך. */
-const NAV_TOP = 14;
-const NAV_HEIGHT = 62;
-const NAV_CLEARANCE = NAV_TOP + NAV_HEIGHT;
+import { NavUserMenu, type NavUserMenuItem } from './nav-user-menu.web';
+import { getNavStyles, NAV_CLEARANCE } from './app-tabs.styles';
 
 export default function AppTabs() {
   const t = useTheme();
@@ -46,10 +42,10 @@ export default function AppTabs() {
           <TabTrigger name="home" href="/" asChild>
             {/* A click leaves a sprint route for the dashboard (handleHomePress); double-click also
                 resets the dashboard's team selection and refetches — see HIDDEN-DETAILS.md. */}
-            <TabButton icon="home" onPress={handleHomePress} onDoubleClick={triggerGoHome}>ראשי</TabButton>
+            <TabButton icon="home" onPress={handleHomePress} onDoubleClick={triggerGoHome}>{Strings.nav.home}</TabButton>
           </TabTrigger>
           <TabTrigger name="settings" href="/settings" asChild>
-            <TabButton icon="settings">הגדרות</TabButton>
+            <TabButton icon="settings">{Strings.nav.settings}</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>
@@ -59,6 +55,8 @@ export default function AppTabs() {
 
 export function TabButton({ children, isFocused, icon, onDoubleClick, onPress, ...props }: TabTriggerSlotProps & { icon?: IconName; onDoubleClick?: () => void }) {
   const t = useTheme();
+  const s = getNavStyles(t);
+  const [hovered, setHovered] = useState(false);
 
   const handlePress = (e: any) => {
     trackEvent('nav_tab_pressed', { tab: icon ?? 'unknown' });
@@ -68,35 +66,15 @@ export function TabButton({ children, isFocused, icon, onDoubleClick, onPress, .
   return (
     <Pressable {...props} onPress={handlePress} style={({ pressed }) => [pressed && { opacity: 0.6 }]}>
       <div
+        className={isFocused ? undefined : 'nav-tab-inactive'}
         onDoubleClick={onDoubleClick}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: t.space[1],
-          paddingBlock: t.space[2],
-          paddingInline: t.space[4],
-          minHeight: 40,
-          borderRadius: t.radius.field,
-          backgroundColor: isFocused ? t.color.accent.subtle : 'transparent',
-          transition: `background-color ${t.motion.fast}`,
-          cursor: 'pointer',
-          flexShrink: 0,
-          whiteSpace: 'nowrap',
-        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={s.tab(!!isFocused, hovered)}
       >
-        {icon && <Icon name={icon} size="sm" tone={isFocused ? 'accent' : 'muted'} />}
-        <ThemedText
-          type="smallBold"
-          themeColor={isFocused ? 'text' : 'textSecondary'}
-          style={{
-            fontSize: t.type.label.fontSize,
-            fontWeight: isFocused ? '700' : '500',
-            letterSpacing: -0.2,
-            whiteSpace: 'nowrap',
-          } as any}
-        >
-          {children}
-        </ThemedText>
+        {icon && <Icon name={icon} size="md" tone={isFocused ? 'accent' : 'muted'} />}
+        {/* ברוחב טלפון הטאב הלא-פעיל מצטמצם לאייקון (global-web-styles); התווית נשארת לקורא מסך. */}
+        <span className="nav-tab-label" style={s.tabLabel(!!isFocused)}>{children}</span>
       </div>
     </Pressable>
   );
@@ -104,131 +82,33 @@ export function TabButton({ children, isFocused, icon, onDoubleClick, onPress, .
 
 export function CustomTabList(props: TabListProps) {
   const t = useTheme();
+  const s = getNavStyles(t);
   const { logout, user } = useAuth();
 
+  const menuItems: NavUserMenuItem[] = [
+    { key: 'logout', label: Strings.nav.logout, icon: 'log-out', danger: true, onSelect: logout },
+  ];
+  const displayName = user ? user.firstName || user.email?.split('@')[0] || '' : '';
+
   return (
-    <View
-      {...props}
-      style={{
-        position: 'fixed' as any,
-        top: NAV_TOP,
-        left: 0,
-        right: 0,
-        height: NAV_HEIGHT,
-        zIndex: 1000,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: t.radius.card,
-        borderWidth: 1,
-        borderColor: t.color.border,
-        backgroundColor: t.color.surface,
-        boxShadow: t.shadow.md,
-        width: '94%',
-        maxWidth: MaxContentWidth + 40,
-        marginHorizontal: 'auto',
-        direction: 'rtl',
-      } as any}
-    >
-      <View
-        style={{
-          width: '100%',
-          paddingInline: t.space[5],
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        } as any}
-      >
+    <View {...props} style={s.bar}>
+      <View style={s.barInner}>
         {/* Brand */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.space[2] } as any}>
-          <Image source={require('../../../assets/images/app-logo.png')} style={{ width: 38, height: 38 }} resizeMode="contain" />
-          <div className="nav-brand-text">
-            <View style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 0 } as any}>
-              <ThemedText style={{ fontFamily: t.type.rowTitle.fontFamily, fontSize: t.type.rowTitle.fontSize, fontWeight: '800', letterSpacing: -0.4, color: t.color.text }}>נווט לרט</ThemedText>
-              <ThemedText style={{ fontFamily: t.type.overline.fontFamily, fontSize: t.type.overline.fontSize, fontWeight: '700', letterSpacing: 1.5, color: t.color.accent.base }}>RETRO BOARD</ThemedText>
-            </View>
-          </div>
-        </View>
+        <div style={s.brand}>
+          <Image source={require('../../../assets/images/app-logo.png')} style={{ width: 36, height: 36 }} resizeMode="contain" />
+          <span className="nav-brand-text" style={s.brandText}>{Strings.nav.brand}</span>
+        </div>
+
+        <div className="nav-brand-text" style={s.divider} />
 
         {/* Navigation */}
-        <View style={{ flexDirection: 'row', gap: t.space[1], alignItems: 'center' } as any}>
+        <View style={s.tabTrack} accessibilityRole={'navigation' as any} aria-label={Strings.nav.mainNavLabel}>
           {props.children}
         </View>
 
-        {/* User & Logout */}
-        {!!user ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.space[3] } as any}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: t.space[2] } as any}>
-              <div
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: t.radius.field,
-                  backgroundColor: t.color.accent.subtle,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: t.type.label.fontSize,
-                  fontWeight: 700,
-                  color: t.color.accent.base,
-                  fontFamily: t.type.bodyStrong.fontFamily,
-                }}
-              >
-                {(user.firstName?.[0] || user.email?.[0] || '?').toUpperCase()}
-              </div>
-              <div className="nav-user-text">
-                <View>
-                  <ThemedText style={{ fontSize: t.type.caption.fontSize, fontWeight: '600', color: t.color.text }}>
-                    {user.firstName || user.email?.split('@')[0]}
-                  </ThemedText>
-                  <ThemedText style={{ fontSize: t.type.overline.fontSize, color: t.color.textSecondary, opacity: 0.7 }}>
-                    מחובר
-                  </ThemedText>
-                </View>
-              </div>
-            </View>
-            <TouchableOpacity
-              onPress={logout}
-              activeOpacity={0.6}
-            >
-              <div
-                className="nav-logout-btn"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  paddingBlock: t.space[1],
-                  paddingInline: t.space[3],
-                  borderRadius: t.radius.field,
-                  border: `1px solid ${t.color.border}`,
-                  transition: `all ${t.motion.fast}`,
-                  cursor: 'pointer',
-                  fontSize: t.type.caption.fontSize,
-                  fontWeight: 600,
-                  color: t.color.textSecondary,
-                  fontFamily: t.type.bodyStrong.fontFamily,
-                }}
-                onMouseEnter={(e) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.borderColor = t.color.status.danger.fg;
-                  el.style.color = t.color.status.danger.fg;
-                  el.style.background = t.color.status.danger.bg;
-                }}
-                onMouseLeave={(e) => {
-                  const el = e.currentTarget as HTMLElement;
-                  el.style.borderColor = t.color.border;
-                  el.style.color = t.color.textSecondary;
-                  el.style.background = 'transparent';
-                }}
-              >
-                <span className="nav-logout-icon" style={{ display: 'none' }}>
-                  <Icon name="log-out" size="sm" tone="muted" />
-                </span>
-                <span className="nav-logout-text">יציאה</span>
-              </div>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={{ width: 140 }} />
-        )}
+        <div style={{ flexGrow: 1 }} />
+
+        {!!user && <NavUserMenu displayName={displayName} items={menuItems} />}
       </View>
     </View>
   );

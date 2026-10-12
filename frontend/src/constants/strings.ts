@@ -2,6 +2,15 @@ export const Strings = {
   common: {
     refreshButton: 'רענן',
   },
+  nav: {
+    brand: 'נווט לרט',
+    mainNavLabel: 'ניווט ראשי',
+    home: 'ראשי',
+    settings: 'הגדרות',
+    userMenuLabel: 'תפריט משתמש',
+    signedInAs: 'מחובר כ',
+    logout: 'יציאה',
+  },
   errors: {
     appCrashTitle: 'משהו השתבש',
     appCrashMessage: 'קרתה שגיאה בלתי צפויה. ננסה לתקן את זה בהקדם.',

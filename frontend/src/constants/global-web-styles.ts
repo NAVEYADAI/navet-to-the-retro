@@ -132,14 +132,18 @@ export function injectGlobalWebStyles() {
       }
     }
 
-    /* מתחת לזה גם לוגו+שני טאבים+אווטאר+כפתור יציאה טקסטואלי כבר לא נכנסים בשורה אחת ברוחב טלפון —
-       מצמצמים את כפתור היציאה לאייקון בלבד. */
+    /* ברוחב טלפון: טאב לא-פעיל מצטמצם לאייקון בלבד (התווית נשארת בעץ הנגישות), כדי שהסרגל הצף יישאר שורה אחת. */
     @media (max-width: 460px) {
-      .nav-logout-text {
-        display: none !important;
+      .nav-tab-inactive {
+        padding-inline: 0 !important;
       }
-      .nav-logout-icon {
-        display: flex !important;
+      .nav-tab-inactive .nav-tab-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
       }
     }
 

@@ -4,6 +4,7 @@
 import React from 'react';
 import axios from 'axios';
 import { TeamSprintsManagerWeb } from '../components/sprint-list-web';
+import { openSprint } from '@/lib/sprint-routes';
 import { Strings } from '@/constants/strings';
 import { act } from 'react';
 import { mountWeb, clickText, setInput, dateInputs, inputByPlaceholder, flush, type Mounted } from '@/test-utils/web-dom';
@@ -11,6 +12,8 @@ import { mountWeb, clickText, setInput, dateInputs, inputByPlaceholder, flush, t
 // Factory mock: automocking would load axios' browser build, which needs TextEncoder in jsdom.
 jest.mock('axios', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn(), patch: jest.fn() } }));
 const mockedAxios = axios as jest.Mocked<typeof axios>;
+// expo-router's real module can't load under jsdom; the summary link only needs openSprint.
+jest.mock('@/lib/sprint-routes', () => ({ openSprint: jest.fn() }));
 
 const DAY = 24 * 60 * 60 * 1000;
 const iso = (offsetDays: number) => new Date(Date.now() + offsetDays * DAY).toISOString();
@@ -185,6 +188,48 @@ describe('TeamSprintsManagerWeb', () => {
       await chooseFilter(c, Strings.sprints.filterOptions.active);
       expect(c.textContent).not.toContain(Strings.sprints.recentHeader);
       expect(c.textContent).not.toContain(Strings.sprints.expiredHeader(1));
+    });
+  });
+
+  describe('mockup extras: no-active row and the summary link', () => {
+    const endedOnly = [
+      { id: 4, name: 'Sprint Just Ended', startDate: iso(-12), endDate: iso(-1) },
+      { id: 5, name: 'Sprint Long Gone', startDate: iso(-40), endDate: iso(-30) },
+    ];
+
+    it('says there is no active sprint when only ended sprints exist; an admin can open the create form from it', async () => {
+      mockedAxios.get.mockResolvedValue({ data: endedOnly });
+      const c = await render(true);
+      expect(c.textContent).toContain(Strings.sprints.noActiveSprintText);
+      expect(c.textContent).not.toContain(Strings.sprints.createSprintHeader);
+      await clickText(c, Strings.sprints.createSprintLink);
+      expect(c.textContent).toContain(Strings.sprints.createSprintHeader);
+    });
+
+    it('a member sees the no-active line without the create link', async () => {
+      mockedAxios.get.mockResolvedValue({ data: endedOnly });
+      const c = await render(false);
+      expect(c.textContent).toContain(Strings.sprints.noActiveSprintText);
+      expect(c.textContent).not.toContain(Strings.sprints.createSprintLink);
+    });
+
+    it('does not show the no-active line while a sprint is running', async () => {
+      const c = await render(true);
+      expect(c.textContent).not.toContain(Strings.sprints.noActiveSprintText);
+    });
+
+    it('an admin gets "סיכום" on a recently ended sprint, which opens the summary route', async () => {
+      mockedAxios.get.mockResolvedValue({ data: endedOnly });
+      const c = await render(true);
+      await clickText(c, Strings.sprints.summaryLink);
+      expect(openSprint).toHaveBeenCalledWith(team.id, 4, 'summary');
+    });
+
+    it('a member keeps "כניסה ללוח" on a recently ended sprint (the summary is admin-only)', async () => {
+      mockedAxios.get.mockResolvedValue({ data: endedOnly });
+      const c = await render(false);
+      expect(c.textContent).not.toContain(Strings.sprints.summaryLink);
+      expect(c.textContent).toContain(Strings.sprints.enterRetroButton);
     });
   });
 });

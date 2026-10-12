@@ -48,13 +48,45 @@ function SprintRow({ sprint, muted, onPress, children }: { sprint: any; muted?: 
   );
 }
 
-/** תג (אופציונלי) ו"כניסה ללוח" יחד בקצה השורה, בלי להתכווץ. */
-function RowEnd({ children }: { children?: React.ReactNode }) {
+/**
+ * תג (אופציונלי) וקישור יחד בקצה השורה, בלי להתכווץ. ברירת המחדל "כניסה ללוח" (השורה עצמה לוחצת);
+ * עם `onOpenSummary` הקישור הוא "סיכום" — כפתור נפרד, כי הוא מוביל למקום אחר מהשורה.
+ */
+function RowEnd({ children, onOpenSummary }: { children?: React.ReactNode; onOpenSummary?: () => void }) {
   const t = useTheme();
+  const linkStyle = [rnText(t.type.bodyStrong), { color: t.color.accent.base }];
   return (
     <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2], flexShrink: 0 }}>
       {children}
-      <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.base }]}>{Strings.sprints.enterRetroButton}</Text>
+      {onOpenSummary ? (
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={onOpenSummary}
+          style={{ minHeight: t.layout.minTouchTarget, justifyContent: 'center' }}
+        >
+          <Text style={linkStyle}>{Strings.sprints.summaryLink}</Text>
+        </TouchableOpacity>
+      ) : (
+        <Text style={linkStyle}>{Strings.sprints.enterRetroButton}</Text>
+      )}
+    </View>
+  );
+}
+
+/** ספרינטים קיימים אבל אף אחד לא רץ או מתוכנן — במקום רשימה ריקה. מנהל מקבל קישור לפתיחת ספרינט. */
+export function NoActiveSprintRow({ onCreate }: { onCreate?: () => void }) {
+  const t = useTheme();
+  return (
+    <View
+      testID="no-active-sprint"
+      style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', columnGap: t.space[3], paddingVertical: t.space[2], borderBottomWidth: 1, borderBottomColor: t.color.border }}
+    >
+      <Text style={[rnText(t.type.body), { color: t.color.textSecondary, textAlign: 'right' }]}>{Strings.sprints.noActiveSprintText}</Text>
+      {onCreate ? (
+        <TouchableOpacity accessibilityRole="button" onPress={onCreate} style={{ minHeight: t.layout.minTouchTarget, justifyContent: 'center' }}>
+          <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.base }]}>{Strings.sprints.createSprintLink}</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -90,7 +122,8 @@ export function OpenSprintRow({ sprint, state, onPress }: { sprint: any; state: 
   );
 }
 
-export function RecentSprintsGroup({ sprints, onSelect }: { sprints: any[]; onSelect: (sprint: any) => void }) {
+/** `onOpenSummary` רק למי שמורשה לסיכום (מנהלים) — אחרת "כניסה ללוח" כמו כל השאר. */
+export function RecentSprintsGroup({ sprints, onSelect, onOpenSummary }: { sprints: any[]; onSelect: (sprint: any) => void; onOpenSummary?: (sprint: any) => void }) {
   const t = useTheme();
   return (
     <View>
@@ -99,7 +132,7 @@ export function RecentSprintsGroup({ sprints, onSelect }: { sprints: any[]; onSe
       </Text>
       {sprints.map((sprint) => (
         <SprintRow key={sprint.id} sprint={sprint} muted onPress={() => onSelect(sprint)}>
-          <RowEnd>
+          <RowEnd onOpenSummary={onOpenSummary ? () => onOpenSummary(sprint) : undefined}>
             <SprintBadge tone="neutral" label={Strings.sprints.endedBadge} />
           </RowEnd>
         </SprintRow>

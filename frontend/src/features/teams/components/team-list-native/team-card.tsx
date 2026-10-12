@@ -21,11 +21,12 @@ interface TeamCardProps {
   userId: number;
   onAddMemberSuccess: () => void;
   onSelectSprint: (sprint: any, team: any) => void;
+  onActiveSprintCount?: (teamId: number, count: number) => void;
 }
 
 type OpenPanel = 'members' | 'settings' | null;
 
-export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSprint }: TeamCardProps) {
+export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSprint, onActiveSprintCount }: TeamCardProps) {
   const t = useTheme();
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
   const [activeSprintCount, setActiveSprintCount] = useState<number | null>(null);
@@ -201,9 +202,11 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
             token={token}
             isAdmin={isTeamAdmin}
             onSelectSprint={onSelectSprint}
-            onSprintsLoaded={(sprints) =>
-              setActiveSprintCount(sprints.filter((s) => getSprintState(s.startDate, s.endDate) === 'active').length)
-            }
+            onSprintsLoaded={(sprints) => {
+              const count = sprints.filter((s) => getSprintState(s.startDate, s.endDate) === 'active').length;
+              setActiveSprintCount(count);
+              onActiveSprintCount?.(team.id, count);
+            }}
           />
         </View>
       )}

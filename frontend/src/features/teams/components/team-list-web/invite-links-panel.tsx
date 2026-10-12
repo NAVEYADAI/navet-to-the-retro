@@ -33,7 +33,6 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   const [listError, setListError] = useState<string | null>(null);
   const [copyError, setCopyError] = useState<string | null>(null);
 
-  const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [maxUses, setMaxUses] = useState('');
@@ -81,7 +80,6 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       setName('');
       setExpiresAt('');
       setMaxUses('');
-      setShowCreateForm(false);
       trackEvent('invite_link_created');
       fetchInvites();
     } catch (err: any) {
@@ -164,61 +162,47 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
               >
                 <bdi>{inviteUrl(newLinkToken)}</bdi>
               </Box>
-              <Button size="sm" variant="primary" icon={copied ? 'check' : 'copy'} onPress={() => handleCopy(newLinkToken)}>
+              <Button size="sm" variant="secondary" icon={copied ? 'check' : 'copy'} onPress={() => handleCopy(newLinkToken)}>
                 {copied ? Strings.invites.linkCopiedText : Strings.invites.copyLinkButton}
               </Button>
             </Box>
           )}
 
-          {showCreateForm ? (
-            <Box
-              sx={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: `${t.space[3]}px`,
-                padding: `${t.space[4]}px`,
-                border: `1px solid ${t.color.border}`,
-                borderRadius: `${t.radius.card}px`,
-              }}
-            >
-              {createError && (
-                <Alert severity="error" sx={{ ...t.type.body }}>
-                  {createError}
-                </Alert>
-              )}
-              <Field
-                label={Strings.invites.nameLabel}
-                placeholder={Strings.invites.namePlaceholder}
-                value={name}
-                onChangeText={setName}
-              />
-              <Field
-                label={Strings.invites.expiresAtLabel}
-                type="date"
-                value={expiresAt}
-                onChangeText={setExpiresAt}
-              />
-              <Field
-                label={Strings.invites.maxUsesLabel}
-                type="number"
-                value={maxUses}
-                onChangeText={setMaxUses}
-              />
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', gap: `${t.space[3]}px` }}>
-                <Button variant="primary" icon="plus" onPress={handleCreateLink} disabled={isCreating} loading={isCreating}>
-                  {Strings.invites.createLinkButton}
-                </Button>
-                <Button variant="secondary" onPress={() => setShowCreateForm(false)}>
-                  {Strings.teamList.cancelButton}
-                </Button>
-              </Box>
-            </Box>
-          ) : (
-            <Button size="sm" variant="secondary" icon="plus" onPress={() => setShowCreateForm(true)}>
-              {Strings.invites.createLinkButton}
-            </Button>
+          {/* הטופס פתוח ישר — הלשונית הזו קיימת רק כדי ליצור קישור, אין סיבה ללחיצה נוספת. */}
+          {createError && (
+            <Alert severity="error" sx={{ ...t.type.body }}>
+              {createError}
+            </Alert>
           )}
+          <Field
+            label={Strings.invites.nameLabel}
+            placeholder={Strings.invites.namePlaceholder}
+            value={name}
+            onChangeText={setName}
+          />
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: `${t.space[3]}px` }}>
+            <Field
+              label={Strings.invites.expiresAtLabel}
+              type="date"
+              value={expiresAt}
+              onChangeText={setExpiresAt}
+            />
+            <Field
+              label={Strings.invites.maxUsesLabel}
+              type="number"
+              value={maxUses}
+              onChangeText={setMaxUses}
+            />
+          </Box>
+          <Button variant="primary" icon="plus" onPress={handleCreateLink} disabled={isCreating} loading={isCreating}>
+            {Strings.invites.createLinkButton}
+          </Button>
 
+          {invites.length > 0 || listError ? (
+            <Typography sx={{ ...t.type.overline, color: t.color.textMuted, textTransform: 'uppercase', paddingBlockStart: `${t.space[2]}px` }}>
+              {Strings.invites.existingLinksHeader}
+            </Typography>
+          ) : null}
           {invites.length === 0 ? (listError ? null : (
             <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
               {Strings.invites.noLinksText}

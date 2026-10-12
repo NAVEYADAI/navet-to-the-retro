@@ -12,24 +12,15 @@ interface TeamListProps {
   userId: number;
   onAddMemberSuccess: () => void;
   onSelectSprint: (sprint: any, team: any) => void;
+  onActiveSprintCount?: (teamId: number, count: number) => void;
 }
 
-export function TeamListNative({ teams, token, userId, onAddMemberSuccess, onSelectSprint }: TeamListProps) {
+export function TeamListNative({ teams, token, userId, onAddMemberSuccess, onSelectSprint, onActiveSprintCount }: TeamListProps) {
   const t = useTheme();
 
   return (
     <View style={{ gap: t.space[4] }}>
-      <Text
-        style={{
-          fontSize: t.type.sectionTitle.fontSize,
-          lineHeight: Math.round(t.type.sectionTitle.fontSize * t.type.sectionTitle.lineHeight),
-          fontWeight: String(t.type.sectionTitle.fontWeight) as any,
-          color: t.color.text,
-          textAlign: 'right',
-        }}
-      >
-        {Strings.teamList.myTeamsHeader}
-      </Text>
+      {/* הכותרת "הצוותים שלי" היא כותרת המסך עצמו (dashboard-native). */}
       {teams.map((team) => {
         const isPending = team.status === 'PENDING_APPROVAL';
         const isMyApproval = isPending && team.pendingApproverId === userId;
@@ -65,6 +56,7 @@ export function TeamListNative({ teams, token, userId, onAddMemberSuccess, onSel
             userId={userId}
             onAddMemberSuccess={onAddMemberSuccess}
             onSelectSprint={onSelectSprint}
+            onActiveSprintCount={onActiveSprintCount}
           />
         );
       })}

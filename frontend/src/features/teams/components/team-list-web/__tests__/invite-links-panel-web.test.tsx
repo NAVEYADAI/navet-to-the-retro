@@ -38,11 +38,9 @@ describe('InviteLinksPanel (web)', () => {
   it('blocks maxUses=0 client-side (BUG-32)', async () => {
     mockedAxios.get.mockResolvedValue({ data: [] });
     mounted = await mountWeb(panel());
-    await clickText(mounted.container, Strings.invites.createLinkButton);
-
+    // The create form is open from the start — no toggle click first.
     const numberInput = mounted.container.querySelector<HTMLInputElement>('input[type="number"]')!;
     await setInput(numberInput, '0');
-    // The form's own submit button is the second "create link" button now on screen.
     const buttons = Array.from(mounted.container.querySelectorAll('button')).filter((b) => b.textContent?.includes(Strings.invites.createLinkButton));
     const { act } = require('react');
     await act(async () => { buttons[buttons.length - 1].dispatchEvent(new MouseEvent('click', { bubbles: true })); });

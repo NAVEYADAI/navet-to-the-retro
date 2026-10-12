@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
 import { TeamList } from '@/features/teams';
@@ -16,6 +16,8 @@ export function DashboardWeb() {
   const { user, token } = useAuth();
 
   const { teams, isLoadingTeams, isRefreshing, loadError, setSelectedTeam, fetchMyTeams, refresh } = useTeamsData(token);
+  // כל כרטיס מדווח כמה ספרינטים פעילים יש לו אחרי שטען אותם — לשורת הסיכום מתחת לכותרת.
+  const [activeByTeam, setActiveByTeam] = useState<Record<number, number>>({});
 
   useEffect(() => subscribeGoHome(() => {
     setSelectedTeam(null);
@@ -24,21 +26,41 @@ export function DashboardWeb() {
 
   if (!user) return null;
 
+  const activeCounts = teams.map((team) => activeByTeam[team.id]).filter((n): n is number => n !== undefined);
+  const subtitle = teams.length === 0
+    ? undefined
+    : [
+        Strings.dashboard.teamsCount(teams.length),
+        activeCounts.length > 0 ? Strings.teamList.summaryActiveSprints(activeCounts.reduce((a, b) => a + b, 0)) : null,
+      ].filter(Boolean).join(' · ');
+
   return (
     <Page>
       <PageHeader
-        title={Strings.dashboard.welcomeTitle(user.firstName || user.username)}
+        title={Strings.teamList.myTeamsHeader}
+        subtitle={subtitle}
         action={
-          <Button
-            variant="ghost"
-            size="sm"
-            icon="refresh"
-            iconOnlyOnMobile
-            onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
-            disabled={isLoadingTeams || isRefreshing}
-          >
-            {Strings.common.refreshButton}
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px` }}>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="refresh"
+              iconOnlyOnMobile
+              onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
+              disabled={isLoadingTeams || isRefreshing}
+            >
+              {Strings.common.refreshButton}
+            </Button>
+            {/* יצירת צוות גרה בהגדרות — הכפתור כאן רק מוביל אליה. */}
+            <Button
+              variant="secondary"
+              size="sm"
+              icon="plus"
+              onPress={() => { trackEvent('new_team_clicked', { screen: 'dashboard' }); router.push('/settings'); }}
+            >
+              {Strings.dashboard.newTeamButton}
+            </Button>
+          </Box>
         }
       />
 
@@ -85,6 +107,9 @@ export function DashboardWeb() {
           userId={user.id}
           onAddMemberSuccess={() => token && fetchMyTeams(token)}
           onSelectSprint={(sprint, team) => openSprint(team.id, sprint.id)}
+          onActiveSprintCount={(teamId, count) =>
+            setActiveByTeam((prev) => (prev[teamId] === count ? prev : { ...prev, [teamId]: count }))
+          }
         />
       )}
     </Page>

@@ -60,12 +60,7 @@ test.describe('Team invites — email invites for unregistered users + shareable
     await page.getByText(teamName).waitFor();
     // Invite links live in the add-member modal (members list -> "הוסף חבר" -> link tab).
     await openAddMemberModal(page, 'link');
-    // The "show form" button and the form's submit button reuse the same label, so clicking
-    // this text twice back-to-back is a race: on a slower render (e.g. Mobile Chrome) the second
-    // click can fire before the form (and its real submit button) has mounted, and the click never
-    // reaches a submit handler — the test then hangs waiting for linkCreatedText. Waiting for a
-    // field that only exists once the form is showing makes the second click unambiguous.
-    await page.getByText(Strings.invites.createLinkButton).click();
+    // The create form is open as soon as the link tab is (no "show form" click first).
     await page.getByPlaceholder(Strings.invites.namePlaceholder).waitFor();
     await page.getByText(Strings.invites.createLinkButton).click();
 
@@ -158,7 +153,6 @@ test.describe('Team invites — email invites for unregistered users + shareable
     await page.getByText(teamName).waitFor();
     // Invite links live in the add-member modal (members list -> "הוסף חבר" -> link tab).
     await openAddMemberModal(page, 'link');
-    await page.getByText(Strings.invites.createLinkButton).click();
     await page.getByPlaceholder(Strings.invites.namePlaceholder).waitFor();
     await page.getByText(Strings.invites.createLinkButton).click();
 

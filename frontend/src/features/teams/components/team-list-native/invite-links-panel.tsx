@@ -40,7 +40,6 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
   // Set when loading/revoking fails, so a failure isn't shown as "no links yet" (BUG-34).
   const [listError, setListError] = useState<string | null>(null);
 
-  const [showCreateForm, setShowCreateForm] = useState(false);
   const [name, setName] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [maxUses, setMaxUses] = useState('');
@@ -86,7 +85,6 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
       setName('');
       setExpiresAt('');
       setMaxUses('');
-      setShowCreateForm(false);
       trackEvent('invite_link_created');
       fetchInvites();
     } catch (err: any) {
@@ -169,7 +167,9 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
                 style={{
                   flexDirection: 'row-reverse',
                   gap: t.space[1],
-                  backgroundColor: t.color.accent.base,
+                  backgroundColor: t.color.surface,
+                  borderWidth: 1,
+                  borderColor: t.color.borderStrong,
                   borderRadius: t.radius.field,
                   minHeight: t.layout.minTouchTarget,
                   paddingHorizontal: t.space[3],
@@ -179,134 +179,91 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
                 }}
                 onPress={() => handleShare(newLinkToken)}
               >
-                <Icon name="copy" size="sm" tone="inverse" />
-                <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+                <Icon name="copy" size="sm" />
+                <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
                   {Strings.invites.copyLinkButton}
                 </Text>
               </TouchableOpacity>
             </View>
           )}
 
-          {showCreateForm ? (
+          {/* הטופס פתוח ישר — הלשונית הזו קיימת רק כדי ליצור קישור, אין סיבה ללחיצה נוספת. */}
+          {!!createError && (
             <View
               style={{
-                gap: t.space[2],
-                padding: t.space[3],
-                borderRadius: t.radius.card,
-                backgroundColor: t.color.surfaceSubtle,
-              }}
-            >
-              {!!createError && (
-                <View
-                  style={{
-                    backgroundColor: t.color.status.danger.bg,
-                    borderWidth: 1,
-                    borderColor: t.color.status.danger.border,
-                    borderRadius: t.radius.field,
-                    padding: t.space[2],
-                  }}
-                >
-                  <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
-                    {createError}
-                  </Text>
-                </View>
-              )}
-              <Text style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'right' }]}>
-                {Strings.invites.nameLabel}
-              </Text>
-              <TextInput
-                style={inputStyle}
-                placeholder={Strings.invites.namePlaceholder}
-                placeholderTextColor={t.color.textSecondary}
-                value={name}
-                onChangeText={setName}
-              />
-              <Text style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'right' }]}>
-                {Strings.invites.expiresAtLabel}
-              </Text>
-              <TextInput
-                style={inputStyle}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={t.color.textSecondary}
-                value={expiresAt}
-                onChangeText={setExpiresAt}
-              />
-              <Text style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'right' }]}>
-                {Strings.invites.maxUsesLabel}
-              </Text>
-              <TextInput
-                style={inputStyle}
-                placeholder="5"
-                placeholderTextColor={t.color.textSecondary}
-                value={maxUses}
-                onChangeText={setMaxUses}
-                keyboardType="number-pad"
-              />
-              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
-                <TouchableOpacity
-                  style={{
-                    flexDirection: 'row-reverse',
-                    gap: t.space[1],
-                    backgroundColor: t.color.accent.base,
-                    borderRadius: t.radius.field,
-                    minHeight: t.layout.minTouchTarget,
-                    paddingHorizontal: t.space[4],
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                  onPress={handleCreateLink}
-                  disabled={isCreating}
-                >
-                  {isCreating ? (
-                    <ActivityIndicator size="small" color={t.color.accent.onBase} />
-                  ) : (
-                    <>
-                      <Icon name="plus" size="sm" tone="inverse" />
-                      <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
-                        {Strings.invites.createLinkButton}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: t.color.surface,
-                    borderWidth: 1,
-                    borderColor: t.color.border,
-                    borderRadius: t.radius.field,
-                    minHeight: t.layout.minTouchTarget,
-                    paddingHorizontal: t.space[4],
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                  onPress={() => setShowCreateForm(false)}
-                >
-                  <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
-                    {Strings.teamList.cancelButton}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={{
-                flexDirection: 'row-reverse',
-                gap: t.space[1],
-                backgroundColor: t.color.surfaceSubtle,
+                backgroundColor: t.color.status.danger.bg,
+                borderWidth: 1,
+                borderColor: t.color.status.danger.border,
                 borderRadius: t.radius.field,
-                minHeight: t.layout.minTouchTarget,
-                paddingHorizontal: t.space[3],
-                justifyContent: 'center',
-                alignItems: 'center',
-                alignSelf: 'flex-end',
+                padding: t.space[2],
               }}
-              onPress={() => setShowCreateForm(true)}
             >
-              <Icon name="plus" size="sm" />
-              <Text style={[rnText(t.type.bodyStrong), { color: t.color.text }]}>
-                {Strings.invites.createLinkButton}
+              <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+                {createError}
               </Text>
-            </TouchableOpacity>
+            </View>
+          )}
+          <Text style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'right' }]}>
+            {Strings.invites.nameLabel}
+          </Text>
+          <TextInput
+            style={inputStyle}
+            placeholder={Strings.invites.namePlaceholder}
+            placeholderTextColor={t.color.textSecondary}
+            value={name}
+            onChangeText={setName}
+          />
+          <Text style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'right' }]}>
+            {Strings.invites.expiresAtLabel}
+          </Text>
+          <TextInput
+            style={inputStyle}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={t.color.textSecondary}
+            value={expiresAt}
+            onChangeText={setExpiresAt}
+          />
+          <Text style={[rnText(t.type.caption), { color: t.color.text, textAlign: 'right' }]}>
+            {Strings.invites.maxUsesLabel}
+          </Text>
+          <TextInput
+            style={inputStyle}
+            placeholder="5"
+            placeholderTextColor={t.color.textSecondary}
+            value={maxUses}
+            onChangeText={setMaxUses}
+            keyboardType="number-pad"
+          />
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row-reverse',
+              gap: t.space[1],
+              backgroundColor: t.color.accent.base,
+              borderRadius: t.radius.field,
+              minHeight: t.layout.minTouchTarget,
+              paddingHorizontal: t.space[4],
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onPress={handleCreateLink}
+            disabled={isCreating}
+          >
+            {isCreating ? (
+              <ActivityIndicator size="small" color={t.color.accent.onBase} />
+            ) : (
+              <>
+                <Icon name="plus" size="sm" tone="inverse" />
+                <Text style={[rnText(t.type.bodyStrong), { color: t.color.accent.onBase }]}>
+                  {Strings.invites.createLinkButton}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {(invites.length > 0 || !!listError) && (
+            <Text style={[rnText(t.type.overline), { color: t.color.textMuted, textAlign: 'right', paddingTop: t.space[2] }]}>
+              {Strings.invites.existingLinksHeader}
+            </Text>
           )}
 
           {invites.length === 0 ? (listError ? null : (

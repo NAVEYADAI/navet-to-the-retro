@@ -12,17 +12,15 @@ interface TeamListProps {
   userId: number;
   onAddMemberSuccess: () => void;
   onSelectSprint: (sprint: any, team: any) => void;
+  onActiveSprintCount?: (teamId: number, count: number) => void;
 }
 
-export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelectSprint }: TeamListProps) {
+export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelectSprint, onActiveSprintCount }: TeamListProps) {
   const t = useTheme();
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
-      <Typography sx={{ ...t.type.sectionTitle, color: t.color.text, textAlign: 'start' }}>
-        {Strings.teamList.myTeamsHeader}
-      </Typography>
-
+      {/* הכותרת "הצוותים שלי" היא כותרת העמוד עצמו (dashboard-web). */}
       {teams.map((team) => {
         const isPending = team.status === 'PENDING_APPROVAL';
         const isMyApproval = isPending && team.pendingApproverId === userId;
@@ -58,6 +56,7 @@ export function TeamListWeb({ teams, token, userId, onAddMemberSuccess, onSelect
             userId={userId}
             onAddMemberSuccess={onAddMemberSuccess}
             onSelectSprint={onSelectSprint}
+            onActiveSprintCount={onActiveSprintCount}
           />
         );
       })}

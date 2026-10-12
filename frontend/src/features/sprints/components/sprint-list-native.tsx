@@ -8,7 +8,8 @@ import { Icon } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 import { validateSprintDates, getSprintApiErrorMessage } from '../sprint-validation';
 import { getSprintBucket } from '../sprint-lifecycle';
-import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup } from './sprint-rows-native';
+import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup, NoActiveSprintRow } from './sprint-rows-native';
+import { openSprint } from '@/lib/sprint-routes';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -272,12 +273,23 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint,
         </Text>
       ) : (
         <View>
+          {activeSprints.length === 0 && (
+            <NoActiveSprintRow
+              onCreate={isAdmin && !showCreateForm ? () => { trackEvent('sprint_create_form_toggled', { open: true, source: 'no_active_row' }); setShowCreateForm(true); } : undefined}
+            />
+          )}
+
           {activeSprints.map(({ sprint, bucket }) => (
             <OpenSprintRow key={sprint.id} sprint={sprint} state={bucket} onPress={() => onSelectSprint(sprint, team)} />
           ))}
 
           {recentSprints.length > 0 && (
-            <RecentSprintsGroup sprints={recentSprints} onSelect={(sprint) => onSelectSprint(sprint, team)} />
+            <RecentSprintsGroup
+              sprints={recentSprints}
+              onSelect={(sprint) => onSelectSprint(sprint, team)}
+              // הסיכום פתוח רק למנהלים (sprint-retro-board: canExportSummary).
+              onOpenSummary={isAdmin ? (sprint) => { trackEvent('sprint_summary_opened', { sprintId: sprint.id, source: 'team_card' }); openSprint(team.id, sprint.id, 'summary'); } : undefined}
+            />
           )}
 
           {expiredSprints.length > 0 && (

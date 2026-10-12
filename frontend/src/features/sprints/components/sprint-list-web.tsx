@@ -8,7 +8,8 @@ import { Button, Field, Icon } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 import { validateSprintDateRange } from '../sprint-validation';
 import { getSprintBucket } from '../sprint-lifecycle';
-import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup } from './sprint-rows-web';
+import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup, NoActiveSprintRow } from './sprint-rows-web';
+import { openSprint } from '@/lib/sprint-routes';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -167,6 +168,8 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint, on
   const showRecentSection = filter !== 'active' && recent.length > 0;
   const showExpiredSection = filter !== 'active' && expired.length > 0;
   const hasNothingToShow = visibleOpen.length === 0 && !showRecentSection && !showExpiredSection;
+  // יש ספרינטים, אבל אף אחד לא פעיל או מתוכנן — אומרים את זה במפורש במקום להתחיל ישר ב"הסתיימו".
+  const showNoActive = filter === 'all' && open.length === 0;
 
   return (
     <Box
@@ -196,7 +199,7 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint, on
             <Button
               variant={showCreateForm ? 'ghost' : 'primary'}
               size="sm"
-              onPress={() => setShowCreateForm(!showCreateForm)}
+              onPress={() => { trackEvent('sprint_create_form_toggled', { open: !showCreateForm }); setShowCreateForm(!showCreateForm); }}
             >
               {showCreateForm ? Strings.sprints.cancelButton : Strings.sprints.newSprintButton}
             </Button>
@@ -254,11 +257,24 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint, on
             </Typography>
           ) : null}
 
+          {showNoActive ? (
+            <NoActiveSprintRow
+              onCreate={isAdmin && !showCreateForm ? () => { trackEvent('sprint_create_form_toggled', { open: true, source: 'no_active_row' }); setShowCreateForm(true); } : undefined}
+            />
+          ) : null}
+
           {visibleOpen.map(({ sprint, state }) => (
             <OpenSprintRow key={sprint.id} sprint={sprint} state={state} onPress={() => onSelectSprint(sprint, team)} />
           ))}
 
-          {showRecentSection ? <RecentSprintsGroup sprints={recent} onSelect={(sprint) => onSelectSprint(sprint, team)} /> : null}
+          {showRecentSection ? (
+            <RecentSprintsGroup
+              sprints={recent}
+              onSelect={(sprint) => onSelectSprint(sprint, team)}
+              // הסיכום פתוח רק למנהלים (sprint-retro-board-web: canExportSummary).
+              onOpenSummary={isAdmin ? (sprint) => { trackEvent('sprint_summary_opened', { sprintId: sprint.id, source: 'team_card' }); openSprint(team.id, sprint.id, 'summary'); } : undefined}
+            />
+          ) : null}
 
           {showExpiredSection ? <ExpiredSprintsGroup sprints={expired} onSelect={(sprint) => onSelectSprint(sprint, team)} /> : null}
         </Box>

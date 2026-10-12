@@ -15,14 +15,27 @@ export function getAnalyticsClient(): PostHog | null {
   if (client !== undefined) return client;
 
   const apiKey = process.env.EXPO_PUBLIC_POSTHOG_KEY;
-  if (!apiKey) {
+  // `web.output: "static"` renders every page in Node too (dev server, e2e, export). Without
+  // this guard each render spun up its own client and sent an anonymous "Application Opened"
+  // with an empty OS and a 0x0 screen — thousands of fake users in PostHog.
+  const isServerRender = Platform.OS === 'web' && typeof window === 'undefined';
+  if (!apiKey || isServerRender) {
     client = null;
     return client;
   }
 
-  client = new PostHog(apiKey, {
-    host: process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://eu.i.posthog.com',
-  });
+  // On web, send through the same-origin /ingest reverse proxy (nginx.conf in prod,
+  // metro.config.js in dev) — ad blockers drop requests to *.posthog.com directly, which both
+  // loses events and spams "Failed to fetch" in the console. Native apps aren't ad-blocked.
+  const host =
+    Platform.OS === 'web' && typeof window !== 'undefined'
+      ? `${window.location.origin}/ingest`
+      : process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://eu.i.posthog.com';
+
+  client = new PostHog(apiKey, { host });
+  // Every event carries this so PostHog's "filter out internal and test users" can drop local
+  // dev traffic (`expo start` / Metro) and keep only the exported production build.
+  void client.register({ environment: __DEV__ ? 'development' : 'production' });
   return client;
 }
 

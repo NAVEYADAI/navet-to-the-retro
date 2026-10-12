@@ -39,6 +39,8 @@ export function DashboardNative() {
 
   const [teamCreateLoading, setTeamCreateLoading] = useState(false);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
+  // כל כרטיס מדווח כמה ספרינטים פעילים יש לו אחרי שטען אותם — לשורת הסיכום מתחת לכותרת.
+  const [activeByTeam, setActiveByTeam] = useState<Record<number, number>>({});
 
   const { teams, isLoadingTeams, isRefreshing, loadError, fetchMyTeams, refresh } = useTeamsData(token);
 
@@ -69,6 +71,14 @@ export function DashboardNative() {
 
   if (!user) return null;
 
+  const activeCounts = teams.map((team) => activeByTeam[team.id]).filter((n): n is number => n !== undefined);
+  const headerSummary = teams.length === 0
+    ? ''
+    : [
+        Strings.dashboard.teamsCount(teams.length),
+        activeCounts.length > 0 ? Strings.teamList.summaryActiveSprints(activeCounts.reduce((a, b) => a + b, 0)) : null,
+      ].filter(Boolean).join(' · ');
+
   return (
     <View style={{ flex: 1, justifyContent: 'center', flexDirection: 'row', backgroundColor: t.color.bg }}>
       <SafeAreaView style={{ flex: 1, maxWidth: MaxContentWidth, width: '100%' }}>
@@ -82,23 +92,47 @@ export function DashboardNative() {
           showsVerticalScrollIndicator={false}
         >
           <View style={{ width: '100%', maxWidth: 1100, alignSelf: 'center', gap: t.space[4] }}>
-            <View style={{ gap: t.space[1], alignItems: 'center', marginVertical: t.space[2] }}>
-              <Text style={[rnText(t.type.pageTitle), { color: t.color.text, textAlign: 'center' }]}>
-                {Strings.dashboard.welcomeTitle(user.firstName || user.username)}
-              </Text>
-              <Text style={[rnText(t.type.body), { color: t.color.textSecondary, textAlign: 'center' }]}>
-                {Strings.dashboard.welcomeSubtitle}
-              </Text>
-              <TouchableOpacity
-                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
-                disabled={isLoadingTeams || isRefreshing}
-              >
-                <Icon name="refresh" size="sm" tone="muted" />
-                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.textSecondary }]}>
-                  {Strings.common.refreshButton}
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: t.space[3], marginVertical: t.space[2] }}>
+              <View style={{ flex: 1, minWidth: 0, gap: t.space[1] }}>
+                <Text style={[rnText(t.type.pageTitle), { color: t.color.text, textAlign: 'right' }]}>
+                  {Strings.teamList.myTeamsHeader}
                 </Text>
-              </TouchableOpacity>
+                {!!headerSummary && (
+                  <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>{headerSummary}</Text>
+                )}
+              </View>
+              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1], flexShrink: 0 }}>
+                {/* בטלפון רענון הוא אייקון בלבד — הטקסט נשאר כתווית נגישות. */}
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={Strings.common.refreshButton}
+                  style={{ width: t.layout.minTouchTarget, height: t.layout.minTouchTarget, alignItems: 'center', justifyContent: 'center' }}
+                  onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
+                  disabled={isLoadingTeams || isRefreshing}
+                >
+                  <Icon name="refresh" size="sm" tone="muted" />
+                </TouchableOpacity>
+                {teams.length > 0 && (
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={Strings.dashboard.newTeamButton}
+                    accessibilityState={{ expanded: showCreateTeam }}
+                    style={{
+                      width: t.layout.minTouchTarget,
+                      height: t.layout.minTouchTarget,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: t.radius.field,
+                      borderWidth: 1,
+                      borderColor: t.color.borderStrong,
+                      backgroundColor: t.color.surface,
+                    }}
+                    onPress={() => { trackEvent('new_team_clicked', { screen: 'dashboard' }); setShowCreateTeam(!showCreateTeam); }}
+                  >
+                    <Icon name="plus" size="sm" />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {!!loadError && (
@@ -146,7 +180,7 @@ export function DashboardNative() {
               </View>
             ) : (
               <View style={{ width: '100%', gap: t.space[4] }}>
-                {showCreateTeam ? (
+                {showCreateTeam && (
                   <View
                     style={{
                       padding: t.space[4],
@@ -164,33 +198,17 @@ export function DashboardNative() {
                       onCancel={() => setShowCreateTeam(false)}
                     />
                   </View>
-                ) : (
-                  <TouchableOpacity
-                    style={{
-                      padding: t.space[4],
-                      borderRadius: t.radius.card,
-                      borderWidth: 1,
-                      borderStyle: 'dashed',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '100%',
-                      backgroundColor: t.color.surfaceSubtle,
-                      borderColor: t.color.border,
-                    }}
-                    onPress={() => setShowCreateTeam(true)}
-                  >
-                    <Text style={[rnText({ ...t.type.bodyStrong, fontWeight: 700 }), { color: t.color.text }]}>
-                      {Strings.dashboard.createNewTeamButton}
-                    </Text>
-                  </TouchableOpacity>
                 )}
 
                 <TeamList
-                          teams={teams}
+                  teams={teams}
                   token={token || ''}
                   userId={user.id}
                   onAddMemberSuccess={() => token && fetchMyTeams(token)}
                   onSelectSprint={(sprint, team) => openSprint(team.id, sprint.id)}
+                  onActiveSprintCount={(teamId, count) =>
+                    setActiveByTeam((prev) => (prev[teamId] === count ? prev : { ...prev, [teamId]: count }))
+                  }
                 />
               </View>
             )}

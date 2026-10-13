@@ -4,7 +4,7 @@ import { Box, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 import { useMemoryCardFlip, type MemoryCardComment } from '../memory-card-flip';
 
 /**
@@ -170,6 +170,7 @@ export function MemoryCardWeb({ comment }: MemoryCardWebProps) {
                 </Typography>
                 <Typography sx={{ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 600, color: t.color.textSecondary }}>
                   <bdi>{authorName}</bdi>
+                  {isFormerMemberComment(comment) && ` · ${Strings.retroBoard.formerMemberBadge}`}
                 </Typography>
                 {postedByAdminLabel ? (
                   <Typography sx={{ ...t.type.caption, fontSize: 10, fontWeight: 600, color: t.color.accent.base }}>

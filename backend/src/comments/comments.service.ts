@@ -197,8 +197,20 @@ export class CommentsService {
       }
     });
 
-    // 4. Return comments, masking author if comment is anonymous (no one, including admins, can unmask it)
-    return comments.map(c => this.maskIfAnonymous(c));
+    // Feature 11 (product-backlog/11-team-leave-and-removal.md §11.0 decision #4): flag comments
+    // whose author is no longer an ACTIVE member, so the UI can label them "לא בצוות". Computed,
+    // not stored — it clears by itself if they rejoin. One query for the whole sprint.
+    const activeMembers = await this.prisma.teamMember.findMany({
+      where: { teamId: sprint.teamId, status: 'ACTIVE' },
+      select: { userId: true }
+    });
+    const activeUserIds = new Set(activeMembers.map(m => m.userId));
+
+    // 4. Return comments, masking author if comment is anonymous (no one, including admins, can unmask it).
+    // The flag is left off masked comments — it would leak something about who wrote them.
+    return comments.map(c =>
+      c.isAnonymous ? this.maskIfAnonymous(c) : { ...c, authorIsActiveMember: activeUserIds.has(c.authorId) }
+    );
   }
 
   // BUG-02: masks both the nested `author` and the flat `authorId` column — leaving `authorId`

@@ -1,4 +1,4 @@
-## פיצ'ר 11: יציאה מצוות והוצאה מצוות — מאופיין, מוכן למימוש (כל ההחלטות נסגרו 2026-10-13)
+## פיצ'ר 11: יציאה מצוות והוצאה מצוות — מומש (2026-10-13), חוץ מהצעת מחיקת הצוות לחבר האמיתי האחרון (תלויה בפיצ'ר 14)
 
 ### נקודות מרכזיות (touchpoints)
 
@@ -79,34 +79,37 @@
 
 ### 11.1 Backend
 
-- [ ] `team-permissions.util.ts`: guard חדש `assertCanRemoveMember(prisma, teamId, requesterId, target)`. מנהל `ACTIVE` מסיר כל אחד. ראש צוות `ACTIVE` שאינו מנהל מסיר רק יעד עם `!isAdmin && role !== 'TEAM_LEADER'`. כל השאר מקבלים 403 עם הודעה בעברית.
-- [ ] `removeMember`: להחליף את בדיקת ה-`isAdmin` ב-guard החדש. גוף אופציונלי `{ newLeaderMemberId? }` — מתקבל רק כשהמבקש מנהל והיעד הוא ראש הצוות ה-`ACTIVE` האחרון; ממנה ל-`TEAM_LEADER` באותה טרנזקציה.
-- [ ] `leaveTeam(teamId, requesterId, { successorAdminMemberId?, newLeaderMemberId? })` + `POST /teams/:teamId/leave`, תחת `lockTeam`:
-  - [ ] החבר האמיתי האחרון → 409 עם קוד מזהה (למשל `LAST_REAL_MEMBER`), כדי שה-UI יציע מחיקת צוות.
-  - [ ] המנהל ה-`ACTIVE` האחרון: `successorAdminMemberId` חובה, אחרת 409. המחליף `ACTIVE`, לא פנטום ולא המבקש.
-  - [ ] `newLeaderMemberId` מתקבל רק אם המבקש הוא גם מנהל וגם ראש הצוות האחרון. אחרת מתעלמים ממנו.
-  - [ ] מחיקת שורת ה-`TeamMember` + side effects משותפים (ברירת מחדל טכנית 2).
-- [ ] `getCommentsForSprint`: שדה מחושב `authorIsActiveMember: boolean` (שאילתה אחת על חברי הצוות ה-`ACTIVE`). לא מוחזר על תגובה אנונימית ממוסכת.
-- [ ] Unit tests (`teams.service.spec.ts`): ראש צוות מסיר חבר רגיל ✓ / מנהל ✗ / ראש צוות אחר ✗; יציאת מנהל אחרון בלי מחליף ✗ / עם מחליף פנטום ✗ / עם מחליף תקין ✓ (באותה טרנזקציה); החבר האמיתי האחרון → 409 `LAST_REAL_MEMBER`; ראש צוות לא-מנהל יוצא ו-`newLeaderMemberId` לא משפיע; איפוס הקשר טלגרם.
+- [x] `team-permissions.util.ts`: guard חדש `assertCanRemoveMember(prisma, teamId, requesterId, target)`. מנהל `ACTIVE` מסיר כל אחד. ראש צוות `ACTIVE` שאינו מנהל מסיר רק יעד עם `!isAdmin && role !== 'TEAM_LEADER'`. כל השאר מקבלים 403 עם הודעה בעברית.
+- [x] `removeMember`: להחליף את בדיקת ה-`isAdmin` ב-guard החדש. גוף אופציונלי `{ newLeaderMemberId? }` — מתקבל רק כשהמבקש מנהל והיעד הוא ראש הצוות ה-`ACTIVE` האחרון; ממנה ל-`TEAM_LEADER` באותה טרנזקציה.
+- [x] `leaveTeam(teamId, requesterId, { successorAdminMemberId?, newLeaderMemberId? })` + `POST /teams/:teamId/leave`, תחת `lockTeam`:
+  - [x] החבר האמיתי האחרון → 409 עם קוד מזהה (למשל `LAST_REAL_MEMBER`), כדי שה-UI יציע מחיקת צוות.
+  - [x] המנהל ה-`ACTIVE` האחרון: `successorAdminMemberId` חובה, אחרת 409. המחליף `ACTIVE`, לא פנטום ולא המבקש.
+  - [x] `newLeaderMemberId` מתקבל רק אם המבקש הוא גם מנהל וגם ראש הצוות האחרון. אחרת מתעלמים ממנו.
+  - [x] מחיקת שורת ה-`TeamMember` + side effects משותפים (ברירת מחדל טכנית 2).
+- [x] `getCommentsForSprint`: שדה מחושב `authorIsActiveMember: boolean` (שאילתה אחת על חברי הצוות ה-`ACTIVE`). לא מוחזר על תגובה אנונימית ממוסכת.
+- [x] Unit tests (`teams.service.spec.ts`): ראש צוות מסיר חבר רגיל ✓ / מנהל ✗ / ראש צוות אחר ✗; יציאת מנהל אחרון בלי מחליף ✗ / עם מחליף פנטום ✗ / עם מחליף תקין ✓ (באותה טרנזקציה); החבר האמיתי האחרון → 409 `LAST_REAL_MEMBER`; ראש צוות לא-מנהל יוצא ו-`newLeaderMemberId` לא משפיע; איפוס הקשר טלגרם.
 
 ### 11.2 Frontend
 
-- [ ] כפתור "יציאה מהצוות" בכרטיס הצוות (web+native), לכל חבר `ACTIVE`. `trackEvent('team_leave_clicked')`.
-- [ ] זרימת יציאה: מסך אישור שמפרט את ההשלכות (אובדן גישה, התגובות נשארות עם "לא בצוות", אירועי יומן נמחקים). מנהל אחרון: בורר מחליף חובה, "צא" מושבת עד שנבחר. מנהל שהוא גם ראש הצוות האחרון: שאלה אופציונלית עם בורר ו"לא עכשיו". החבר האמיתי האחרון: במקום יציאה מוצג "מחק את הצוות" (פיצ'ר 14). אירועים: `team_leave_confirmed`, `team_leave_cancelled`, `team_leave_successor_selected`, `team_leave_new_leader_selected`.
-- [ ] `team-member-row`: כפתור "הסר" גם לראש צוות, על שורות של חברים רגילים בלבד. מנהל שמסיר את ראש הצוות האחרון נשאל "למנות ראש צוות חדש?" אחרי האישור (`team_member_remove_new_leader_selected`).
-- [ ] תווית "לא בצוות" ליד שם המחבר: לוח רטרו (web+native), משחק זיכרון, סיכום ספרינט. `Badge` מהדיזיין סיסטם, בלי אמוג'י.
-- [ ] אחרי יציאה מוצלחת: רענון `GET /teams/user/me`, ואם המשתמש היה בתוך מסך של הצוות — חזרה לדשבורד.
-- [ ] כל המחרוזות ב-`Strings`. Jest לכל קומפוננטה חדשה או משתנה (web+native).
+- [x] כפתור "יציאה מהצוות" בכרטיס הצוות (web+native), לכל חבר `ACTIVE`. `trackEvent('team_leave_clicked')`.
+- [x] זרימת יציאה: מסך אישור שמפרט את ההשלכות (אובדן גישה, התגובות נשארות עם "לא בצוות", אירועי יומן נמחקים). מנהל אחרון: בורר מחליף חובה, "צא" מושבת עד שנבחר. מנהל שהוא גם ראש הצוות האחרון: שאלה אופציונלית עם בורר ו"לא עכשיו". החבר האמיתי האחרון: מוצג הסבר למה אי אפשר לצאת (`leaveLastMemberText`). אירועים: `team_leave_confirmed`, `team_leave_cancelled`, `team_leave_successor_selected`, `team_leave_new_leader_selected`.
+- [x] `team-member-row`: כפתור "הסר" גם לראש צוות, על שורות של חברים רגילים בלבד. מנהל שמסיר את ראש הצוות האחרון נשאל "למנות ראש צוות חדש?" אחרי האישור (`team_member_remove_new_leader_selected`).
+- [x] תווית "לא בצוות" ליד שם המחבר: לוח רטרו (web+native) ומשחק זיכרון (web+native). מסך סיכום הספרינט לא מציג שמות מחברים בכלל, אז אין שם מה לסמן. `Badge` מהדיזיין סיסטם, בלי אמוג'י.
+- [x] אחרי יציאה מוצלחת: רענון `GET /teams/user/me`, ואם המשתמש היה בתוך מסך של הצוות — חזרה לדשבורד.
+- [x] כל המחרוזות ב-`Strings`. Jest לכל קומפוננטה חדשה או משתנה (web+native).
 
 ### 11.3 בדיקות
 
-- [ ] Playwright e2e (Desktop+Mobile Chrome), `frontend/e2e/team-leave.spec.ts`, על DB מבודד:
-  - [ ] חבר רגיל יוצא, והצוות נעלם לו.
-  - [ ] מנהל אחרון לא יכול לצאת בלי לבחור מחליף; אחרי בחירה המחליף רואה הרשאות מנהל.
-  - [ ] ראש צוות מסיר חבר רגיל, ולא רואה "הסר" על מנהל.
-  - [ ] החבר האמיתי האחרון מקבל הצעה למחוק את הצוות במקום לצאת.
-  - [ ] תגובה של מי שעזב מוצגת עם "לא בצוות".
-- [ ] Backend e2e (`backend/test/teams.e2e-spec.ts`): `POST /teams/:id/leave` עם כל מקרי ה-409/403, ושני המנהלים האחרונים יוצאים במקביל — רק אחד מצליח.
+- [x] Playwright e2e (Desktop+Mobile Chrome), `frontend/e2e/team-leave.spec.ts`, על DB מבודד:
+  - [x] חבר רגיל יוצא, והצוות נעלם לו.
+  - [x] מנהל אחרון לא יכול לצאת בלי לבחור מחליף; אחרי בחירה המחליף רואה הרשאות מנהל.
+  - [x] ראש צוות מסיר חבר רגיל, ולא רואה "הסר" על מנהל.
+  - [x] החבר האמיתי האחרון מקבל הסבר למה אי אפשר לצאת, בלי כפתור אישור.
+  - [x] תגובה של מי שעזב מוצגת עם "לא בצוות".
+- [x] Backend e2e (`backend/test/teams.e2e-spec.ts`): `POST /teams/:id/leave` עם כל מקרי ה-409/403, ושני המנהלים האחרונים יוצאים במקביל — רק אחד מצליח.
+- [ ] **פתוח, תלוי בפיצ'ר 14:** במקום ההסבר לחבר האמיתי האחרון — כפתור "מחק את הצוות" (החלטה 8). ה-backend כבר מחזיר `409` עם `code: LAST_REAL_MEMBER`, וה-UI רק צריך להחליף את ההסבר בכפתור כשמחיקת צוות תהיה קיימת.
+
+**הערות מימוש:** `src/features/teams/membership-rules.ts` (אותם כללים כמו בשרת, רק לתצוגה) ו-`src/features/teams/hooks/use-leave-team.ts` משותפים ל-web ול-native. `team-member-row` (web+native) פוצל: `member-role-editor.tsx`, `remove-member-confirm.tsx`, `member-picker.tsx`, ו-native `action-button.tsx`. בחירת מחליף/ראש צוות היא pills (role="radio") ולא `Field type="select"`, כי צוות הוא כמה אנשים בודדים.
 
 ### לא בטיפול (פיצ'ר 11)
 

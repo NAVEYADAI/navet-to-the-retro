@@ -5,14 +5,15 @@ import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
 import { InvitesService } from '../invites/invites.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
-import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto } from './dto/teams.dto';
-import { assertCanManageTeamContent } from './team-permissions.util';
+import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto, RemoveMemberDto, LeaveTeamDto } from './dto/teams.dto';
+import { assertCanManageTeamContent, assertCanRemoveMember } from './team-permissions.util';
 import { DEFAULT_CATEGORY_LABELS } from '../comments/comment-category-labels';
 import {
   requireNonEmptyString,
   assertOptionalString,
   assertOptionalBoolean,
-  assertOptionalEnum
+  assertOptionalEnum,
+  assertOptionalPositiveInt
 } from '../common/validation';
 
 // Feature 9 (phantom members, §9.2): `isPhantom` must be included everywhere a team member's
@@ -480,7 +481,9 @@ export class TeamsService {
     });
   }
 
-  async removeMember(teamId: number, memberId: number, requesterId: number) {
+  async removeMember(teamId: number, memberId: number, requesterId: number, dto: RemoveMemberDto = {}) {
+    assertOptionalPositiveInt(dto?.newLeaderMemberId, 'ראש הצוות החדש שנבחר לא תקין');
+
     // 1. Verify team exists
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
@@ -489,7 +492,8 @@ export class TeamsService {
       throw new NotFoundException('Team not found');
     }
 
-    // 2. Verify requester is an admin member of this team
+    // 2. Requester must be an ACTIVE member — admins remove anyone, a non-admin team leader only
+    // regular members (feature 11 §11.0 decision #1, checked once the target is known below).
     const requesterMembership = await this.prisma.teamMember.findUnique({
       where: {
         userId_teamId: {
@@ -498,7 +502,7 @@ export class TeamsService {
         }
       }
     });
-    if (!requesterMembership || requesterMembership.status !== 'ACTIVE' || !requesterMembership.isAdmin) {
+    if (!requesterMembership || requesterMembership.status !== 'ACTIVE' || (!requesterMembership.isAdmin && requesterMembership.role !== 'TEAM_LEADER')) {
       throw new ForbiddenException('Only team admins can remove members');
     }
 
@@ -512,6 +516,7 @@ export class TeamsService {
     if (!targetMember) {
       throw new NotFoundException('Team member not found in this team');
     }
+    assertCanRemoveMember(requesterMembership, targetMember);
 
     // 4. Never leave the team without an ACTIVE admin (BUG-11) — count only ACTIVE admins, and
     // run the check + delete under the team lock so two concurrent removals can't both pass it.
@@ -530,20 +535,137 @@ export class TeamsService {
         }
       }
 
+      // Feature 11 §11.0 decision #3: only an admin removing the last ACTIVE team leader may name
+      // the next one, right here — otherwise `newLeaderMemberId` is ignored.
+      if (dto?.newLeaderMemberId && requesterMembership.isAdmin && await this.isLastActiveLeader(tx, lockedTarget)) {
+        await this.promoteToLeader(tx, teamId, dto.newLeaderMemberId, lockedTarget.id);
+      }
+
       await tx.teamMember.delete({ where: { id: memberId } });
+      await this.resetTelegramContext(tx, lockedTarget.userId, teamId);
     });
 
-    // BUG-52: best-effort — stop syncing sprint events to the removed member's Google Calendar
-    // (delete their events for this team). Never fails/blocks the removal itself.
+    await this.cleanupCalendarAfterMemberLeft(targetMember.userId, teamId);
+    return { success: true };
+  }
+
+  // Feature 11 (product-backlog/11-team-leave-and-removal.md §11.1): any ACTIVE member can leave on
+  // their own. The last ACTIVE admin must hand admin over first (decision #2), an admin who is
+  // also the last team leader may name the next one (decision #3), and the last real
+  // (non-phantom, ACTIVE) member can't leave at all — the UI offers deleting the team instead
+  // (decision #8).
+  async leaveTeam(teamId: number, requesterId: number, dto: LeaveTeamDto = {}) {
+    assertOptionalPositiveInt(dto?.successorAdminMemberId, 'המנהל/ת המחליף/ה שנבחר/ה לא תקין/ה');
+    assertOptionalPositiveInt(dto?.newLeaderMemberId, 'ראש הצוות החדש שנבחר לא תקין');
+
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+
+    const membership = await this.prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: requesterId, teamId } }
+    });
+    // A PENDING invitee declines the invite instead (POST .../members/:memberId/decline).
+    if (!membership || membership.status !== 'ACTIVE') {
+      throw new ForbiddenException('You do not belong to this team');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockTeam(tx, teamId);
+
+      const me = await tx.teamMember.findUnique({ where: { id: membership.id } });
+      if (!me || me.status !== 'ACTIVE') {
+        throw new ForbiddenException('You do not belong to this team');
+      }
+
+      const otherRealMembers = await tx.teamMember.count({
+        where: { teamId, status: 'ACTIVE', id: { not: me.id }, user: { isPhantom: false } }
+      });
+      if (otherRealMembers === 0) {
+        throw new ConflictException({
+          message: 'את/ה החבר/ה האחרון/ה בצוות, ולכן אי אפשר לצאת ממנו. אפשר למחוק את הצוות במקום.',
+          code: 'LAST_REAL_MEMBER'
+        });
+      }
+
+      if (me.isAdmin && (await this.countActiveAdmins(tx, teamId)) <= 1) {
+        if (!dto?.successorAdminMemberId) {
+          throw new ConflictException({
+            message: 'את/ה המנהל/ת האחרון/ה בצוות. צריך לבחור מי יהיה המנהל/ת במקומך לפני היציאה.',
+            code: 'SUCCESSOR_REQUIRED'
+          });
+        }
+        const successor = await this.findEligibleSuccessor(tx, teamId, dto.successorAdminMemberId, me.id);
+        await tx.teamMember.update({ where: { id: successor.id }, data: { isAdmin: true } });
+      }
+
+      if (dto?.newLeaderMemberId && me.isAdmin && await this.isLastActiveLeader(tx, me)) {
+        await this.promoteToLeader(tx, teamId, dto.newLeaderMemberId, me.id);
+      }
+
+      await tx.teamMember.delete({ where: { id: me.id } });
+      await this.resetTelegramContext(tx, requesterId, teamId);
+    });
+
+    await this.cleanupCalendarAfterMemberLeft(requesterId, teamId);
+    return { success: true };
+  }
+
+  private async isLastActiveLeader(tx: Prisma.TransactionClient, member: { teamId: number; role: string; status: string }) {
+    if (member.role !== 'TEAM_LEADER' || member.status !== 'ACTIVE') return false;
+    const activeLeaders = await tx.teamMember.count({
+      where: { teamId: member.teamId, role: 'TEAM_LEADER', status: 'ACTIVE' }
+    });
+    return activeLeaders <= 1;
+  }
+
+  // Feature 11 technical default #4: whoever takes over admin or team-leader must be able to sign
+  // in — ACTIVE (not a still-pending invitee) and not a phantom — and can't be the one leaving.
+  private async findEligibleSuccessor(tx: Prisma.TransactionClient, teamId: number, memberId: number, leavingMemberId: number) {
+    const candidate = await tx.teamMember.findFirst({
+      where: { id: memberId, teamId, status: 'ACTIVE' },
+      include: { user: { select: { isPhantom: true } } }
+    });
+    if (!candidate || candidate.id === leavingMemberId || candidate.user.isPhantom) {
+      throw new BadRequestException('אפשר לבחור רק חבר/ת צוות פעיל/ה ורשום/ה אחר/ת');
+    }
+    return candidate;
+  }
+
+  private async promoteToLeader(tx: Prisma.TransactionClient, teamId: number, memberId: number, leavingMemberId: number) {
+    const newLeader = await this.findEligibleSuccessor(tx, teamId, memberId, leavingMemberId);
+    await tx.teamMember.update({ where: { id: newLeader.id }, data: { role: 'TEAM_LEADER' } });
+  }
+
+  // Feature 11 technical default #2: the Telegram bot's sticky team/sprint context
+  // (`UserMessagingLink.activeTeamId`) has no FK, so it never clears on its own when its user
+  // leaves that team.
+  private resetTelegramContext(tx: Prisma.TransactionClient, userId: number, teamId: number) {
+    return tx.userMessagingLink.updateMany({
+      where: { userId, activeTeamId: teamId },
+      data: {
+        activeTeamId: null,
+        activeSprintId: null,
+        pendingCommentContent: null,
+        pendingCommentType: null,
+        contextSetAt: null,
+        awaitingContextConfirm: false
+      }
+    });
+  }
+
+  // BUG-52: best-effort — stop syncing sprint events to the departed member's Google Calendar
+  // (delete their events for this team). Never fails/blocks the removal itself.
+  private async cleanupCalendarAfterMemberLeft(userId: number, teamId: number) {
     try {
-      await this.googleCalendarService.removeMemberFromTeam(targetMember.userId, teamId);
+      await this.googleCalendarService.removeMemberFromTeam(userId, teamId);
     } catch (err) {
       this.logger.warn(
-        `Google Calendar cleanup failed for member ${targetMember.userId} removed from team ${teamId}`,
+        `Google Calendar cleanup failed for member ${userId} who left team ${teamId}`,
         err instanceof Error ? err.stack : err
       );
     }
-    return { success: true };
   }
 
   // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.1): creates a real

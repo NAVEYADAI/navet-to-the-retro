@@ -361,4 +361,116 @@ describe('TeamsController (e2e) — dual-approval flow', () => {
       });
     });
   });
+
+  // Feature 11 (product-backlog/11-team-leave-and-removal.md §11.3)
+  describe('leave flow (feature 11)', () => {
+    let teamDId: number;
+    const members = [
+      { username: 'test_e2e_teams_leave_a', email: 'test_e2e_teams_leave_a@example.com', password: 'password123' },
+      { username: 'test_e2e_teams_leave_b', email: 'test_e2e_teams_leave_b@example.com', password: 'password123' },
+      { username: 'test_e2e_teams_leave_c', email: 'test_e2e_teams_leave_c@example.com', password: 'password123' },
+    ];
+    const tokens: string[] = [];
+    const memberIds: number[] = [];
+
+    const memberIdOf = async (userId: number) => {
+      const res = await request(app.getHttpServer())
+        .get(`/teams/${teamDId}/members`)
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .expect(200);
+      return res.body.find((m: any) => m.userId === userId)?.id as number | undefined;
+    };
+
+    beforeAll(async () => {
+      const teamRes = await request(app.getHttpServer())
+        .post('/teams')
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .send({ name: 'Team Leave', approverEmail: approver.email })
+        .expect(201);
+      teamDId = teamRes.body.id;
+      tracker.trackTeam(teamDId);
+      await request(app.getHttpServer())
+        .post(`/teams/${teamDId}/approve`)
+        .set('Authorization', `Bearer ${approverToken}`)
+        .expect(201);
+    });
+
+    it('refuses to let the last real member leave (LAST_REAL_MEMBER)', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/teams/${teamDId}/leave`)
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .expect(409);
+      expect(res.body.code).toBe('LAST_REAL_MEMBER');
+    });
+
+    it('lets three invitees join', async () => {
+      for (const member of members) {
+        const auth = await registerAndLogin(member);
+        tokens.push(auth.token);
+        const inviteRes = await request(app.getHttpServer())
+          .post(`/teams/${teamDId}/members`)
+          .set('Authorization', `Bearer ${creatorToken}`)
+          .send({ username: member.username, role: 'DEVELOPER' })
+          .expect(201);
+        memberIds.push(inviteRes.body.id);
+        await request(app.getHttpServer())
+          .post(`/teams/${teamDId}/members/${inviteRes.body.id}/accept`)
+          .set('Authorization', `Bearer ${auth.token}`)
+          .expect(201);
+      }
+    });
+
+    it('rejects leaving a team you do not belong to', () => {
+      return request(app.getHttpServer())
+        .post(`/teams/${teamDId}/leave`)
+        .set('Authorization', `Bearer ${approverToken}`)
+        .expect(403);
+    });
+
+    it('lets a regular member leave', async () => {
+      await request(app.getHttpServer())
+        .post(`/teams/${teamDId}/leave`)
+        .set('Authorization', `Bearer ${tokens[0]}`)
+        .expect(201)
+        .expect((res) => expect(res.body).toEqual({ success: true }));
+
+      const membersRes = await request(app.getHttpServer())
+        .get(`/teams/${teamDId}/members`)
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .expect(200);
+      expect(membersRes.body.find((m: any) => m.id === memberIds[0])).toBeUndefined();
+    });
+
+    it('requires the last admin to name a successor (SUCCESSOR_REQUIRED)', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/teams/${teamDId}/leave`)
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .expect(409);
+      expect(res.body.code).toBe('SUCCESSOR_REQUIRED');
+    });
+
+    it('when the last two admins leave at the same time, exactly one succeeds', async () => {
+      // Make member B an admin too, so creator and B are the only two admins (C stays regular).
+      await request(app.getHttpServer())
+        .patch(`/teams/${teamDId}/members/${memberIds[1]}`)
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .send({ isAdmin: true })
+        .expect(200);
+      const creatorMemberId = await memberIdOf(creatorId);
+
+      const [first, second] = await Promise.all([
+        request(app.getHttpServer()).post(`/teams/${teamDId}/leave`).set('Authorization', `Bearer ${creatorToken}`),
+        request(app.getHttpServer()).post(`/teams/${teamDId}/leave`).set('Authorization', `Bearer ${tokens[1]}`),
+      ]);
+
+      const statuses = [first.status, second.status].sort();
+      expect(statuses).toEqual([201, 409]);
+      const loser = first.status === 409 ? first : second;
+      expect(loser.body.code).toBe('SUCCESSOR_REQUIRED');
+
+      const remainingAdmins = await prisma.teamMember.count({ where: { teamId: teamDId, isAdmin: true, status: 'ACTIVE' } });
+      expect(remainingAdmins).toBe(1);
+      expect(creatorMemberId).toBeDefined();
+    });
+  });
 });

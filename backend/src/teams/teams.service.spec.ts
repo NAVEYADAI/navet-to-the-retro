@@ -49,6 +49,10 @@ describe('TeamsService', () => {
       delete: jest.fn(),
       count: jest.fn(),
     },
+    // Feature 11: the Telegram bot's sticky team context is cleared when its user leaves the team.
+    userMessagingLink: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     // Feature 3 (team comment categories): seeded automatically on team creation.
     teamCommentCategory: {
       createMany: jest.fn(),
@@ -649,6 +653,189 @@ describe('TeamsService', () => {
 
       expect(mockPrismaService.teamMember.delete).toHaveBeenCalledWith({ where: { id: targetAdmin.id } });
       expect(result).toEqual({ success: true });
+    });
+  });
+
+  // Feature 11 (product-backlog/11-team-leave-and-removal.md)
+  describe('removeMember — team leader permissions and side effects (feature 11)', () => {
+    const leader = { id: 30, userId: 3, teamId: mockTeam.id, isAdmin: false, role: 'TEAM_LEADER', status: 'ACTIVE' };
+    const admin = { id: 1, userId: creator.id, teamId: mockTeam.id, isAdmin: true, role: 'DEVELOPER', status: 'ACTIVE' };
+    const regular = { id: 20, userId: 5, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
+    const otherLeader = { id: 22, userId: 7, teamId: mockTeam.id, isAdmin: false, role: 'TEAM_LEADER', status: 'ACTIVE' };
+    const someAdmin = { id: 21, userId: 6, teamId: mockTeam.id, isAdmin: true, role: 'DEVELOPER', status: 'ACTIVE' };
+
+    beforeEach(() => {
+      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+    });
+
+    it('lets a non-admin team leader remove a regular member', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(leader);
+      mockPrismaService.teamMember.findFirst.mockResolvedValue(regular);
+
+      await expect(service.removeMember(mockTeam.id, regular.id, leader.userId)).resolves.toEqual({ success: true });
+      expect(mockPrismaService.teamMember.delete).toHaveBeenCalledWith({ where: { id: regular.id } });
+    });
+
+    it.each([
+      ['an admin', someAdmin],
+      ['another team leader', otherLeader],
+    ])('does not let a non-admin team leader remove %s', async (_label, target) => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(leader);
+      mockPrismaService.teamMember.findFirst.mockResolvedValue(target);
+
+      await expect(service.removeMember(mockTeam.id, target.id, leader.userId)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.teamMember.delete).not.toHaveBeenCalled();
+    });
+
+    it('clears the removed member\'s Telegram context for this team', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.teamMember.findFirst.mockResolvedValue(regular);
+
+      await service.removeMember(mockTeam.id, regular.id, admin.userId);
+
+      expect(mockPrismaService.userMessagingLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { userId: regular.userId, activeTeamId: mockTeam.id },
+        data: expect.objectContaining({ activeTeamId: null, activeSprintId: null }),
+      }));
+    });
+
+    it('promotes the chosen member when an admin removes the last team leader', async () => {
+      const newLeader = { ...regular, id: 40, user: { isPhantom: false } };
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.teamMember.findFirst
+        .mockResolvedValueOnce(otherLeader) // target lookup
+        .mockResolvedValueOnce(otherLeader) // re-read under lock
+        .mockResolvedValueOnce(newLeader); // eligible successor
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(1); // active leaders
+
+      await service.removeMember(mockTeam.id, otherLeader.id, admin.userId, { newLeaderMemberId: newLeader.id });
+
+      expect(mockPrismaService.teamMember.update).toHaveBeenCalledWith({ where: { id: newLeader.id }, data: { role: 'TEAM_LEADER' } });
+      expect(mockPrismaService.teamMember.delete).toHaveBeenCalledWith({ where: { id: otherLeader.id } });
+    });
+
+    it('rejects a non-numeric newLeaderMemberId', async () => {
+      await expect(service.removeMember(mockTeam.id, regular.id, admin.userId, { newLeaderMemberId: 'x' as any })).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('leaveTeam (feature 11)', () => {
+    const me = { id: 50, userId: 9, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
+    const meAdmin = { ...me, isAdmin: true };
+    const meAdminLeader = { ...me, isAdmin: true, role: 'TEAM_LEADER' };
+    const meLeader = { ...me, role: 'TEAM_LEADER' };
+    const other = { id: 51, userId: 10, teamId: mockTeam.id, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE', user: { isPhantom: false } };
+
+    beforeEach(() => {
+      mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+    });
+
+    it('throws NotFoundException when the team does not exist', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(null);
+      await expect(service.leaveTeam(mockTeam.id, me.userId)).rejects.toThrow(NotFoundException);
+    });
+
+    it.each([
+      ['not a member', null],
+      ['only a PENDING invitee', { ...me, status: 'PENDING' }],
+    ])('throws ForbiddenException when the requester is %s', async (_label, membership) => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(membership);
+      await expect(service.leaveTeam(mockTeam.id, me.userId)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('lets a regular member leave, clearing calendar and Telegram context', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(me);
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(3); // other real members
+
+      await expect(service.leaveTeam(mockTeam.id, me.userId)).resolves.toEqual({ success: true });
+
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalled(); // team row lock
+      expect(mockPrismaService.teamMember.delete).toHaveBeenCalledWith({ where: { id: me.id } });
+      expect(mockPrismaService.userMessagingLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { userId: me.userId, activeTeamId: mockTeam.id },
+      }));
+      expect(mockGoogleCalendarService.removeMemberFromTeam).toHaveBeenCalledWith(me.userId, mockTeam.id);
+    });
+
+    it('refuses to let the last real member leave, with a LAST_REAL_MEMBER code', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(me);
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(0);
+
+      const err = await service.leaveTeam(mockTeam.id, me.userId).catch(e => e);
+
+      expect(err).toBeInstanceOf(ConflictException);
+      expect(err.getResponse()).toEqual(expect.objectContaining({ code: 'LAST_REAL_MEMBER' }));
+      expect(mockPrismaService.teamMember.count).toHaveBeenCalledWith({
+        where: { teamId: mockTeam.id, status: 'ACTIVE', id: { not: me.id }, user: { isPhantom: false } },
+      });
+      expect(mockPrismaService.teamMember.delete).not.toHaveBeenCalled();
+    });
+
+    it('requires the last active admin to name a successor', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(meAdmin);
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+
+      const err = await service.leaveTeam(mockTeam.id, me.userId).catch(e => e);
+
+      expect(err).toBeInstanceOf(ConflictException);
+      expect(err.getResponse()).toEqual(expect.objectContaining({ code: 'SUCCESSOR_REQUIRED' }));
+      expect(mockPrismaService.teamMember.delete).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a phantom', { ...other, user: { isPhantom: true } }],
+      ['a member of another team / missing', null],
+    ])('rejects %s as the successor admin', async (_label, candidate) => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(meAdmin);
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+      mockPrismaService.teamMember.findFirst.mockResolvedValueOnce(candidate);
+
+      await expect(service.leaveTeam(mockTeam.id, me.userId, { successorAdminMemberId: other.id })).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.teamMember.delete).not.toHaveBeenCalled();
+    });
+
+    it('hands admin to the successor and leaves, in one transaction', async () => {
+      const order: string[] = [];
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(meAdmin);
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+      mockPrismaService.teamMember.findFirst.mockResolvedValueOnce(other);
+      mockPrismaService.teamMember.update.mockImplementationOnce(async () => { order.push('promote'); return other; });
+      mockPrismaService.teamMember.delete.mockImplementationOnce(async () => { order.push('delete'); return meAdmin; });
+
+      await service.leaveTeam(mockTeam.id, me.userId, { successorAdminMemberId: other.id });
+
+      expect(mockPrismaService.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrismaService.teamMember.update).toHaveBeenCalledWith({ where: { id: other.id }, data: { isAdmin: true } });
+      expect(order).toEqual(['promote', 'delete']);
+    });
+
+    it('lets an admin who is also the last team leader name the next one', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(meAdminLeader);
+      // other real members, active admins (another admin exists), active leaders
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(2).mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+      mockPrismaService.teamMember.findFirst.mockResolvedValueOnce(other);
+
+      await service.leaveTeam(mockTeam.id, me.userId, { newLeaderMemberId: other.id });
+
+      expect(mockPrismaService.teamMember.update).toHaveBeenCalledWith({ where: { id: other.id }, data: { role: 'TEAM_LEADER' } });
+    });
+
+    it('ignores newLeaderMemberId from a team leader who is not an admin (§11.0 decision #3)', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(meLeader);
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(2);
+
+      await service.leaveTeam(mockTeam.id, me.userId, { newLeaderMemberId: other.id });
+
+      expect(mockPrismaService.teamMember.update).not.toHaveBeenCalled();
+      expect(mockPrismaService.teamMember.delete).toHaveBeenCalledWith({ where: { id: me.id } });
+    });
+
+    it('does not fail the leave when the Google Calendar cleanup throws', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(me);
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(2);
+      mockGoogleCalendarService.removeMemberFromTeam.mockRejectedValueOnce(new Error('google is down'));
+
+      await expect(service.leaveTeam(mockTeam.id, me.userId)).resolves.toEqual({ success: true });
     });
   });
 

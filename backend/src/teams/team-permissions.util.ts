@@ -14,3 +14,26 @@ export async function assertCanManageTeamContent(prisma: PrismaService, teamId: 
     throw new ForbiddenException('רק מנהלי צוות וראשי צוותים יכולים לבצע פעולה זו');
   }
 }
+
+// Feature 11 (product-backlog/11-team-leave-and-removal.md §11.0 decision #1): a "regular" member is
+// neither an admin nor a team leader (phantoms included). It's the only kind of member a
+// non-admin TEAM_LEADER may remove — removing an admin or another team leader stays admin-only.
+export function isRegularMember(member: { isAdmin: boolean; role: string }): boolean {
+  return !member.isAdmin && member.role !== 'TEAM_LEADER';
+}
+
+export function assertCanRemoveMember(
+  requester: { isAdmin: boolean; role: string; status: string } | null,
+  target: { isAdmin: boolean; role: string }
+) {
+  if (!requester || requester.status !== 'ACTIVE') {
+    throw new ForbiddenException('Only team admins can remove members');
+  }
+  if (requester.isAdmin) return;
+  if (requester.role === 'TEAM_LEADER' && isRegularMember(target)) return;
+  throw new ForbiddenException(
+    requester.role === 'TEAM_LEADER'
+      ? 'ראש צוות יכול להסיר רק חברים שאינם מנהלים או ראשי צוות'
+      : 'Only team admins can remove members'
+  );
+}

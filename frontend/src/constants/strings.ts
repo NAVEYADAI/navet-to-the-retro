@@ -122,6 +122,17 @@ export const Strings = {
     removeMemberConfirmText: (name: string) => `להסיר את ${name} מהצוות?`,
     removeMemberConfirmButton: 'כן, הסר',
     removeMemberCancelButton: 'ביטול',
+    // Feature 11 (product-backlog/11-team-leave-and-removal.md)
+    leaveTeamButton: 'יציאה מהצוות',
+    leaveConfirmTitle: (teamName: string) => `לצאת מהצוות ${teamName}?`,
+    leaveConsequences: 'לא תהיה לך יותר גישה ללוחות של הצוות. ההערות שכתבת יישארו עם השם שלך ויסומנו "לא בצוות", ואירועי הצוות יוסרו מיומן Google שלך.',
+    leaveConfirmButton: 'כן, צא מהצוות',
+    leaveCancelButton: 'ביטול',
+    leaveSuccessorLabel: 'את/ה המנהל/ת האחרון/ה בצוות. מי יהיה המנהל/ת במקומך?',
+    newLeaderLabel: 'למנות ראש צוות חדש? (לא חובה)',
+    leaveLastMemberText: 'את/ה החבר/ה הרשום/ה האחרון/ה בצוות, ולכן אי אפשר לצאת ממנו.',
+    leaveFailedError: 'היציאה מהצוות נכשלה.',
+    removeNewLeaderLabel: (name: string) => `${name} הוא/היא ראש הצוות האחרון/ה. למנות ראש צוות חדש? (לא חובה)`,
   },
   invites: {
     manageLinksToggle: 'קישורי הזמנה',
@@ -234,6 +245,8 @@ export const Strings = {
     expiredHeader: (count: number) => `ספרינטים שהסתיימו · ${count}`,
   },
   retroBoard: {
+    // Feature 11 §11.0 decision #4 — next to the name of someone who has since left the team.
+    formerMemberBadge: 'לא בצוות',
     backButton: '← חזרה לדשבורד',
     editSprintButton: 'ערוך ספרינט',
     editSprintHeader: 'עריכת פרטי ספרינט',

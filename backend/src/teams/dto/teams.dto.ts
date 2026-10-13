@@ -22,3 +22,13 @@ export class CreatePhantomMemberDto {
   lastName?: string;
   role?: TeamRole;
 }
+
+// Feature 11 (product-backlog/11-team-leave-and-removal.md §11.1).
+export class RemoveMemberDto {
+  newLeaderMemberId?: number;
+}
+
+export class LeaveTeamDto {
+  successorAdminMemberId?: number;
+  newLeaderMemberId?: number;
+}

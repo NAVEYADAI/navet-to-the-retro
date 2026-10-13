@@ -24,7 +24,7 @@ import { SprintLengthHistoryPanelNative } from './sprint-length-history-panel-na
 import { trackEvent } from '@/lib/analytics';
 import { formatDate, formatTime, formatDateRange } from '@/lib/format-date';
 import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
-import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 
 interface SprintRetroBoardProps {
   sprint: any;
@@ -356,9 +356,16 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
           {comment.content}
         </Text>
         <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[1] }}>
-          <Text style={[rnText({ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 700 }), { color: t.color.textSecondary, flexShrink: 1 }]}>
-            {authorName}
-          </Text>
+          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1], flexShrink: 1 }}>
+            <Text style={[rnText({ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 700 }), { color: t.color.textSecondary, flexShrink: 1 }]}>
+              {authorName}
+            </Text>
+            {isFormerMemberComment(comment) && (
+              <View style={{ backgroundColor: t.color.status.neutral.bg, borderWidth: 1, borderColor: t.color.status.neutral.border, borderRadius: t.radius.badge, paddingHorizontal: t.space[1] }}>
+                <Text style={[rnText(t.type.caption), { color: t.color.status.neutral.fg }]}>{Strings.retroBoard.formerMemberBadge}</Text>
+              </View>
+            )}
+          </View>
           <Text style={[rnText(t.type.caption), { color: t.color.textMuted }]}>
             {`${formatDate(comment.createdAt)} · ${formatTime(comment.createdAt)}`}
           </Text>

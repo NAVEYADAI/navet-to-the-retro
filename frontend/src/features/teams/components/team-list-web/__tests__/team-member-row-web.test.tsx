@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 const row = (onChanged = jest.fn()) => (
-  <TeamMemberRow member={member} teamId={3} token="tok" isTeamAdmin={true} isMe={false} onChanged={onChanged} />
+  <TeamMemberRow member={member} teamId={3} token="tok" isTeamAdmin={true} isMe={false} onChanged={onChanged} canRemove />
 );
 
 // Every member action sits behind the row's pencil button.
@@ -76,5 +76,39 @@ describe('TeamMemberRow (web) — remove confirmation (BUG-31)', () => {
 
     expect(findByText(mounted.container, Strings.teamList.removeMemberConfirmButton)).toBeNull();
     expect(mockedAxios.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('TeamMemberRow (web) — next team leader on removal (feature 11)', () => {
+  it('an admin removing the last team leader can name the next one', async () => {
+    mockedAxios.delete.mockResolvedValueOnce({ data: {} });
+    mounted = await mountWeb(
+      <TeamMemberRow
+        member={{ ...member, role: 'TEAM_LEADER' }}
+        teamId={3}
+        token="tok"
+        isTeamAdmin={true}
+        isMe={false}
+        onChanged={jest.fn()}
+        canRemove
+        newLeaderOptions={[{ value: '60', label: 'Avi' }]}
+      />
+    );
+    await openActions();
+    await clickText(mounted.container, Strings.teamList.removeMemberButton);
+    await clickText(mounted.container, 'Avi');
+    await clickText(mounted.container, Strings.teamList.removeMemberConfirmButton);
+
+    expect(mockedAxios.delete).toHaveBeenCalledWith(
+      expect.stringContaining('/teams/3/members/51'),
+      { headers: { Authorization: 'Bearer tok' }, data: { newLeaderMemberId: 60 } }
+    );
+  });
+
+  it('without canRemove (e.g. a team leader looking at an admin) there is no remove button', async () => {
+    mounted = await mountWeb(
+      <TeamMemberRow member={member} teamId={3} token="tok" isTeamAdmin={false} isMe={false} onChanged={jest.fn()} canManageTeamContent />
+    );
+    expect(mounted.container.querySelector(`[aria-label="${Strings.teamList.manageMemberLabel('Dana Levi')}"]`)).toBeNull();
   });
 });

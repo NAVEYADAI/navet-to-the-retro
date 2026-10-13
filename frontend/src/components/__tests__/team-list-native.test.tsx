@@ -272,12 +272,13 @@ describe('TeamListNative — dual-approval UI', () => {
     expect(mockedAxios.delete).not.toHaveBeenCalled();
   });
 
-  it('does not remove myself when pressing my own (disabled) remove control', async () => {
-    const { getByLabelText, getByText } = await renderList([activeTeamAsAdmin], { members: true });
+  // Feature 11: you leave through "יציאה מהצוות", so your own row has no remove control at all.
+  it('does not offer removing myself from my own row', async () => {
+    const { getByLabelText, queryByText } = await renderList([activeTeamAsAdmin], { members: true });
 
     await fireEvent.press(getByLabelText(manageMe));
-    await fireEvent.press(getByText(Strings.teamList.removeMemberButton));
 
+    expect(queryByText(Strings.teamList.removeMemberButton)).toBeNull();
     expect(mockedAxios.delete).not.toHaveBeenCalled();
   });
 

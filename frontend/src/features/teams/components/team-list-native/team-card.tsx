@@ -9,6 +9,9 @@ import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 import { getMemberRank } from './roles';
+import { LeaveTeamSection } from './leave-team-section';
+import { useLeaveTeam } from '@/features/teams/hooks/use-leave-team';
+import { canRemoveMember, getSuccessorOptions, isActiveMember, isLastActiveLeader } from '@/features/teams/membership-rules';
 import { TeamCardHeader } from './team-card-header';
 import { rnText } from './team-settings-panel.styles';
 import { TeamMemberRow } from './team-member-row';
@@ -52,6 +55,9 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
   const canAddMembers = canManageTeamContent && !isPending;
   const isMyPendingTeam = isPending && team.creatorId === userId;
   const pendingMemberCount = sortedMembers.filter((m: any) => m.status === 'PENDING').length;
+  // Feature 11 — any ACTIVE member of an approved team can leave it.
+  const canLeave = !isPending && isActiveMember(myMembership);
+  const leave = useLeaveTeam({ teamId: team.id, members: sortedMembers, me: myMembership ?? {}, token, onLeft: onAddMemberSuccess });
 
   const summary = [
     team.mainOffice,
@@ -135,8 +141,11 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
               isMe={member.userId === userId}
               onChanged={onAddMemberSuccess}
               canManageTeamContent={canManageTeamContent}
+              canRemove={canRemoveMember(myMembership, member)}
+              newLeaderOptions={isTeamAdmin && isLastActiveLeader(sortedMembers, member) ? getSuccessorOptions(sortedMembers, member) : undefined}
             />
           ))}
+          {canLeave && <LeaveTeamSection teamName={team.name} state={leave} />}
         </View>
       )}
 

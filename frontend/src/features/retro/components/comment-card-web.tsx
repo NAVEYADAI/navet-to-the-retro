@@ -2,8 +2,8 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { Icon } from '@/components/ui';
-import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
+import { Icon, Badge } from '@/components/ui';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 
 interface CommentCardWebProps {
   comment: {
@@ -126,9 +126,12 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight }: Com
         </Typography>
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[1]}px` }}>
-          <Typography sx={{ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 600, color: t.color.textSecondary }}>
-            <bdi>{authorName}</bdi>
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px`, minWidth: 0 }}>
+            <Typography sx={{ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 600, color: t.color.textSecondary }}>
+              <bdi>{authorName}</bdi>
+            </Typography>
+            {isFormerMemberComment(comment) && <Badge tone="neutral">{Strings.retroBoard.formerMemberBadge}</Badge>}
+          </Box>
           <Typography sx={{ ...t.type.caption, color: t.color.textMuted }}>
             <bdi>
               {new Date(comment.createdAt).toLocaleDateString('he-IL')} · {new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}

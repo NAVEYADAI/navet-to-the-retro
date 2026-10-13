@@ -2,7 +2,7 @@ import { Controller, Post, Get, Patch, Delete, Body, Param, Headers } from '@nes
 import { TeamsService } from './teams.service';
 import { AuthService } from '../auth/auth.service';
 import { IntIdPipe } from '../common/validation';
-import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto } from './dto/teams.dto';
+import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto, RemoveMemberDto, LeaveTeamDto } from './dto/teams.dto';
 
 @Controller('teams')
 export class TeamsController {
@@ -115,10 +115,22 @@ export class TeamsController {
   async removeMember(
     @Headers('authorization') authHeader: string,
     @Param('teamId', IntIdPipe) teamId: number,
-    @Param('memberId', IntIdPipe) memberId: number
+    @Param('memberId', IntIdPipe) memberId: number,
+    @Body() dto: RemoveMemberDto
   ) {
     const user = await this.authService.validateToken(authHeader);
-    return this.teamsService.removeMember(teamId, memberId, user.id);
+    return this.teamsService.removeMember(teamId, memberId, user.id, dto ?? {});
+  }
+
+  // Feature 11 (product-backlog/11-team-leave-and-removal.md §11.1).
+  @Post(':teamId/leave')
+  async leave(
+    @Headers('authorization') authHeader: string,
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Body() dto: LeaveTeamDto
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamsService.leaveTeam(teamId, user.id, dto ?? {});
   }
 
   @Patch(':id')

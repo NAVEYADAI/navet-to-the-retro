@@ -19,6 +19,7 @@ describe('CommentsService', () => {
     },
     teamMember: {
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     comment: {
       create: jest.fn(),
@@ -271,6 +272,28 @@ describe('CommentsService', () => {
       expect(result[0]).toHaveProperty('authorId', 5);
       expect(result[1]).not.toHaveProperty('authorId'); // BUG-02
       expect(result[1].author).toEqual({ id: 0, username: 'Anonymous', firstName: 'Anonymous', lastName: '', isPhantom: false });
+    });
+
+    // Feature 11 §11.0 decision #4
+    it('flags whether each named comment\'s author is still an ACTIVE member, but never on masked ones', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.teamMember.findMany.mockResolvedValueOnce([{ userId: 5 }]);
+      mockPrismaService.comment.findMany.mockResolvedValue([
+        { id: 1, content: 'still here', isAnonymous: false, authorId: 5, author: { id: 5 } },
+        { id: 2, content: 'left the team', isAnonymous: false, authorId: 7, author: { id: 7 } },
+        { id: 3, content: 'secret', isAnonymous: true, authorId: 7, author: { id: 7 } },
+      ]);
+
+      const result = await service.getCommentsForSprint(sprint.id, admin.userId);
+
+      expect(mockPrismaService.teamMember.findMany).toHaveBeenCalledWith({
+        where: { teamId: sprint.teamId, status: 'ACTIVE' },
+        select: { userId: true },
+      });
+      expect(result[0]).toHaveProperty('authorIsActiveMember', true);
+      expect(result[1]).toHaveProperty('authorIsActiveMember', false);
+      expect(result[2]).not.toHaveProperty('authorIsActiveMember');
     });
   });
 

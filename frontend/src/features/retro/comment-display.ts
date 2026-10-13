@@ -20,6 +20,9 @@ export interface DisplayableComment {
   // leader — always visible to every team member when present (never masked, unlike
   // isAnonymous), and names the specific admin who entered it.
   postedByAdmin?: { id: number; username: string; firstName?: string | null; lastName?: string | null } | null;
+  // Feature 11 (product-backlog/11-team-leave-and-removal.md §11.0 decision #4): computed by the
+  // server, `false` once the author left/was removed. Never sent on masked anonymous comments.
+  authorIsActiveMember?: boolean;
 }
 
 // Exported (not just used internally) so other per-user display needs — e.g. SprintLengthHistoryPanel
@@ -31,6 +34,11 @@ export function formatUserDisplayName(user: { username: string; firstName?: stri
 
 export function getCommentCategoryLabel(comment: Pick<DisplayableComment, 'category'>): string | null {
   return comment.category?.label ?? null;
+}
+
+/** Feature 11 — the author left the team (shown as a "לא בצוות" tag next to their name). */
+export function isFormerMemberComment(comment: Pick<DisplayableComment, 'isAnonymous' | 'authorIsActiveMember'>): boolean {
+  return !comment.isAnonymous && comment.authorIsActiveMember === false;
 }
 
 export function getCommentAuthorName(comment: Pick<DisplayableComment, 'isAnonymous' | 'author'>): string {

@@ -3,7 +3,7 @@ import { View, Text, Image, Animated, Platform, LayoutAnimation, UIManager } fro
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel } from '../comment-display';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 import { useMemoryCardFlip, type MemoryCardComment } from '../memory-card-flip';
 
 /**
@@ -145,6 +145,7 @@ export function MemoryCardNative({ comment }: MemoryCardNativeProps) {
           </Text>
           <Text style={{ color: t.color.textSecondary, fontSize: 10, fontWeight: comment.isAnonymous ? '400' : '700', textAlign: 'right' }}>
             {authorName}
+            {isFormerMemberComment(comment) && ` · ${Strings.retroBoard.formerMemberBadge}`}
           </Text>
           {!!postedByAdminLabel && (
             <Text style={{ color: t.color.accent.base, fontSize: 9, fontWeight: '700', textAlign: 'right' }}>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
@@ -7,10 +7,12 @@ import { useTheme } from '@/design/theme-context';
 import { Avatar, Icon } from '@/components/ui';
 import { memberDisplayName } from '@/features/teams/member-display';
 import { getRoleLabel } from './roles';
-import { ROLES } from '@/constants/roles';
 import { trackEvent } from '@/lib/analytics';
 import { usePhantomConversionLink, PhantomConversionButton, PhantomConversionPanel } from './phantom-conversion-link';
 import { rnText } from './team-settings-panel.styles';
+import { ActionButton } from './action-button';
+import { RemoveMemberConfirm } from './remove-member-confirm';
+import { MemberRoleEditor } from './member-role-editor';
 
 interface TeamMemberRowProps {
   member: any;
@@ -23,13 +25,18 @@ interface TeamMemberRowProps {
   // `isAdmin || role === 'TEAM_LEADER'`, NOT the same as `isTeamAdmin` (isAdmin-only) above.
   // Gates the "send registration link" action, distinct from the existing edit/remove actions.
   canManageTeamContent?: boolean;
+  // Feature 11 (product-backlog/11-team-leave-and-removal.md §11.0 #1): admins remove anyone, a
+  // non-admin team leader only regular members — computed by the card (`canRemoveMember`).
+  canRemove?: boolean;
+  // Feature 11 §11.0 #3: set only when an admin would be removing the last active team leader.
+  newLeaderOptions?: { value: string; label: string }[];
 }
 
 /**
  * שורת חבר כמו במוקאפ: אווטאר, שם, תפקיד ותגים. הפעולות (תפקיד/הרשאות, קישור הרשמה לפנטום,
  * הסרה) מוסתרות מאחורי כפתור עיפרון אחד ונפתחות מתחת לשורה (אותו מבנה כמו ב-web).
  */
-export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChanged, canManageTeamContent }: TeamMemberRowProps) {
+export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChanged, canManageTeamContent, canRemove = false, newLeaderOptions }: TeamMemberRowProps) {
   const t = useTheme();
   const [isManaging, setIsManaging] = useState(false);
   const [editRole, setEditRole] = useState(member.role);
@@ -41,12 +48,13 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
   // Removing a member is irreversible — "הסר" first opens an inline confirmation (BUG-31).
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [newLeaderId, setNewLeaderId] = useState<string | null>(null);
 
   const fullName = memberDisplayName(member);
   const isPhantom = member.user?.isPhantom === true;
   const isPendingMember = member.status === 'PENDING';
   const isPhantomManageable = isPhantom && !!canManageTeamContent;
-  const canManageRow = isTeamAdmin || isPhantomManageable;
+  const canManageRow = isTeamAdmin || isPhantomManageable || canRemove;
   const conversion = usePhantomConversionLink({ teamId, memberId: member.id, token });
 
   const toggleManage = () => {
@@ -83,7 +91,14 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
   const handleRemoveClicked = () => {
     trackEvent('team_member_remove_clicked', { teamId });
     setRemoveError(null);
+    setNewLeaderId(null);
     setConfirmingRemove(true);
+  };
+
+  // Tapping the selected option again clears it — naming a new team leader is optional.
+  const handleSelectNewLeader = (id: string) => {
+    trackEvent('team_member_remove_new_leader_selected', { teamId, cleared: newLeaderId === id });
+    setNewLeaderId(newLeaderId === id ? null : id);
   };
 
   const handleRemoveCancelled = () => {
@@ -97,7 +112,8 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
     setIsRemoving(true);
     try {
       await axios.delete(`${getBackendUrl()}/teams/${teamId}/members/${member.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}` },
+        data: newLeaderId ? { newLeaderMemberId: Number(newLeaderId) } : undefined,
       });
       onChanged();
     } catch (err: any) {
@@ -114,25 +130,6 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
     </View>
   );
   const accentBadge = { bg: t.color.accent.subtle, fg: t.color.accent.base, border: t.color.accent.border };
-
-  const actionButton = (label: string, onPress: () => void, kind: 'primary' | 'secondary' | 'danger', opts: { disabled?: boolean; loading?: boolean } = {}) => {
-    const skin = kind === 'primary'
-      ? { bg: t.color.accent.base, fg: t.color.accent.onBase, border: t.color.accent.base }
-      : kind === 'danger'
-        ? { bg: t.color.surface, fg: t.color.status.danger.fg, border: t.color.status.danger.border }
-        : { bg: t.color.surface, fg: t.color.text, border: t.color.borderStrong };
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        disabled={opts.disabled}
-        style={{ minHeight: t.layout.minTouchTarget, paddingHorizontal: t.space[4], justifyContent: 'center', alignItems: 'center', borderRadius: t.radius.field, borderWidth: 1, borderColor: skin.border, backgroundColor: skin.bg, opacity: opts.disabled && !opts.loading ? 0.5 : 1 }}
-      >
-        {opts.loading
-          ? <ActivityIndicator size="small" color={skin.fg} />
-          : <Text style={[rnText(t.type.bodyStrong), { color: skin.fg }]}>{label}</Text>}
-      </TouchableOpacity>
-    );
-  };
 
   const errorBox = (text: string) => (
     <View style={{ backgroundColor: t.color.status.danger.bg, borderWidth: 1, borderColor: t.color.status.danger.border, borderRadius: t.radius.field, padding: t.space[2] }}>
@@ -184,66 +181,24 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
           {!!removeError && errorBox(removeError)}
 
           {isTeamAdmin && (
-            <>
-              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
-                {ROLES.map((r) => {
-                  const selected = editRole === r.value;
-                  return (
-                    <TouchableOpacity
-                      key={r.value}
-                      accessibilityState={{ selected }}
-                      onPress={() => setEditRole(r.value)}
-                      style={{
-                        flexDirection: 'row-reverse',
-                        alignItems: 'center',
-                        gap: t.space[1],
-                        paddingHorizontal: t.space[3],
-                        paddingVertical: t.space[1] + 3,
-                        borderRadius: t.radius.pill,
-                        borderWidth: 1,
-                        borderColor: selected ? t.color.accent.border : t.color.border,
-                        backgroundColor: selected ? t.color.accent.subtle : t.color.surface,
-                      }}
-                    >
-                      <Icon name={r.icon} size="sm" tone={selected ? 'accent' : 'muted'} />
-                      <Text style={[rnText({ ...t.type.caption, fontWeight: selected ? 700 : 500 }), { color: selected ? t.color.accent.base : t.color.textSecondary }]}>
-                        {r.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2] }}>
-                <Text style={[rnText(t.type.body), { color: t.color.text, flexShrink: 1 }]}>{Strings.teamList.teamAdminPrivileges}</Text>
-                <Switch
-                  value={editIsAdmin}
-                  onValueChange={setEditIsAdmin}
-                  disabled={isMe}
-                  trackColor={{ false: t.color.border, true: t.color.accent.border }}
-                  thumbColor={editIsAdmin ? t.color.accent.base : t.color.surface}
-                />
-              </View>
-            </>
+            <MemberRoleEditor role={editRole} onRoleChange={setEditRole} isAdmin={editIsAdmin} onIsAdminChange={setEditIsAdmin} isMe={isMe} />
           )}
 
           {confirmingRemove ? (
-            <View
-              accessibilityRole="alert"
-              style={{ backgroundColor: t.color.status.danger.bg, borderWidth: 1, borderColor: t.color.status.danger.border, borderRadius: t.radius.field, padding: t.space[3], gap: t.space[2] }}
-            >
-              <Text style={[rnText(t.type.bodyStrong), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
-                {Strings.teamList.removeMemberConfirmText(fullName)}
-              </Text>
-              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
-                {actionButton(Strings.teamList.removeMemberConfirmButton, handleRemove, 'danger', { disabled: isRemoving, loading: isRemoving })}
-                {actionButton(Strings.teamList.removeMemberCancelButton, handleRemoveCancelled, 'secondary', { disabled: isRemoving })}
-              </View>
-            </View>
+            <RemoveMemberConfirm
+              fullName={fullName}
+              newLeaderOptions={newLeaderOptions}
+              newLeaderId={newLeaderId}
+              onSelectNewLeader={handleSelectNewLeader}
+              isRemoving={isRemoving}
+              onConfirm={handleRemove}
+              onCancel={handleRemoveCancelled}
+            />
           ) : (
             <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', gap: t.space[2] }}>
-              {isTeamAdmin && actionButton(Strings.teamList.saveButton, handleSaveEdit, 'primary', { disabled: editLoading, loading: editLoading })}
+              {isTeamAdmin && <ActionButton label={Strings.teamList.saveButton} onPress={handleSaveEdit} kind="primary" disabled={editLoading} loading={editLoading} />}
               {isPhantomManageable && <PhantomConversionButton state={conversion} />}
-              {isTeamAdmin && actionButton(Strings.teamList.removeMemberButton, handleRemoveClicked, 'danger', { disabled: isMe || isRemoving })}
+              {canRemove && <ActionButton label={Strings.teamList.removeMemberButton} onPress={handleRemoveClicked} kind="danger" disabled={isRemoving} />}
             </View>
           )}
 

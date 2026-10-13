@@ -17,7 +17,7 @@ import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
-import { Icon } from '@/components/ui';
+import { Icon, TeamLogo } from '@/components/ui';
 import { LoadErrorNative } from '@/components/load-error-native';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
 import { SprintLengthHistoryPanelNative } from './sprint-length-history-panel-native';
@@ -291,9 +291,10 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
       <View
         key={comment.id}
         style={{
-          backgroundColor: isHighlighted ? t.color.accent.subtle : t.color.surface,
+          // הדגשה = סימון סמנטי, נשאר בצבע האפליקציה בתוך אזור הצוות (פיצ'ר 19, החלטה #11).
+          backgroundColor: isHighlighted ? t.color.appAccent.subtle : t.color.surface,
           borderWidth: isHighlighted ? 1 : 0,
-          borderColor: t.color.accent.border,
+          borderColor: t.color.appAccent.border,
           borderRightWidth: 3,
           borderRightColor: accent.fg,
           borderRadius: t.radius.card,
@@ -324,10 +325,10 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
                 onPress={() => handleToggleHighlight(comment.id, !isHighlighted)}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
               >
-                <Icon name="star" size="sm" tone={isHighlighted ? 'accent' : 'muted'} />
+                <Icon name="star" size="sm" tone={isHighlighted ? 'appAccent' : 'muted'} />
               </TouchableOpacity>
             ) : isHighlighted ? (
-              <Icon name="star" size="sm" tone="accent" />
+              <Icon name="star" size="sm" tone="appAccent" />
             ) : null}
           </View>
         )}
@@ -341,13 +342,13 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
               paddingHorizontal: 8,
               paddingVertical: 4,
               borderRadius: t.radius.pill,
-              backgroundColor: t.color.accent.subtle,
+              backgroundColor: t.color.appAccent.subtle,
               borderWidth: 1,
-              borderColor: t.color.accent.border,
+              borderColor: t.color.appAccent.border,
             }}
           >
-            <Icon name="ghost" size="sm" tone="accent" />
-            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.accent.base, textAlign: 'right' }]}>
+            <Icon name="ghost" size="sm" tone="appAccent" />
+            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.appAccent.base, textAlign: 'right' }]}>
               {postedByAdminLabel}
             </Text>
           </View>
@@ -357,6 +358,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
         </Text>
         <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[1] }}>
           <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1], flexShrink: 1 }}>
+            {comment.isAnonymous && <TeamLogo teamId={team.id} name={team.name} logoUpdatedAt={team.logoUpdatedAt} marker />}
             <Text style={[rnText({ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 700 }), { color: t.color.textSecondary, flexShrink: 1 }]}>
               {authorName}
             </Text>

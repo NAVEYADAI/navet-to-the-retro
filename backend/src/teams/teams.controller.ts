@@ -1,5 +1,8 @@
-import { Controller, Post, Get, Patch, Delete, Body, Param, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Put, Delete, Body, Param, Headers, UploadedFile, UseInterceptors, Res } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { TeamsService } from './teams.service';
+import { TeamLogoService } from './team-logo.service';
 import { AuthService } from '../auth/auth.service';
 import { IntIdPipe } from '../common/validation';
 import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto, RemoveMemberDto, LeaveTeamDto } from './dto/teams.dto';
@@ -8,6 +11,7 @@ import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto, R
 export class TeamsController {
   constructor(
     private readonly teamsService: TeamsService,
+    private readonly teamLogoService: TeamLogoService,
     private readonly authService: AuthService
   ) {}
 
@@ -141,5 +145,55 @@ export class TeamsController {
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.teamsService.updateTeam(teamId, dto, user.id);
+  }
+
+  // Feature 19 (team logo). The multer limit is generous on purpose so an oversize file reaches
+  // assertValidLogoFile and gets a Hebrew 400 instead of multer's generic 413.
+  @Put(':id/logo')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024, files: 1 } }))
+  async setLogo(
+    @Headers('authorization') authHeader: string,
+    @Param('id', IntIdPipe) teamId: number,
+    @UploadedFile() file: { buffer?: Buffer; size?: number } | undefined,
+    @Body() body: { accentHue?: unknown }
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamLogoService.setLogo(teamId, user.id, file, body?.accentHue);
+  }
+
+  @Delete(':id/logo')
+  async removeLogo(
+    @Headers('authorization') authHeader: string,
+    @Param('id', IntIdPipe) teamId: number
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamLogoService.removeLogo(teamId, user.id);
+  }
+
+  @Patch(':id/accent')
+  async setAccent(
+    @Headers('authorization') authHeader: string,
+    @Param('id', IntIdPipe) teamId: number,
+    @Body() body: { accentHue?: unknown }
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamLogoService.setAccent(teamId, user.id, body?.accentHue);
+  }
+
+  // `logoUpdatedAt` rides along as a `?v=` cache-buster, so the bytes are immutable per URL.
+  @Get(':id/logo')
+  async getLogo(
+    @Headers('authorization') authHeader: string,
+    @Param('id', IntIdPipe) teamId: number,
+    @Res() res: Response
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    const { data, contentType } = await this.teamLogoService.getLogo(teamId, user.id);
+    res.set({
+      'Content-Type': contentType,
+      'Cache-Control': 'private, max-age=31536000, immutable',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    res.send(data);
   }
 }

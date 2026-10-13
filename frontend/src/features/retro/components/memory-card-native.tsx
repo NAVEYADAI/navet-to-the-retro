@@ -3,6 +3,7 @@ import { View, Text, Image, Animated, Platform, LayoutAnimation, UIManager } fro
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
+import { TeamLogo } from '@/components/ui';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 import { useMemoryCardFlip, type MemoryCardComment } from '../memory-card-flip';
 
@@ -29,10 +30,13 @@ export type MemoryCardNativeComment = MemoryCardComment;
 
 interface MemoryCardNativeProps {
   comment: MemoryCardNativeComment;
+  /** פיצ'ר 19: גב הקלף = לוגו הצוות (אם יש), וסימן אנונימיות בקלף שנחשף. */
+  teamLogo?: { teamId: number; name: string; logoUpdatedAt?: string | null };
 }
 
-export function MemoryCardNative({ comment }: MemoryCardNativeProps) {
+export function MemoryCardNative({ comment, teamLogo }: MemoryCardNativeProps) {
   const t = useTheme();
+  const hasTeamLogo = !!teamLogo?.logoUpdatedAt;
   const flipAnim = useRef(new Animated.Value(0)).current; // 0 = showing back, 1 = showing front
 
   const isKeep = comment.type === 'KEEP';
@@ -95,16 +99,20 @@ export function MemoryCardNative({ comment }: MemoryCardNativeProps) {
             borderRadius: t.radius.card,
             borderWidth: 2,
             borderColor: t.color.border,
-            backgroundColor: t.color.surfaceSubtle,
+            backgroundColor: hasTeamLogo ? t.color.accent.subtle : t.color.surfaceSubtle,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Image
-            source={require('../../../../assets/images/app-logo.png')}
-            style={{ width: 56, height: 56, opacity: 0.55 }}
-            resizeMode="contain"
-          />
+          {hasTeamLogo ? (
+            <TeamLogo teamId={teamLogo!.teamId} name={teamLogo!.name} logoUpdatedAt={teamLogo!.logoUpdatedAt} size="lg" />
+          ) : (
+            <Image
+              source={require('../../../../assets/images/app-logo.png')}
+              style={{ width: 56, height: 56, opacity: 0.55 }}
+              resizeMode="contain"
+            />
+          )}
         </Animated.View>
 
         <Animated.View
@@ -143,12 +151,17 @@ export function MemoryCardNative({ comment }: MemoryCardNativeProps) {
           <Text numberOfLines={isEnlarged ? 10 : 4} style={{ color: t.color.text, fontSize: 12, textAlign: 'right', flexShrink: 1 }}>
             {comment.content}
           </Text>
+          {comment.isAnonymous && teamLogo && (
+            <View style={{ alignSelf: 'flex-end' }}>
+              <TeamLogo teamId={teamLogo.teamId} name={teamLogo.name} logoUpdatedAt={teamLogo.logoUpdatedAt} marker />
+            </View>
+          )}
           <Text style={{ color: t.color.textSecondary, fontSize: 10, fontWeight: comment.isAnonymous ? '400' : '700', textAlign: 'right' }}>
             {authorName}
             {isFormerMemberComment(comment) && ` · ${Strings.retroBoard.formerMemberBadge}`}
           </Text>
           {!!postedByAdminLabel && (
-            <Text style={{ color: t.color.accent.base, fontSize: 9, fontWeight: '700', textAlign: 'right' }}>
+            <Text style={{ color: t.color.appAccent.base, fontSize: 9, fontWeight: '700', textAlign: 'right' }}>
               {postedByAdminLabel}
             </Text>
           )}

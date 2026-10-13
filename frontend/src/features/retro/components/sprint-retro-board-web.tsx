@@ -555,6 +555,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                   index={index}
                   canHighlight={canHighlight}
                   onToggleHighlight={handleToggleHighlight}
+                  teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }}
                 />
               ))
             )}
@@ -592,6 +593,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                   index={index}
                   canHighlight={canHighlight}
                   onToggleHighlight={handleToggleHighlight}
+                  teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }}
                 />
               ))
             )}

@@ -4,6 +4,7 @@ import { Box, Typography } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
+import { TeamLogo } from '@/components/ui';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 import { useMemoryCardFlip, type MemoryCardComment } from '../memory-card-flip';
 
@@ -28,10 +29,13 @@ export type MemoryCardWebComment = MemoryCardComment;
 
 interface MemoryCardWebProps {
   comment: MemoryCardWebComment;
+  /** פיצ'ר 19: גב הקלף = לוגו הצוות (אם יש), וסימן אנונימיות בקלף שנחשף. */
+  teamLogo?: { teamId: number; name: string; logoUpdatedAt?: string | null };
 }
 
-export function MemoryCardWeb({ comment }: MemoryCardWebProps) {
+export function MemoryCardWeb({ comment, teamLogo }: MemoryCardWebProps) {
   const t = useTheme();
+  const hasTeamLogo = !!teamLogo?.logoUpdatedAt;
   // Distinguishes a single click from the first half of a double click ourselves — binding both
   // `onClick` and `onDoubleClick` natively fires `click`, `click`, then `dblclick`, which would run
   // the single-click handler twice per real double-click.
@@ -111,16 +115,21 @@ export function MemoryCardWeb({ comment }: MemoryCardWebProps) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderRadius: `${t.radius.card}px`,
-                  backgroundColor: t.color.surfaceSubtle,
-                  border: `2px solid ${t.color.border}`,
+                  // גב הקלף: לצוות עם לוגו — הלוגו שלו על רקע צבע הצוות (פיצ'ר 19); אחרת סמל האפליקציה כמו תמיד.
+                  backgroundColor: hasTeamLogo ? t.color.accent.subtle : t.color.surfaceSubtle,
+                  border: `2px solid ${hasTeamLogo ? t.color.accent.border : t.color.border}`,
                   boxShadow: t.shadow.sm,
                 }}
               >
-                <Image
-                  source={require('../../../../assets/images/app-logo.png')}
-                  style={{ width: 56, height: 56, opacity: 0.55 }}
-                  resizeMode="contain"
-                />
+                {hasTeamLogo ? (
+                  <TeamLogo teamId={teamLogo!.teamId} name={teamLogo!.name} logoUpdatedAt={teamLogo!.logoUpdatedAt} size="lg" />
+                ) : (
+                  <Image
+                    source={require('../../../../assets/images/app-logo.png')}
+                    style={{ width: 56, height: 56, opacity: 0.55 }}
+                    resizeMode="contain"
+                  />
+                )}
               </Box>
             </motion.div>
           ) : (
@@ -168,12 +177,13 @@ export function MemoryCardWeb({ comment }: MemoryCardWebProps) {
                 <Typography sx={{ ...t.type.caption, color: t.color.text, flex: 1 }}>
                   {comment.content}
                 </Typography>
-                <Typography sx={{ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 600, color: t.color.textSecondary }}>
+                <Typography sx={{ ...t.type.caption, display: 'flex', alignItems: 'center', gap: `${t.space[1]}px`, fontWeight: comment.isAnonymous ? 400 : 600, color: t.color.textSecondary }}>
+                  {comment.isAnonymous && teamLogo && <TeamLogo teamId={teamLogo.teamId} name={teamLogo.name} logoUpdatedAt={teamLogo.logoUpdatedAt} marker />}
                   <bdi>{authorName}</bdi>
                   {isFormerMemberComment(comment) && ` · ${Strings.retroBoard.formerMemberBadge}`}
                 </Typography>
                 {postedByAdminLabel ? (
-                  <Typography sx={{ ...t.type.caption, fontSize: 10, fontWeight: 600, color: t.color.accent.base }}>
+                  <Typography sx={{ ...t.type.caption, fontSize: 10, fontWeight: 600, color: t.color.appAccent.base }}>
                     <bdi>{postedByAdminLabel}</bdi>
                   </Typography>
                 ) : null}

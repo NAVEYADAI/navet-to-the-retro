@@ -92,6 +92,9 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
   return (
     <View style={{ backgroundColor: t.color.surface, borderWidth: 1, borderColor: t.color.border, borderRadius: t.radius.card, overflow: 'hidden' }}>
       <TeamCardHeader
+        teamId={team.id}
+        logoUpdatedAt={team.logoUpdatedAt}
+        accentHue={team.accentHue}
         teamName={team.name}
         isTeamAdmin={isTeamAdmin}
         summary={summary}
@@ -157,6 +160,8 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
             isTeamAdmin={isTeamAdmin}
             teamName={team.name}
             teamOffice={team.mainOffice}
+            logoUpdatedAt={team.logoUpdatedAt}
+            accentHue={team.accentHue}
             onTeamDetailsUpdated={onAddMemberSuccess}
           />
         </View>

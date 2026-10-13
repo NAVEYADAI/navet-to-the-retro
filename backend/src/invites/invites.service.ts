@@ -148,7 +148,7 @@ export class InvitesService {
     const invite = await this.prisma.teamInvite.findUnique({
       where: { token },
       include: {
-        team: { select: { name: true } },
+        team: { select: { name: true, logoUpdatedAt: true, accentHue: true } },
         // Feature 9 (phantom members, §9.1): only populated for a conversion link — used below
         // to prefill the conversion form with the phantom's existing display name.
         convertsMember: { include: { user: { select: { firstName: true, lastName: true } } } }
@@ -166,6 +166,10 @@ export class InvitesService {
 
     return {
       teamName: invite.team.name,
+      // Feature 19 (§19.0 decision #7): only a usable invite exposes the team's logo/colour — the
+      // client builds `/invites/:token/logo?v=` from `logoUpdatedAt`.
+      logoUpdatedAt: reason ? null : invite.team.logoUpdatedAt ?? null,
+      accentHue: reason ? null : invite.team.accentHue ?? null,
       email: invite.email,
       valid: !reason,
       reason: reason || undefined,
@@ -174,6 +178,20 @@ export class InvitesService {
         ? { firstName: invite.convertsMember.user.firstName, lastName: invite.convertsMember.user.lastName }
         : undefined
     };
+  }
+
+  // Feature 19 (§19.0 decision #7): the invitee has no JWT yet, so the logo is served by the invite
+  // token itself — and only that invite's own team's logo (BUG-01 class), only while it's usable.
+  async getInviteLogo(token: string) {
+    this.assertValidToken(token);
+    const invite = await this.prisma.teamInvite.findUnique({
+      where: { token },
+      include: { team: { select: { id: true, logo: true } } }
+    });
+    if (!invite || this.reasonForInvalidity(invite) || !invite.team.logo) {
+      throw new NotFoundException('Logo not found');
+    }
+    return { data: Buffer.from(invite.team.logo.data), contentType: invite.team.logo.contentType };
   }
 
   async listInvites(teamId: number, requesterId: number) {

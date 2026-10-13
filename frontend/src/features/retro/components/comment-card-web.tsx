@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { Icon, Badge } from '@/components/ui';
+import { Icon, Badge, TeamLogo } from '@/components/ui';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 
 interface CommentCardWebProps {
@@ -23,9 +23,11 @@ interface CommentCardWebProps {
   /** מוצג רק למנהלי צוות/ראשי צוותים — ראו product-backlog/02-comment-highlighting.md §2. */
   canHighlight?: boolean;
   onToggleHighlight?: (commentId: number, nextValue: boolean) => void;
+  /** פיצ'ר 19, החלטה #10: סימן אנונימיות — לוגו הצוות לפני המילה "אנונימי". */
+  teamLogo?: { teamId: number; name: string; logoUpdatedAt?: string | null };
 }
 
-export function CommentCardWeb({ comment, canHighlight, onToggleHighlight }: CommentCardWebProps) {
+export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamLogo }: CommentCardWebProps) {
   const t = useTheme();
   const isKeep = comment.type === 'KEEP';
   const accent = isKeep ? t.color.status.success : t.color.status.danger;
@@ -37,8 +39,9 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight }: Com
   return (
     <Box
       sx={{
-        backgroundColor: isHighlighted ? t.color.accent.subtle : t.color.surface,
-        border: `1px solid ${isHighlighted ? t.color.accent.border : 'transparent'}`,
+        // הדגשת הערה היא סימון סמנטי — נשארת בצבע האפליקציה גם בתוך אזור הצוות (פיצ'ר 19, החלטה #11).
+        backgroundColor: isHighlighted ? t.color.appAccent.subtle : t.color.surface,
+        border: `1px solid ${isHighlighted ? t.color.appAccent.border : 'transparent'}`,
         borderInlineStart: `3px solid ${accent.fg}`,
         borderRadius: `${t.radius.card}px`,
         boxShadow: t.shadow.sm,
@@ -92,10 +95,10 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight }: Com
                   '&:hover': { backgroundColor: t.color.surfaceHover },
                 }}
               >
-                <Icon name="star" size="sm" tone={isHighlighted ? 'accent' : 'muted'} />
+                <Icon name="star" size="sm" tone={isHighlighted ? 'appAccent' : 'muted'} />
               </Box>
             ) : isHighlighted ? (
-              <Icon name="star" size="sm" tone="accent" />
+              <Icon name="star" size="sm" tone="appAccent" />
             ) : null}
           </Box>
         )}
@@ -110,12 +113,12 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight }: Com
               paddingInline: '8px',
               paddingBlock: '4px',
               borderRadius: `${t.radius.pill}px`,
-              backgroundColor: t.color.accent.subtle,
-              border: `1px solid ${t.color.accent.border}`,
+              backgroundColor: t.color.appAccent.subtle,
+              border: `1px solid ${t.color.appAccent.border}`,
             }}
           >
-            <Icon name="ghost" size="sm" tone="accent" />
-            <Typography sx={{ ...t.type.caption, fontWeight: 700, color: t.color.accent.base }}>
+            <Icon name="ghost" size="sm" tone="appAccent" />
+            <Typography sx={{ ...t.type.caption, fontWeight: 700, color: t.color.appAccent.base }}>
               <bdi>{postedByAdminLabel}</bdi>
             </Typography>
           </Box>
@@ -127,6 +130,7 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight }: Com
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: `${t.space[1]}px` }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px`, minWidth: 0 }}>
+            {comment.isAnonymous && teamLogo && <TeamLogo teamId={teamLogo.teamId} name={teamLogo.name} logoUpdatedAt={teamLogo.logoUpdatedAt} marker />}
             <Typography sx={{ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 600, color: t.color.textSecondary }}>
               <bdi>{authorName}</bdi>
             </Typography>

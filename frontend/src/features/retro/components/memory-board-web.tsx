@@ -91,7 +91,7 @@ export function MemoryBoardWeb({ sprint, team, token, onBack }: MemoryBoardWebPr
           }}
         >
           {list.map(comment => (
-            <MemoryCardWeb key={comment.id} comment={comment} />
+            <MemoryCardWeb key={comment.id} comment={comment} teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }} />
           ))}
         </Box>
       )}

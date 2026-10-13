@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { TeamsController } from './teams.controller';
 import { TeamsService } from './teams.service';
+import { TeamLogoService } from './team-logo.service';
 import { AuthService } from '../auth/auth.service';
 
 describe('TeamsController', () => {
@@ -21,6 +22,13 @@ describe('TeamsController', () => {
     updateTeam: jest.fn(),
   };
 
+  const mockTeamLogoService = {
+    setLogo: jest.fn(),
+    removeLogo: jest.fn(),
+    setAccent: jest.fn(),
+    getLogo: jest.fn(),
+  };
+
   const mockAuthService = {
     validateToken: jest.fn().mockResolvedValue(mockUser),
   };
@@ -30,6 +38,7 @@ describe('TeamsController', () => {
       controllers: [TeamsController],
       providers: [
         { provide: TeamsService, useValue: mockTeamsService },
+        { provide: TeamLogoService, useValue: mockTeamLogoService },
         { provide: AuthService, useValue: mockAuthService },
       ],
     }).compile();
@@ -102,5 +111,44 @@ describe('TeamsController', () => {
     await controller.update(authHeader, 5, dto);
 
     expect(mockTeamsService.updateTeam).toHaveBeenCalledWith(5, dto, mockUser.id);
+  });
+  describe('team logo (feature 19)', () => {
+    it('setLogo() validates the token first, then hands the file and accentHue to the service', async () => {
+      const file = { buffer: Buffer.from([1, 2, 3]) };
+      await controller.setLogo(authHeader, 7, file, { accentHue: '172' });
+
+      expect(mockAuthService.validateToken).toHaveBeenCalledWith(authHeader);
+      expect(mockTeamLogoService.setLogo).toHaveBeenCalledWith(7, mockUser.id, file, '172');
+    });
+
+    it('removeLogo() and setAccent() pass the authenticated user, not anything from the body', async () => {
+      await controller.removeLogo(authHeader, 7);
+      expect(mockTeamLogoService.removeLogo).toHaveBeenCalledWith(7, mockUser.id);
+
+      await controller.setAccent(authHeader, 7, { accentHue: 90 });
+      expect(mockTeamLogoService.setAccent).toHaveBeenCalledWith(7, mockUser.id, 90);
+    });
+
+    it('getLogo() sends the bytes with the stored content type and an immutable private cache header', async () => {
+      const data = Buffer.from([9, 9]);
+      mockTeamLogoService.getLogo.mockResolvedValue({ data, contentType: 'image/png' });
+      const res = { set: jest.fn(), send: jest.fn() };
+
+      await controller.getLogo(authHeader, 7, res as any);
+
+      expect(mockTeamLogoService.getLogo).toHaveBeenCalledWith(7, mockUser.id);
+      expect(res.set).toHaveBeenCalledWith(expect.objectContaining({
+        'Content-Type': 'image/png',
+        'Cache-Control': 'private, max-age=31536000, immutable',
+        'X-Content-Type-Options': 'nosniff',
+      }));
+      expect(res.send).toHaveBeenCalledWith(data);
+    });
+
+    it('an invalid token stops every logo endpoint before the service runs', async () => {
+      mockAuthService.validateToken.mockRejectedValue(new Error('Invalid token'));
+      await expect(controller.removeLogo(authHeader, 7)).rejects.toThrow('Invalid token');
+      expect(mockTeamLogoService.removeLogo).not.toHaveBeenCalled();
+    });
   });
 });

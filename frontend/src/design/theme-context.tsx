@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from 'react-native';
 import { buildTheme, type AccentScheme, type AppTheme, type Density } from './tokens';
+import { teamAccentFromHue } from './team-accent';
 
 type ModePreference = 'light' | 'dark' | 'system';
 
@@ -49,3 +50,30 @@ export const usePreferences = () => {
   const { prefs, setPrefs } = useContext(Ctx);
   return { prefs, setPrefs };
 };
+
+/**
+ * Feature 19 — "אזור הצוות". בתוכו `t.color.accent` הוא צבע הצוות (נגזר מהלוגו), כך שכל Button /
+ * Badge / Segmented קיים יורש אותו בלי שינוי. `t.color.appAccent` נשאר צבע האפליקציה.
+ * `hue` ריק (אין לוגו / אין צבע) = לא עוטפים בכלל, האזור נשאר בצבע האפליקציה.
+ */
+export function TeamAccentScope({ hue, children }: { hue: number | null | undefined; children: React.ReactNode }) {
+  const parent = useContext(Ctx);
+  const value = useMemo(() => {
+    if (hue === null || hue === undefined) return parent;
+    const accent = teamAccentFromHue(hue, parent.theme.mode) as AppTheme['color']['accent'];
+    return { ...parent, theme: { ...parent.theme, color: { ...parent.theme.color, accent } } };
+  }, [hue, parent]);
+
+  if (hue === null || hue === undefined) return <>{children}</>;
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+/** מחזיר את `accent` לצבע האפליקציה בתוך אזור צוות — לסימונים סמנטיים (פיצ'ר 19, החלטה #11). */
+export function AppAccentScope({ children }: { children: React.ReactNode }) {
+  const parent = useContext(Ctx);
+  const value = useMemo(
+    () => ({ ...parent, theme: { ...parent.theme, color: { ...parent.theme.color, accent: parent.theme.color.appAccent } } }),
+    [parent]
+  );
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}

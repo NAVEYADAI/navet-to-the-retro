@@ -293,9 +293,28 @@ describe('InvitesService', () => {
       const result = await service.getInvite('tok');
 
       expect(result).toEqual({
-        teamName: 'Core Team', email: 'x@example.com', valid: true, reason: undefined,
-        type: 'join', prefill: undefined,
+        teamName: 'Core Team', logoUpdatedAt: null, accentHue: null, email: 'x@example.com', valid: true,
+        reason: undefined, type: 'join', prefill: undefined,
       });
+    });
+
+    it('exposes the team logo timestamp and colour hue (feature 19) only while the invite is usable', async () => {
+      const logoUpdatedAt = new Date('2026-10-13T10:00:00Z');
+      const base = { email: null, team: { name: 'Core Team', logoUpdatedAt, accentHue: 172 } };
+
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({
+        ...base, isRevoked: false, expiresAt: null, maxUses: null, useCount: 0,
+      });
+      const usable = await service.getInvite('tok');
+      expect(usable.logoUpdatedAt).toEqual(logoUpdatedAt);
+      expect(usable.accentHue).toBe(172);
+
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({
+        ...base, isRevoked: true, expiresAt: null, maxUses: null, useCount: 0,
+      });
+      const revoked = await service.getInvite('tok');
+      expect(revoked.logoUpdatedAt).toBeNull();
+      expect(revoked.accentHue).toBeNull();
     });
 
     it.each([
@@ -322,6 +341,42 @@ describe('InvitesService', () => {
 
       expect(result.type).toBe('phantomConversion');
       expect(result.prefill).toEqual({ firstName: 'Phanto', lastName: 'Mm' });
+    });
+  });
+
+  describe('getInviteLogo (feature 19)', () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    const usable = { isRevoked: false, expiresAt: null, maxUses: null, useCount: 0 };
+
+    it('serves the logo of the invite\'s own team', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({
+        ...usable, team: { id: 10, logo: { data: png, contentType: 'image/png' } },
+      });
+
+      const result = await service.getInviteLogo('tok');
+
+      expect(result.contentType).toBe('image/png');
+      expect(Array.from(result.data)).toEqual(Array.from(png));
+      // The lookup is by the invite token only — there is no caller-supplied team id to swap.
+      expect(mockPrismaService.teamInvite.findUnique).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { token: 'tok' } })
+      );
+    });
+
+    it.each([
+      ['an unknown token', null],
+      ['a revoked invite', { isRevoked: true, expiresAt: null, maxUses: null, useCount: 0, team: { id: 10, logo: { data: png, contentType: 'image/png' } } }],
+      ['an expired invite', { isRevoked: false, expiresAt: new Date('2000-01-01'), maxUses: null, useCount: 0, team: { id: 10, logo: { data: png, contentType: 'image/png' } } }],
+      ['an exhausted invite', { isRevoked: false, expiresAt: null, maxUses: 1, useCount: 1, team: { id: 10, logo: { data: png, contentType: 'image/png' } } }],
+      ['a team without a logo', { ...usable, team: { id: 10, logo: null } }],
+    ])('404s for %s', async (_label, invite) => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue(invite);
+      await expect(service.getInviteLogo('tok')).rejects.toThrow(NotFoundException);
+    });
+
+    it.each(['', 'bad token!', 'a'.repeat(129)])('rejects the malformed token %j with 400 before touching the DB', async (token) => {
+      await expect(service.getInviteLogo(token)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.teamInvite.findUnique).not.toHaveBeenCalled();
     });
   });
 

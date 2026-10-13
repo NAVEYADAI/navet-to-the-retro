@@ -4,7 +4,7 @@ import { getBackendUrl } from '@/api/config';
 import { Strings } from '@/constants/strings';
 import { Box, Typography, Alert } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
-import { Button, Card } from '@/components/ui';
+import { Button, Card, TeamLogo } from '@/components/ui';
 
 interface PendingMembershipCardProps {
   team: any;
@@ -37,9 +37,13 @@ export function PendingMembershipCard({ team, token, onResolved }: PendingMember
 
   return (
     <Card padding={5}>
-      <Typography component="h3" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
-        {team.name}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[3]}px` }}>
+        {/* פיצ'ר 19: מוזמן במצב PENDING כבר רואה את לוגו הצוות (החלטה #9). */}
+        {!!team.logoUpdatedAt && <TeamLogo teamId={team.id} name={team.name} logoUpdatedAt={team.logoUpdatedAt} size="lg" />}
+        <Typography component="h3" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0, minWidth: 0, overflowWrap: 'anywhere' }}>
+          {team.name}
+        </Typography>
+      </Box>
       <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>
         {Strings.dashboard.memberInviteText}
       </Typography>

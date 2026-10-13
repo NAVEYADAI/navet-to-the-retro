@@ -7,7 +7,8 @@ import { ThemedView } from '@/components/themed-view';
 import { AuthForm } from '@/components/auth-form';
 import { Spacing } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
-import { useTheme } from '@/design/theme-context';
+import { TeamAccentScope, useTheme } from '@/design/theme-context';
+import { TeamBanner } from '@/components/ui';
 import { useAuth } from '@/context/auth-context';
 import { getBackendUrl } from '@/api/config';
 import { trackEvent } from '@/lib/analytics';
@@ -16,6 +17,9 @@ type Status = 'loading' | 'invalid' | 'ready' | 'joining' | 'done' | 'error';
 
 interface InviteInfo {
   teamName: string;
+  // Feature 19: logo/colour of the team, exposed by the public invite lookup only while the invite is usable.
+  logoUpdatedAt?: string | null;
+  accentHue?: number | null;
   email: string | null;
   // Feature 9 (phantom members, product-backlog/09-phantom-members.md §9.0 decision #3): a
   // conversion link (not a regular join link) — routes to a dedicated form below instead of
@@ -210,6 +214,8 @@ export default function InvitePage() {
         } else {
           setInviteInfo({
             teamName: response.data.teamName,
+            logoUpdatedAt: response.data.logoUpdatedAt ?? null,
+            accentHue: response.data.accentHue ?? null,
             email: response.data.email,
             type: response.data.type || 'join',
             prefill: response.data.prefill,
@@ -311,29 +317,51 @@ export default function InvitePage() {
   }
 
   // status === 'ready'
+  // Feature 19 (§19.0 decisions #7/#8): the whole invite page is team space — the team's logo (served
+  // by the invite token, the invitee has no session yet) and colour, in both branches below.
+  const teamBanner = inviteInfo?.logoUpdatedAt ? (
+    <TeamBanner
+      teamId={0}
+      teamName={inviteInfo.teamName}
+      logoUpdatedAt={inviteInfo.logoUpdatedAt}
+      hasTeamColor={inviteInfo.accentHue !== null && inviteInfo.accentHue !== undefined}
+      label={Strings.invites.joinTeamPromptText(inviteInfo.teamName)}
+      inviteToken={inviteToken}
+    />
+  ) : null;
+
   if (isPhantomConversion) {
     return (
-      <ThemedView style={{ flex: 1 }}>
-        <PhantomConversionForm
-          inviteToken={inviteToken}
-          teamName={inviteInfo?.teamName || ''}
-          prefill={inviteInfo?.prefill}
-        />
-      </ThemedView>
+      <TeamAccentScope hue={inviteInfo?.accentHue}>
+        <ThemedView style={{ flex: 1 }}>
+          {teamBanner}
+          <PhantomConversionForm
+            inviteToken={inviteToken}
+            teamName={inviteInfo?.teamName || ''}
+            prefill={inviteInfo?.prefill}
+          />
+        </ThemedView>
+      </TeamAccentScope>
     );
   }
 
   // status === 'ready' && not a phantom conversion && not logged in yet — show the register/login gate.
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ position: 'absolute', top: Spacing.six, left: 0, right: 0, alignItems: 'center', zIndex: 1, paddingHorizontal: Spacing.four }}>
-        <ThemedText style={{ fontWeight: 'bold', textAlign: 'center' }}>
-          {Strings.invites.joinTeamPromptText(inviteInfo?.teamName || '')}
-        </ThemedText>
+    <TeamAccentScope hue={inviteInfo?.accentHue}>
+      <View style={{ flex: 1 }}>
+        {teamBanner ?? (
+          <View style={{ position: 'absolute', top: Spacing.six, left: 0, right: 0, alignItems: 'center', zIndex: 1, paddingHorizontal: Spacing.four }}>
+            <ThemedText style={{ fontWeight: 'bold', textAlign: 'center' }}>
+              {Strings.invites.joinTeamPromptText(inviteInfo?.teamName || '')}
+            </ThemedText>
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <AuthForm
+            initialEmail={inviteInfo?.email || undefined}
+          />
+        </View>
       </View>
-      <AuthForm
-        initialEmail={inviteInfo?.email || undefined}
-      />
-    </View>
+    </TeamAccentScope>
   );
 }

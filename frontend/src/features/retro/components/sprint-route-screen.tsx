@@ -3,7 +3,8 @@ import { Platform, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/auth-context';
-import { useTheme } from '@/design/theme-context';
+import { TeamAccentScope, useTheme } from '@/design/theme-context';
+import { TeamBanner } from '@/components/ui';
 import { MaxContentWidth } from '@/constants/theme';
 import { SprintRetroBoard } from '@/features/retro';
 import { MemoryBoard } from './memory-board';
@@ -47,6 +48,18 @@ export function SprintRouteScreen({ view }: { view: SprintView }) {
         onOpenSummary={() => openSprint(team.id, sprint.id, 'summary')}
         onOpenMemory={() => openSprint(team.id, sprint.id, 'memory')}
       />
+    );
+  }
+
+  // Feature 19: the whole sprint route (board / summary / memory) is "team space" — an optional
+  // identity banner on top and the team colour as the accent. Teams without a logo get no banner
+  // and no override, so their screens are unchanged.
+  if (status === 'ready' && team) {
+    content = (
+      <TeamAccentScope hue={team.accentHue}>
+        <TeamBanner teamId={team.id} teamName={team.name} logoUpdatedAt={team.logoUpdatedAt} hasTeamColor={team.accentHue !== null && team.accentHue !== undefined} />
+        {content}
+      </TeamAccentScope>
     );
   }
 

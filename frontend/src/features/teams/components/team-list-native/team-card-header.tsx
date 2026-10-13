@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Strings } from '@/constants/strings';
-import { useTheme } from '@/design/theme-context';
-import { Avatar, Icon } from '@/components/ui';
+import { TeamAccentScope, useTheme } from '@/design/theme-context';
+import { Avatar, Icon, TeamLogo } from '@/components/ui';
 import { memberDisplayName } from '@/features/teams/member-display';
 import { rnText } from './team-settings-panel.styles';
 
@@ -10,6 +10,10 @@ import { rnText } from './team-settings-panel.styles';
 const MAX_STACKED_AVATARS = 2;
 
 interface TeamCardHeaderProps {
+  teamId: number;
+  /** פיצ'ר 19: לוגו + צבע צוות. null = בלי לוגו / בלי צבע (הכותרת נראית כמו לפני הפיצ'ר). */
+  logoUpdatedAt?: string | null;
+  accentHue?: number | null;
   teamName: string;
   isTeamAdmin: boolean;
   summary: string;
@@ -22,7 +26,19 @@ interface TeamCardHeaderProps {
 }
 
 /** ראש כרטיס הצוות בשורה אחת: שם + תג מנהל + שורת סיכום מימין, כפתור החברים וגלגל ההגדרות משמאל. */
-export function TeamCardHeader({
+export function TeamCardHeader(props: TeamCardHeaderProps) {
+  // הצבע שנגזר מהלוגו חל על הכותרת בלבד ("אזור הצוות") — לא על שאר הכרטיס (פיצ'ר 19, החלטה #4).
+  return (
+    <TeamAccentScope hue={props.accentHue}>
+      <TeamCardHeaderContent {...props} />
+    </TeamAccentScope>
+  );
+}
+
+function TeamCardHeaderContent({
+  teamId,
+  logoUpdatedAt,
+  accentHue,
   teamName,
   isTeamAdmin,
   summary,
@@ -33,9 +49,25 @@ export function TeamCardHeader({
   isSettingsOpen,
 }: TeamCardHeaderProps) {
   const t = useTheme();
+  const hasTeamColor = accentHue !== null && accentHue !== undefined;
 
   return (
-    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: t.space[4], paddingHorizontal: t.space[4], gap: t.space[2] }}>
+    <View
+      testID="team-card-header"
+      style={{
+        flexDirection: 'row-reverse',
+        alignItems: 'center',
+        paddingVertical: t.space[4],
+        paddingHorizontal: t.space[4],
+        gap: t.space[2],
+        overflow: 'hidden',
+        backgroundColor: hasTeamColor ? t.color.accent.subtle : 'transparent',
+        borderBottomWidth: hasTeamColor ? 1 : 0,
+        borderBottomColor: t.color.accent.border,
+      }}
+    >
+      {hasTeamColor && <TeamLogo teamId={teamId} name={teamName} logoUpdatedAt={logoUpdatedAt} size="lg" watermark />}
+      <TeamLogo teamId={teamId} name={teamName} logoUpdatedAt={logoUpdatedAt} size="md" />
       <View style={{ flex: 1, minWidth: 0, gap: t.space[1] }}>
         <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', gap: t.space[2] }}>
           <Text style={[rnText(t.type.cardTitle), { color: t.color.text, textAlign: 'right', flexShrink: 1 }]}>{teamName}</Text>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pencil, Trash2, Copy, ChevronDown, Plus, Check, X, UserPlus, MapPin, Link, Wrench, Eye, EyeOff, Home, Settings, Star, Target, Code, ShieldCheck, Infinity, LogOut, Presentation, Download, RotateCw, Ghost, History, Tag, ListFilter } from 'lucide-react';
+import { Pencil, Trash2, Copy, ChevronDown, Plus, Check, X, UserPlus, MapPin, Link, Wrench, Eye, EyeOff, Home, Settings, Star, Target, Code, ShieldCheck, Infinity, LogOut, Presentation, Download, RotateCw, Ghost, History, Tag, ListFilter, Upload } from 'lucide-react';
 import { useTheme } from '@/design/theme-context';
 
 export type IconName =
@@ -30,10 +30,11 @@ export type IconName =
   | 'ghost'
   | 'history'
   | 'tag'
-  | 'filter';
+  | 'filter'
+  | 'upload';
 
 export type IconSize = 'sm' | 'md' | 'lg';
-export type IconTone = 'default' | 'muted' | 'accent' | 'danger' | 'success' | 'inverse';
+export type IconTone = 'default' | 'muted' | 'accent' | 'appAccent' | 'danger' | 'success' | 'inverse';
 
 const REGISTRY: Record<IconName, React.ComponentType<React.SVGProps<SVGSVGElement> & { size?: number; color?: string; strokeWidth?: number }>> = {
   edit: Pencil,
@@ -64,6 +65,7 @@ const REGISTRY: Record<IconName, React.ComponentType<React.SVGProps<SVGSVGElemen
   history: History,
   tag: Tag,
   filter: ListFilter,
+  upload: Upload,
 };
 
 export interface IconProps {
@@ -81,6 +83,7 @@ export function Icon({ name, size = 'md', tone = 'default', rotate }: IconProps)
   const px = t.iconSize[size];
   const color =
     tone === 'accent' ? t.color.accent.base
+    : tone === 'appAccent' ? t.color.appAccent.base
     : tone === 'danger' ? t.color.status.danger.fg
     : tone === 'success' ? t.color.status.success.fg
     : tone === 'muted' ? t.color.textMuted

@@ -4,7 +4,7 @@ import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
-import { Icon } from '@/components/ui';
+import { Icon, TeamLogo } from '@/components/ui';
 
 interface PendingMembershipCardProps {
   team: any;
@@ -55,9 +55,13 @@ export function PendingMembershipCard({ team, token, onResolved }: PendingMember
         gap: t.space[4],
       }}
     >
-      <Text style={[rnText(t.type.cardTitle), { color: t.color.text, textAlign: 'right' }]}>
-        {team.name}
-      </Text>
+      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[3] }}>
+        {/* פיצ'ר 19: מוזמן במצב PENDING כבר רואה את לוגו הצוות (החלטה #9). */}
+        {!!team.logoUpdatedAt && <TeamLogo teamId={team.id} name={team.name} logoUpdatedAt={team.logoUpdatedAt} size="lg" />}
+        <Text style={[rnText(t.type.cardTitle), { color: t.color.text, textAlign: 'right', flexShrink: 1 }]}>
+          {team.name}
+        </Text>
+      </View>
       <Text style={[rnText(t.type.body), { color: t.color.textSecondary, textAlign: 'right' }]}>
         {Strings.dashboard.memberInviteText}
       </Text>

@@ -101,13 +101,13 @@ export function CommentFilterBarNative({
             paddingVertical: t.space[1] + 2,
             paddingHorizontal: t.space[3],
             borderRadius: t.radius.pill,
-            backgroundColor: highlightedOnly ? t.color.accent.subtle : t.color.surfaceSubtle,
+            backgroundColor: highlightedOnly ? t.color.appAccent.subtle : t.color.surfaceSubtle,
           }}
         >
-          <Icon name="star" size="sm" tone={highlightedOnly ? 'accent' : 'muted'} />
+          <Icon name="star" size="sm" tone={highlightedOnly ? 'appAccent' : 'muted'} />
           <Text style={[
             rnText({ ...t.type.label, fontWeight: highlightedOnly ? 700 : 400 }),
-            { color: highlightedOnly ? t.color.accent.base : t.color.textSecondary },
+            { color: highlightedOnly ? t.color.appAccent.base : t.color.textSecondary },
           ]}>
             {Strings.retroBoard.highlightedOnlyFilterLabel}
           </Text>

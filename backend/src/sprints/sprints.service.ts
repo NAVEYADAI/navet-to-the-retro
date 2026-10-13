@@ -272,7 +272,8 @@ export class SprintsService {
   }
 
   async exportSummaryPptx(teamId: number, sprintId: number, requesterId: number, templateId?: string): Promise<{ buffer: Buffer; fileName: string }> {
-    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    // Feature 19: the logo bytes ride along so the deck can carry the team's mark and colour.
+    const team = await this.prisma.team.findUnique({ where: { id: teamId }, include: { logo: true } });
     if (!team) {
       throw new NotFoundException('Team not found');
     }
@@ -307,7 +308,9 @@ export class SprintsService {
       startDate: sprint.startDate,
       endDate: sprint.endDate,
       comments: comments.map(c => ({ content: c.content, type: c.type, category: c.category?.label ?? null })),
-      templateId: resolveTemplateId(templateId)
+      templateId: resolveTemplateId(templateId),
+      logo: team.logo ? { data: team.logo.data, contentType: team.logo.contentType } : null,
+      accentHue: team.accentHue ?? null
     });
 
     return { buffer, fileName: buildExportFileName(sprint.name) };

@@ -5,6 +5,7 @@ import { getAuthHeaders, apiClient } from '@/api/client';
 import { installUnauthorizedInterceptor, setUnauthorizedHandler } from '@/api/unauthorized-interceptor';
 import { identifyUser, resetAnalytics } from '@/lib/analytics';
 import { sessionStorage as storage } from '@/lib/session-storage';
+import { SessionTokenContext } from './session-token-context';
 
 interface AuthContextType {
   token: string | null;
@@ -110,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ token, user, loading, login, logout }}>
-      {children}
+      <SessionTokenContext.Provider value={token}>{children}</SessionTokenContext.Provider>
     </AuthContext.Provider>
   );
 };
@@ -120,3 +121,4 @@ export const useAuth = () => {
   if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
+

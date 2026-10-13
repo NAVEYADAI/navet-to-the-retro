@@ -97,6 +97,9 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
   return (
     <Card padding={0}>
       <TeamCardHeader
+        teamId={team.id}
+        logoUpdatedAt={team.logoUpdatedAt}
+        accentHue={team.accentHue}
         teamName={team.name}
         isTeamAdmin={isTeamAdmin}
         summary={summary}
@@ -152,6 +155,8 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
             isTeamAdmin={isTeamAdmin}
             teamName={team.name}
             teamOffice={team.mainOffice}
+            logoUpdatedAt={team.logoUpdatedAt}
+            accentHue={team.accentHue}
             onTeamDetailsUpdated={onAddMemberSuccess}
           />
         </Box>

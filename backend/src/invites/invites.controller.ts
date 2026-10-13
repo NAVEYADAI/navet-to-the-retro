@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Patch, Body, Param, Headers } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Headers, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { InvitesService } from './invites.service';
 import { AuthService } from '../auth/auth.service';
 import { IntIdPipe } from '../common/validation';
@@ -14,6 +15,18 @@ export class InvitesController {
   @Get('invites/:token')
   async getInvite(@Param('token') token: string) {
     return this.invitesService.getInvite(token);
+  }
+
+  // Feature 19: public (the invitee isn't logged in yet), scoped to the invite's own team.
+  @Get('invites/:token/logo')
+  async getInviteLogo(@Param('token') token: string, @Res() res: Response) {
+    const { data, contentType } = await this.invitesService.getInviteLogo(token);
+    res.set({
+      'Content-Type': contentType,
+      'Cache-Control': 'public, max-age=3600',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    res.send(data);
   }
 
   @Post('invites/:token/consume')

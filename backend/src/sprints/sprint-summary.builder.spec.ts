@@ -247,4 +247,84 @@ describe('buildSprintSummaryPptx', () => {
     expect(slides.some(xml => xml.includes('char="&#x2022;"'))).toBe(true); // default round bullet
     expect(slides.some(xml => xml.includes('prst="roundRect"'))).toBe(false); // no "cards" panels
   });
+  describe('team logo + team colour (feature 19)', () => {
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    const comments = [
+      { content: 'a', type: 'KEEP' as const, category: 'תהליכים' },
+      { content: 'b', type: 'IMPROVE' as const, category: 'קוד' },
+    ];
+    // hue 172 -> base #1B7468 (golden value, see team-accent.util.spec.ts)
+    const TEAM_BASE = '1B7468';
+
+    async function build(extra: Record<string, unknown>) {
+      return buildSprintSummaryPptx({ ...baseInput, comments, ...extra } as any);
+    }
+    async function mediaFiles(buffer: Buffer) {
+      const zip = await JSZip.loadAsync(buffer);
+      return Object.keys(zip.files).filter(n => n.startsWith('ppt/media/') && !zip.files[n].dir);
+    }
+    const picCount = (xml: string) => (xml.match(/<p:pic>/g) ?? []).length;
+
+    it('a team without a logo or colour gets the same deck as before: no image, no accent shapes', async () => {
+      const buffer = await build({ templateId: 'classic' });
+      expect(await mediaFiles(buffer)).toHaveLength(0);
+      const slides = await slidesOf(buffer);
+      expect(slides.some(xml => xml.includes('prst="roundRect"'))).toBe(false);
+      expect(slides.some(xml => xml.includes(TEAM_BASE))).toBe(false);
+    });
+
+    it.each(['classic', 'dark', 'vibrant'])('puts the logo on every slide of the %s template (title, categories, summary)', async (templateId) => {
+      const buffer = await build({ templateId, logo: { data: PNG, contentType: 'image/png' } });
+      const slides = await slidesOf(buffer);
+
+      expect(slides.length).toBeGreaterThanOrEqual(4); // title + 2 categories + summary
+      for (const xml of slides) expect(picCount(xml)).toBe(1);
+      expect((await mediaFiles(buffer)).length).toBeGreaterThan(0);
+    });
+
+    it('puts the logo on the empty-state slide too', async () => {
+      const buffer = await build({ comments: [], logo: { data: PNG, contentType: 'image/png' } });
+      for (const xml of await slidesOf(buffer)) expect(picCount(xml)).toBe(1);
+    });
+
+    it.each([
+      ['webp', 'image/webp'],
+      ['svg', 'image/svg+xml'],
+      ['an unknown type', 'application/octet-stream'],
+    ])('silently skips a logo stored as %s instead of corrupting the deck', async (_n, contentType) => {
+      const buffer = await build({ logo: { data: PNG, contentType } });
+      expect(await mediaFiles(buffer)).toHaveLength(0);
+    });
+
+    it('skips an empty logo buffer', async () => {
+      const buffer = await build({ logo: { data: Buffer.alloc(0), contentType: 'image/png' } });
+      expect(await mediaFiles(buffer)).toHaveLength(0);
+    });
+
+    it('classic: the team colour becomes a top stripe on the title slide and a rule on category slides', async () => {
+      const slides = await slidesOf(await build({ templateId: 'classic', accentHue: 172 }));
+      expect(slides.filter(xml => xml.includes(TEAM_BASE)).length).toBe(3); // title + 2 category slides
+      expect(slides[slides.length - 1]).not.toContain(TEAM_BASE); // summary table slide: no accent
+    });
+
+    it('vibrant: only the title banner takes the team colour; the category banners stay the semantic keep colour', async () => {
+      const slides = await slidesOf(await build({ templateId: 'vibrant', accentHue: 172 }));
+      expect(slides[0]).toContain(TEAM_BASE);
+      expect(slides[0]).not.toContain(SPRINT_SUMMARY_TEMPLATES.vibrant.keep);
+      expect(slides[1]).not.toContain(TEAM_BASE);
+      expect(slides[1]).toContain(SPRINT_SUMMARY_TEMPLATES.vibrant.keep);
+    });
+
+    it('dark: the team colour does not apply (it has its own palette), the logo still does', async () => {
+      const buffer = await build({ templateId: 'dark', accentHue: 172, logo: { data: PNG, contentType: 'image/png' } });
+      const slides = await slidesOf(buffer);
+      expect(slides.some(xml => xml.includes(TEAM_BASE))).toBe(false);
+      expect(picCount(slides[0])).toBe(1);
+    });
+
+    it('a null accentHue means no team colour', async () => {
+      const slides = await slidesOf(await build({ templateId: 'vibrant', accentHue: null }));
+      expect(slides[0]).toContain(SPRINT_SUMMARY_TEMPLATES.vibrant.keep);
+    });
+  });
 });

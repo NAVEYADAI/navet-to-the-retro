@@ -8,3 +8,5 @@ export { Page, PageHeader, Grid } from './page';
 export { Icon, type IconName, type IconSize, type IconTone } from './icon';
 export { Modal, type ModalProps } from './modal';
 export { Avatar, avatarInitial, type AvatarProps } from './avatar';
+export { TeamLogo, type TeamLogoProps } from './team-logo';
+export { TeamBanner, type TeamBannerProps } from './team-banner';

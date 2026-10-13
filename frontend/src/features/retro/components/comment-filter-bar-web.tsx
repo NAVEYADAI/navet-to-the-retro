@@ -3,6 +3,7 @@ import { Box, Select, MenuItem, Checkbox, ListItemText, Typography, type SelectC
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
 import { Field, Button } from '@/components/ui';
+import { AppAccentScope } from '@/design/theme-context';
 
 interface CommentFilterBarWebProps {
   categories: string[];
@@ -85,14 +86,17 @@ export function CommentFilterBarWeb({
         />
       </Box>
 
-      <Button
-        variant={highlightedOnly ? 'primary' : 'secondary'}
-        size="sm"
-        icon="star"
-        onPress={() => onHighlightedOnlyChange(!highlightedOnly)}
-      >
-        {Strings.retroBoard.highlightedOnlyFilterLabel}
-      </Button>
+      {/* מסנן ההדגשה הוא סימון סמנטי — נשאר בצבע האפליקציה גם בתוך אזור הצוות (פיצ'ר 19, החלטה #11). */}
+      <AppAccentScope>
+        <Button
+          variant={highlightedOnly ? 'primary' : 'secondary'}
+          size="sm"
+          icon="star"
+          onPress={() => onHighlightedOnlyChange(!highlightedOnly)}
+        >
+          {Strings.retroBoard.highlightedOnlyFilterLabel}
+        </Button>
+      </AppAccentScope>
 
       {isFilterActive && (
         <Button

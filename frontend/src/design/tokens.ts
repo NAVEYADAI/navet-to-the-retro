@@ -55,6 +55,8 @@ const lightNeutrals = {
   textMuted: '#8A93A2',
   /** מסך רקע מעומעם מאחורי מודאל/שכבת-על (native בעיקר, אין `dir=rtl` שקוף לזה). */
   overlay: 'rgba(16,19,26,0.4)',
+  /** משטח הלוגו של הצוות (פיצ'ר 19): לוגואים מצוירים לרקע בהיר, לכן גם בדארק הם יושבים על לבן. */
+  logoSurface: '#FFFFFF',
 };
 
 const darkNeutrals = {
@@ -68,6 +70,7 @@ const darkNeutrals = {
   textSecondary: '#9AA3B2',
   textMuted: '#6F7A8A',
   overlay: 'rgba(0,0,0,0.6)',
+  logoSurface: '#FFFFFF',
 };
 
 const lightStatus = {
@@ -140,7 +143,9 @@ export function buildTheme(mode: ThemeMode, scheme: AccentScheme, density: Densi
     mode,
     scheme,
     density,
-    color: { ...n, accent, status: mode === 'dark' ? darkStatus : lightStatus },
+    // `appAccent` = צבע ההדגשה של האפליקציה. בתוך <TeamAccentScope> (פיצ'ר 19) `accent` הוא צבע
+    // הצוות, ו-`appAccent` נשאר המקורי — לסימונים סמנטיים (הדגשת הערה, "הוזן בשם") שלא אמורים להיצבע.
+    color: { ...n, accent, appAccent: accent, status: mode === 'dark' ? darkStatus : lightStatus },
     space: Object.fromEntries(
       Object.entries(space).map(([key, v]) => [key, Math.round(v * k)])
     ) as typeof space,

@@ -1,8 +1,8 @@
 import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
-import { useTheme } from '@/design/theme-context';
-import { Avatar, Badge, Icon } from '@/components/ui';
+import { TeamAccentScope, useTheme } from '@/design/theme-context';
+import { Avatar, Badge, Icon, TeamLogo } from '@/components/ui';
 import { memberDisplayName } from '@/features/teams/member-display';
 
 const MAX_STACKED_AVATARS = 4;
@@ -10,6 +10,10 @@ const MAX_STACKED_AVATARS = 4;
 const MAX_STACKED_AVATARS_MOBILE = 2;
 
 interface TeamCardHeaderProps {
+  teamId: number;
+  /** פיצ'ר 19: לוגו + צבע צוות. null = בלי לוגו / בלי צבע (הכותרת נראית כמו לפני הפיצ'ר). */
+  logoUpdatedAt?: string | null;
+  accentHue?: number | null;
   teamName: string;
   isTeamAdmin: boolean;
   summary: string;
@@ -25,7 +29,19 @@ interface TeamCardHeaderProps {
  * ראש כרטיס הצוות: שם + תג מנהל + שורת סיכום, ובצד השני (שמאל) כפתור החברים וגלגל ההגדרות.
  * תמיד שורה אחת — גם בטלפון הכפתורים לא יורדים מתחת לשם; השם נשבר בתוך העמודה שלו.
  */
-export function TeamCardHeader({
+export function TeamCardHeader(props: TeamCardHeaderProps) {
+  // הצבע שנגזר מהלוגו חל על הכותרת בלבד ("אזור הצוות") — לא על שאר הכרטיס (פיצ'ר 19, החלטה #4).
+  return (
+    <TeamAccentScope hue={props.accentHue}>
+      <TeamCardHeaderContent {...props} />
+    </TeamAccentScope>
+  );
+}
+
+function TeamCardHeaderContent({
+  teamId,
+  logoUpdatedAt,
+  accentHue,
   teamName,
   isTeamAdmin,
   summary,
@@ -36,10 +52,17 @@ export function TeamCardHeader({
   isSettingsOpen,
 }: TeamCardHeaderProps) {
   const t = useTheme();
+  const hasTeamColor = accentHue !== null && accentHue !== undefined;
 
   return (
     <Box
+      data-testid="team-card-header"
+      data-team-color={hasTeamColor ? 'true' : 'false'}
       sx={{
+        position: 'relative',
+        overflow: 'hidden',
+        backgroundColor: hasTeamColor ? t.color.accent.subtle : 'transparent',
+        borderBlockEnd: hasTeamColor ? `1px solid ${t.color.accent.border}` : 'none',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -48,6 +71,15 @@ export function TeamCardHeader({
         paddingInline: { xs: `${t.space[4]}px`, sm: `${t.space[5]}px` },
       }}
     >
+      {hasTeamColor && <TeamLogo teamId={teamId} name={teamName} logoUpdatedAt={logoUpdatedAt} size="lg" watermark />}
+
+      <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: `${t.space[3]}px`, flex: '1 1 0', minWidth: 0 }}>
+        <Box sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
+          <TeamLogo teamId={teamId} name={teamName} logoUpdatedAt={logoUpdatedAt} size="lg" />
+        </Box>
+        <Box sx={{ display: { xs: 'inline-flex', sm: 'none' } }}>
+          <TeamLogo teamId={teamId} name={teamName} logoUpdatedAt={logoUpdatedAt} size="md" />
+        </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[1]}px`, flex: '1 1 0', minWidth: 0 }}>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[2]}px` }}>
           <Typography component="h2" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0, overflowWrap: 'anywhere' }}>
@@ -57,8 +89,9 @@ export function TeamCardHeader({
         </Box>
         {summary && <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>{summary}</Typography>}
       </Box>
+      </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: `${t.space[1]}px`, sm: `${t.space[2]}px` }, flexShrink: 0 }}>
+      <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: { xs: `${t.space[1]}px`, sm: `${t.space[2]}px` }, flexShrink: 0 }}>
         <Box
           component="button"
           type="button"

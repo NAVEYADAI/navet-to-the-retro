@@ -4,6 +4,7 @@ import { useTheme } from '@/design/theme-context';
 import { getTeamSettingsPanelStyles } from './team-settings-panel.styles';
 import { TeamDetailsSection } from './team-details-section';
 import { CategoryListSection } from './category-list-section';
+import { TeamLogoSection } from './team-logo-section';
 import { useTeamSettingsPanel } from '@/features/teams/hooks/use-team-settings-panel';
 
 export type { TeamCategory } from '@/features/teams/types';
@@ -14,6 +15,9 @@ interface TeamSettingsPanelWebProps {
   isTeamAdmin: boolean;
   teamName: string;
   teamOffice: string | null | undefined;
+  /** פיצ'ר 19 — מצב הלוגו הנוכחי של הצוות. */
+  logoUpdatedAt?: string | null;
+  accentHue?: number | null;
   onTeamDetailsUpdated: () => void;
 }
 
@@ -28,7 +32,7 @@ interface TeamSettingsPanelWebProps {
 // Nave's file-size/style-separation request (2026-09-18). Rendered by team-card.tsx for
 // canManageCategories (isAdmin || role === 'TEAM_LEADER', §3.0 decision #2), only while the card's
 // gear button is open — mounting is what loads the data, so every open starts fresh.
-export function TeamSettingsPanelWeb({ teamId, token, isTeamAdmin, teamName, teamOffice, onTeamDetailsUpdated }: TeamSettingsPanelWebProps) {
+export function TeamSettingsPanelWeb({ teamId, token, isTeamAdmin, teamName, teamOffice, logoUpdatedAt, accentHue, onTeamDetailsUpdated }: TeamSettingsPanelWebProps) {
   const t = useTheme();
   const s = getTeamSettingsPanelStyles(t);
   const p = useTeamSettingsPanel({ teamId, token, teamName, teamOffice, onTeamDetailsUpdated });
@@ -49,6 +53,17 @@ export function TeamSettingsPanelWeb({ teamId, token, isTeamAdmin, teamName, tea
           onStartEdit={p.handleStartEditDetails}
           onCancelEdit={p.handleCancelEditDetails}
           onSave={p.handleSaveTeamDetails}
+        />
+      )}
+
+      {isTeamAdmin && (
+        <TeamLogoSection
+          teamId={teamId}
+          token={token}
+          teamName={teamName}
+          logoUpdatedAt={logoUpdatedAt}
+          accentHue={accentHue}
+          onChanged={onTeamDetailsUpdated}
         />
       )}
 

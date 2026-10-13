@@ -2,6 +2,7 @@ import PptxGenJS from 'pptxgenjs';
 import { NO_CATEGORY_LABEL } from '../comments/comment-category-labels';
 import { applySlideTransitions } from './pptx-post-process.util';
 import { ISRAEL_TIME_ZONE } from '../common/validation';
+import { teamAccentFromHue } from '../teams/team-accent.util';
 
 type CommentForExport = {
   content: string;
@@ -71,6 +72,43 @@ interface SprintSummaryInput {
   endDate: Date;
   comments: CommentForExport[];
   templateId?: SprintSummaryTemplateId;
+  // Feature 19 (team logo, product-backlog/19-team-logo.md §19.0 decision #12). Both optional: a
+  // team without a logo gets byte-for-byte the deck it got before the feature.
+  logo?: { data: Uint8Array | Buffer; contentType: string } | null;
+  accentHue?: number | null;
+}
+
+// Only PNG/JPEG are embedded — pptxgenjs/PowerPoint/Keynote don't reliably handle anything else.
+function isEmbeddableLogo(logo: SprintSummaryInput['logo']): logo is NonNullable<SprintSummaryInput['logo']> {
+  return !!logo && logo.data.length > 0 && (logo.contentType === 'image/png' || logo.contentType === 'image/jpeg');
+}
+
+// The `dark` template has its own palette, so the team colour doesn't apply there (decision #12).
+// Returns a bare 6-digit hex (pptxgenjs colour format) or null.
+function resolveTeamAccent(t: Template, accentHue: number | null | undefined): string | null {
+  if (t.layout === 'cards' || accentHue === null || accentHue === undefined) return null;
+  return teamAccentFromHue(accentHue).base.slice(1);
+}
+
+type LogoImage = { dataUri: string };
+
+// One helper for every slide kind (title / category / summary-table / empty), so a slide added
+// later can't forget the mark. The logo always sits on a white rounded tile: team logos are
+// usually drawn for a light background and the `dark`/`vibrant` templates aren't one.
+function addLogoMark(slide: PptxGenJS.Slide, logo: LogoImage | null, placement: 'title' | 'corner') {
+  if (!logo) return;
+  const tile = placement === 'title'
+    ? { x: 4.4, y: 0.3, size: 1.2 }
+    : { x: 0.35, y: 0.18, size: 0.62 };
+  slide.addShape('roundRect', {
+    x: tile.x, y: tile.y, w: tile.size, h: tile.size, rectRadius: 0.08,
+    fill: { color: 'FFFFFF' }, line: { color: 'D0D0D0', width: 0.75 }
+  });
+  const inset = tile.size * 0.12;
+  slide.addImage({
+    data: logo.dataUri,
+    x: tile.x + inset, y: tile.y + inset, w: tile.size - inset * 2, h: tile.size - inset * 2
+  });
 }
 
 // BUG-13: user-supplied free text (comment content pasted from Word/PDF, sprint/team/category
@@ -165,11 +203,14 @@ export function fitColumnText(contents: string[]): { texts: string[]; fontSize: 
 // Adds each layout's decorative shape BEFORE any text is placed on the title slide, so the text
 // draws on top of it. pptxgenjs has no per-line position API, so layout differences live at the
 // panel/banner level (fixed, known coordinates) rather than per bullet — see plan notes.
-function decorateTitleSlide(slide: PptxGenJS.Slide, t: Template) {
+function decorateTitleSlide(slide: PptxGenJS.Slide, t: Template, accent: string | null) {
   if (t.layout === 'cards') {
     slide.addShape('rect', { x: 3, y: 3.3, w: 4, h: 0.06, fill: { color: t.heading } });
   } else if (t.layout === 'banner') {
-    slide.addShape('rect', { x: 0, y: 1.5, w: 10, h: 1.8, fill: { color: t.keep } });
+    slide.addShape('rect', { x: 0, y: 1.5, w: 10, h: 1.8, fill: { color: accent ?? t.keep } });
+  } else if (accent) {
+    // `classic` (plain): a team-coloured top stripe on the title slide.
+    slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.14, fill: { color: accent } });
   }
 }
 
@@ -177,7 +218,7 @@ function titleTextColor(t: Template): string {
   return t.layout === 'banner' ? 'FFFFFF' : t.heading;
 }
 
-function decorateCategorySlide(slide: PptxGenJS.Slide, t: Template) {
+function decorateCategorySlide(slide: PptxGenJS.Slide, t: Template, accent: string | null) {
   if (t.layout === 'cards') {
     slide.addShape('roundRect', {
       x: 0.3, y: 0.95, w: 4.6, h: 4.4, rectRadius: 0.12,
@@ -188,7 +229,11 @@ function decorateCategorySlide(slide: PptxGenJS.Slide, t: Template) {
       fill: { color: t.improve, transparency: 88 }, line: { color: t.improve, width: 1 }
     });
   } else if (t.layout === 'banner') {
+    // The category banner stays the semantic `keep` colour — it carries meaning, not branding.
     slide.addShape('rect', { x: 0, y: 0, w: 10, h: 0.95, fill: { color: t.keep } });
+  } else if (accent) {
+    // `classic`: a short team-coloured rule under the (right-aligned, RTL) slide title.
+    slide.addShape('rect', { x: 8.6, y: 0.9, w: 1, h: 0.04, fill: { color: accent } });
   }
 }
 
@@ -217,9 +262,15 @@ export async function buildSprintSummaryPptx(input: SprintSummaryInput): Promise
   pptx.layout = 'RETRO_16x9';
   pptx.rtlMode = true;
 
+  const accent = resolveTeamAccent(t, input.accentHue);
+  const logo: LogoImage | null = isEmbeddableLogo(input.logo)
+    ? { dataUri: `${input.logo.contentType};base64,${Buffer.from(input.logo.data).toString('base64')}` }
+    : null;
+
   const titleSlide = pptx.addSlide();
   titleSlide.background = { color: t.background };
-  decorateTitleSlide(titleSlide, t);
+  decorateTitleSlide(titleSlide, t, accent);
+  addLogoMark(titleSlide, logo, 'title');
   titleSlide.addText(input.sprintName, {
     x: 0.5, y: 1.8, w: 9, h: 1, align: 'center', fontSize: 32, bold: true,
     color: titleTextColor(t), fontFace: t.fontFace
@@ -237,6 +288,7 @@ export async function buildSprintSummaryPptx(input: SprintSummaryInput): Promise
   if (grouped.size === 0) {
     const emptySlide = pptx.addSlide();
     emptySlide.background = { color: t.background };
+    addLogoMark(emptySlide, logo, 'corner');
     emptySlide.addText('אין עדיין תגובות בספרינט זה', {
       x: 0.5, y: 2.3, w: 9, h: 1, align: 'center', fontSize: 20, color: t.muted, fontFace: t.fontFace
     });
@@ -249,7 +301,8 @@ export async function buildSprintSummaryPptx(input: SprintSummaryInput): Promise
   for (const [categoryLabel, categoryComments] of grouped) {
     const slide = pptx.addSlide();
     slide.background = { color: t.background };
-    decorateCategorySlide(slide, t);
+    decorateCategorySlide(slide, t, accent);
+    addLogoMark(slide, logo, 'corner');
     slide.addText(categoryLabel, {
       x: 0.4, y: 0.3, w: 9.2, h: 0.6, align: 'right', fontSize: 24, bold: true,
       color: categoryTitleColor(t), fontFace: t.fontFace
@@ -293,6 +346,7 @@ export async function buildSprintSummaryPptx(input: SprintSummaryInput): Promise
   if (grouped.size > 0) {
     const summarySlide = pptx.addSlide();
     summarySlide.background = { color: t.background };
+    addLogoMark(summarySlide, logo, 'corner');
     summarySlide.addText('סיכום מספרי', {
       x: 0.4, y: 0.3, w: 9.2, h: 0.6, align: 'right', fontSize: 24, bold: true, color: t.heading, fontFace: t.fontFace
     });

@@ -130,6 +130,24 @@ model Team {
   invites           TeamInvite[]
   googleCalendars   GoogleCalendarTeamCalendar[]
   commentCategories TeamCommentCategory[]
+  // Feature 19 (team logo, product-backlog/19-team-logo.md §19.0): the image bytes live in
+  // `TeamLogo` so every query that includes `Team` doesn't drag a blob along. `logoUpdatedAt`
+  // doubles as "has a logo" (null = none) and the cache-buster in the logo URL; `accentHue`
+  // (0-359, null = no team colour) is the dominant hue the client extracted from the logo.
+  logoUpdatedAt     DateTime?
+  accentHue         Int?
+  logo              TeamLogo?
+}
+
+// Feature 19: 1:1 with Team, normalised client-side to a 256x256 PNG (PNG/JPEG only, <=512KB).
+model TeamLogo {
+  id          Int      @id @default(autoincrement())
+  teamId      Int      @unique
+  data        Bytes
+  contentType String
+  updatedAt   DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 }
 
 // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.0): built

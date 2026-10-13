@@ -99,7 +99,7 @@ export function MemoryBoardNative({ sprint, team, token, onBack }: MemoryBoardNa
           }}
         >
           {list.map(comment => (
-            <MemoryCardNative key={comment.id} comment={comment} />
+            <MemoryCardNative key={comment.id} comment={comment} teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }} />
           ))}
         </View>
       )}

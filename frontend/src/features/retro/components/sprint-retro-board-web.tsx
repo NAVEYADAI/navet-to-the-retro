@@ -11,6 +11,7 @@ import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
 import { SprintLengthHistoryPanelWeb } from './sprint-length-history-panel-web';
 import { trackEvent } from '@/lib/analytics';
+import { ActionItemsSection, draftTitleFromComment, type ActionItemDraft } from '@/features/action-items';
 import { formatDateRange } from '@/lib/format-date';
 import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
 
@@ -46,6 +47,9 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
   const [loadError, setLoadError] = useState<string | null>(null);
   // BUG-53: bumped after each successful sprint edit so the length-history panel refetches.
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  // Feature 16: "הפוך למשימה" hands a draft to the action-items section; the refresh button bumps the key.
+  const [taskDraft, setTaskDraft] = useState<ActionItemDraft | null>(null);
+  const [actionItemsRefreshKey, setActionItemsRefreshKey] = useState(0);
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -214,6 +218,9 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
     }
   };
 
+  const handleMakeTask = (comment: { id: number; content: string }) =>
+    setTaskDraft({ title: draftTitleFromComment(comment.content), sourceCommentId: comment.id });
+
   const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
   // BUG-54: the "highlighted only" toggle is a filter too — with it on and zero hits the column
@@ -316,7 +323,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
               size="sm"
               icon="refresh"
               iconOnlyOnMobile
-              onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); }}
+              onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); setActionItemsRefreshKey((k) => k + 1); }}
               disabled={isLoading}
             >
               {Strings.common.refreshButton}
@@ -400,6 +407,15 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
       {canViewLengthHistory && (
         <SprintLengthHistoryPanelWeb teamId={team.id} sprintId={sprintData.id} token={token} refreshKey={historyRefreshKey} />
       )}
+
+      <ActionItemsSection
+        team={team}
+        sprintId={sprintData.id}
+        token={token}
+        draft={taskDraft}
+        onDraftHandled={() => setTaskDraft(null)}
+        refreshKey={actionItemsRefreshKey}
+      />
 
       {/* Compose form */}
       <Card>
@@ -587,6 +603,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                   canHighlight={canHighlight}
                   onToggleHighlight={handleToggleHighlight}
                   teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }}
+                  onMakeTask={handleMakeTask}
                 />
               ))
             )}
@@ -625,6 +642,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                   canHighlight={canHighlight}
                   onToggleHighlight={handleToggleHighlight}
                   teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }}
+                  onMakeTask={handleMakeTask}
                 />
               ))
             )}

@@ -1,4 +1,4 @@
-## פיצ'ר 16: משימות המשך (Action Items) — מאופיין, מוכן למימוש (כל ההחלטות נסגרו 2026-10-13)
+## פיצ'ר 16: משימות המשך (Action Items) — מומש (2026-10-14); `db push` רץ רק מול `postgres-test`, **טרם מול Neon**
 
 ### נקודות מרכזיות (touchpoints)
 
@@ -50,26 +50,26 @@
 
 ### 16.1 Backend
 
-- [ ] Prisma: `ActionItem`, `ActionItemAssignee`, `ActionItemStatus`. `db push`.
-- [ ] מודול `action-items`: CRUD לפי ה-endpoints. כל פעולה דורשת חברות `ACTIVE` בצוות.
-- [ ] ולידציה: `sourceCommentId` מאותו צוות; `assigneeIds` כולם חברי `ACTIVE` בצוות (400 אחרת); `title` לא ריק.
-- [ ] `GET /teams/:teamId/action-items`: סינון לפי סטטוס; פתוחות קודם, לפי תאריך יעד. כולל אחראים עם `isActiveMember`.
-- [ ] `GET /me/action-items?status=OPEN`: המשימות הפתוחות שלי בכל הצוותים (לדשבורד).
-- [ ] סיכום ספרינט: שקף אחד עם שתי עמודות (ברירת מחדל 7).
-- [ ] Unit tests: לא-חבר ✗; אחראי שאינו חבר → 400; כמה אחראים ✓; מחיקת הערת מקור לא מוחקת משימה; משימה פתוחה מופיעה ב"רטרו קודם" של הספרינט הבא; `closedAt` נכון.
+- [x] Prisma: `ActionItem`, `ActionItemAssignee`, `ActionItemStatus`. `db push`.
+- [x] מודול `action-items`: CRUD לפי ה-endpoints. כל פעולה דורשת חברות `ACTIVE` בצוות.
+- [x] ולידציה: `sourceCommentId` מאותו צוות; `assigneeIds` כולם חברי `ACTIVE` בצוות (400 אחרת); `title` לא ריק.
+- [x] `GET /teams/:teamId/action-items`: סינון לפי סטטוס; פתוחות קודם, לפי תאריך יעד. כולל אחראים עם `isActiveMember`.
+- [x] `GET /me/action-items?status=OPEN`: המשימות הפתוחות שלי בכל הצוותים (לדשבורד).
+- [x] סיכום ספרינט: שקף אחד עם שתי עמודות (ברירת מחדל 7).
+- [x] Unit tests: לא-חבר ✗; אחראי שאינו חבר → 400; כמה אחראים ✓; מחיקת הערת מקור לא מוחקת משימה; משימה פתוחה מופיעה ב"רטרו קודם" של הספרינט הבא; `closedAt` נכון.
 
 ### 16.2 Frontend
 
-- [ ] פאנל "משימות המשך" בלוח הרטרו: רשימה, יצירה חופשית, שינוי סטטוס, בחירת אחראים (multi-select), תאריך יעד (web+native).
-- [ ] פס "משימות פתוחות מרטרו קודם" בראש הלוח, עם סימון מהיר "בוצעה" / "ירדה".
-- [ ] "הפוך למשימה" על כרטיס הערה, עם התוכן ממולא מראש.
-- [ ] "המשימות שלי" בדשבורד.
-- [ ] `trackEvent` לכל לחיצה: `action_item_created` (`{ fromComment }`), `action_item_status_changed`, `action_item_assignees_changed`, `action_item_due_date_changed`, `action_item_deleted`, `action_items_panel_toggled`, `previous_action_items_status_changed`.
-- [ ] Jest web+native.
+- [x] פאנל "משימות המשך" בלוח הרטרו: רשימה, יצירה חופשית, שינוי סטטוס, בחירת אחראים (multi-select), תאריך יעד (web+native).
+- [x] פס "משימות פתוחות מרטרו קודם" בראש הלוח, עם סימון מהיר "בוצעה" / "ירדה".
+- [x] "הפוך למשימה" על כרטיס הערה, עם התוכן ממולא מראש.
+- [x] "המשימות שלי" בדשבורד.
+- [x] `trackEvent` לכל לחיצה: `action_item_created` (`{ fromComment }`), `action_item_status_changed`, `action_item_assignees_changed`, `action_item_due_date_changed`, `action_item_deleted`, `action_items_panel_toggled`, `previous_action_items_status_changed`.
+- [x] Jest web+native.
 
 ### 16.3 בדיקות
 
-- [ ] Playwright e2e (Desktop+Mobile): יצירת משימה מהערה → שיוך שני אחראים → אחד מהם רואה אותה בדשבורד → בלוח של הספרינט הבא היא מופיעה בראש → סימון "בוצעה" → היא נעלמת מ"פתוחות".
+- [x] Playwright e2e (Desktop+Mobile): יצירת משימה מהערה → שיוך שני אחראים → אחד מהם רואה אותה בדשבורד → בלוח של הספרינט הבא היא מופיעה בראש → סימון "בוצעה" → היא נעלמת מ"פתוחות".
 
 ### לא בטיפול (פיצ'ר 16)
 
@@ -77,3 +77,10 @@
 - סנכרון ל-Jira, Trello או לכלי משימות חיצוני.
 - תתי-משימות ותלויות בין משימות.
 - סטטוס "בתהליך".
+
+### הערות מימוש (2026-10-14)
+
+- Backend: `backend/src/action-items/` (service/controller/dto/spec), סכימה ב-`schema.prisma` (נדחפה ל-`postgres-test` בלבד), שקף "משימות המשך" ב-`sprint-summary.builder.ts` (נוצרו בספרינט לפי `sprintId`; נסגרו לפי `closedAt` בין `startDate` לסוף יום `endDate` ב-UTC). e2e: `backend/test/action-items.e2e-spec.ts`.
+- `DELETE` הוא מחיקה קשיחה (ללא מחיקה רכה). `sourceCommentId` מאותו צוות אך לא חייב להיות מאותו ספרינט. `closedAt` מתעדכן גם במעבר DONE↔DROPPED.
+- **מגבלה ידועה:** `sprintId` הוא FK עם cascade (כפי שנקבע), לכן מחיקה סופית (purge אחרי 30 יום) של ספרינט מוחקת גם משימות שנולדו בו — גם פתוחות. מחיקה רכה (פיצ'ר 14) לא משפיעה עליהן.
+- Frontend: `frontend/src/features/action-items/` (hooks משותפים, רכיבי web+native), טופס ב-`Modal` משותף. הפאנל מציג משימות שנולדו בספרינט הנוכחי; הפס מציג פתוחות מספרינטים אחרים. "המשימות שלי" מופיע בדשבורד רק כשיש משימות. e2e: `frontend/e2e/action-items.spec.ts`.

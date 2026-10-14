@@ -65,12 +65,29 @@ export function resolveTemplateId(value: unknown): SprintSummaryTemplateId {
     : 'classic';
 }
 
+// Feature 16 (action items, product-backlog/16-action-items.md §16.0 decision #8): one slide with
+// two columns — items born in this retro, and items closed during this sprint. `assignees` is
+// already display names (empty = "the team").
+export type ActionItemForExport = {
+  title: string;
+  status: 'OPEN' | 'DONE' | 'DROPPED';
+  assignees: string[];
+};
+
+export type ActionItemsForExport = {
+  created: ActionItemForExport[];
+  closed: ActionItemForExport[];
+};
+
 interface SprintSummaryInput {
   sprintName: string;
   teamName: string;
   startDate: Date;
   endDate: Date;
   comments: CommentForExport[];
+  // Optional: omitted (or both lists empty) -> no action-items slide, so a sprint without any
+  // gets byte-for-byte the deck it got before the feature.
+  actionItems?: ActionItemsForExport;
   templateId?: SprintSummaryTemplateId;
   // Feature 19 (team logo, product-backlog/19-team-logo.md §19.0 decision #12). Both optional: a
   // team without a logo gets byte-for-byte the deck it got before the feature.
@@ -241,6 +258,16 @@ function categoryTitleColor(t: Template): string {
   return t.layout === 'banner' ? 'FFFFFF' : t.heading;
 }
 
+function sanitizeActionItem(item: ActionItemForExport): ActionItemForExport {
+  return { ...item, title: stripXmlInvalidChars(item.title), assignees: item.assignees.map(stripXmlInvalidChars) };
+}
+
+export function actionItemLine(item: ActionItemForExport): string {
+  const owners = item.assignees.length > 0 ? item.assignees.join(', ') : 'הצוות';
+  const marker = item.status === 'DROPPED' ? ' (ירדה מהפרק)' : '';
+  return `${item.title}${marker} — ${owners}`;
+}
+
 export async function buildSprintSummaryPptx(input: SprintSummaryInput): Promise<Buffer> {
   const t = SPRINT_SUMMARY_TEMPLATES[input.templateId ?? 'classic'];
 
@@ -254,7 +281,11 @@ export async function buildSprintSummaryPptx(input: SprintSummaryInput): Promise
       ...c,
       content: stripXmlInvalidChars(c.content),
       category: c.category === null ? null : stripXmlInvalidChars(c.category)
-    }))
+    })),
+    actionItems: input.actionItems && {
+      created: input.actionItems.created.map(sanitizeActionItem),
+      closed: input.actionItems.closed.map(sanitizeActionItem)
+    }
   };
 
   const pptx = new PptxGenJS();
@@ -340,6 +371,43 @@ export async function buildSprintSummaryPptx(input: SprintSummaryInput): Promise
     slide.addText('שיפור', { x: 5.2, y: 1.05, w: 4.4, h: 0.4, align: 'right', fontSize: 16, bold: true, color: t.improve, fontFace: t.fontFace });
     slide.addText(improveColumn.runs, {
       x: 5.2, y: 1.5, w: 4.4, h: 3.7, align: 'right', fontSize: improveColumn.fontSize, color: t.heading, valign: 'top', fontFace: t.fontFace
+    });
+  }
+
+  const actionItems = input.actionItems;
+  if (actionItems && (actionItems.created.length > 0 || actionItems.closed.length > 0)) {
+    const slide = pptx.addSlide();
+    slide.background = { color: t.background };
+    decorateCategorySlide(slide, t, accent);
+    addLogoMark(slide, logo, 'corner');
+    slide.addText('משימות המשך', {
+      x: 0.4, y: 0.3, w: 9.2, h: 0.6, align: 'right', fontSize: 24, bold: true,
+      color: categoryTitleColor(t), fontFace: t.fontFace
+    });
+
+    const column = (items: ActionItemForExport[]) => {
+      if (items.length === 0) {
+        return { fontSize: 12, runs: [{ text: '—', options: { color: t.muted, rtlMode: true, fontFace: t.fontFace } }] };
+      }
+      const fit = fitColumnText(items.map(actionItemLine));
+      const runs: PptxGenJS.TextProps[] = fit.texts.map(text => ({
+        text, options: { bullet: bulletStyle, breakLine: true, rtlMode: true, fontFace: t.fontFace }
+      }));
+      if (fit.omitted > 0) {
+        runs.push({ text: `ועוד ${fit.omitted} משימות…`, options: { color: t.muted, rtlMode: true, fontFace: t.fontFace } });
+      }
+      return { fontSize: fit.fontSize, runs };
+    };
+    const createdColumn = column(actionItems.created);
+    const closedColumn = column(actionItems.closed);
+
+    slide.addText('נוצרו ברטרו הזה', { x: 0.4, y: 1.05, w: 4.4, h: 0.4, align: 'right', fontSize: 16, bold: true, color: t.improve, fontFace: t.fontFace });
+    slide.addText(createdColumn.runs, {
+      x: 0.4, y: 1.5, w: 4.4, h: 3.7, align: 'right', fontSize: createdColumn.fontSize, color: t.heading, valign: 'top', fontFace: t.fontFace
+    });
+    slide.addText('נסגרו בספרינט הזה', { x: 5.2, y: 1.05, w: 4.4, h: 0.4, align: 'right', fontSize: 16, bold: true, color: t.keep, fontFace: t.fontFace });
+    slide.addText(closedColumn.runs, {
+      x: 5.2, y: 1.5, w: 4.4, h: 3.7, align: 'right', fontSize: closedColumn.fontSize, color: t.heading, valign: 'top', fontFace: t.fontFace
     });
   }
 

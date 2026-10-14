@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import {
   buildExportFileName,
   buildSprintSummaryPptx,
+  actionItemLine,
   fitColumnText,
   formatDate,
   MAX_COMMENT_CHARS,
@@ -326,5 +327,60 @@ describe('buildSprintSummaryPptx', () => {
       const slides = await slidesOf(await build({ templateId: 'vibrant', accentHue: null }));
       expect(slides[0]).toContain(SPRINT_SUMMARY_TEMPLATES.vibrant.keep);
     });
+  });
+});
+
+// Feature 16 (action items, product-backlog/16-action-items.md §16.0 decision #8)
+describe('action items slide', () => {
+  const baseInput = {
+    sprintName: 'ספרינט בדיקה',
+    teamName: 'צוות בדיקה',
+    startDate: new Date('2026-01-01'),
+    endDate: new Date('2026-01-14'),
+    comments: [{ content: 'הערה', type: 'KEEP' as const, category: null }],
+  };
+
+  async function slideTexts(buffer: Buffer) {
+    const zip = await JSZip.loadAsync(buffer);
+    const names = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort();
+    return Promise.all(names.map(n => zip.file(n)!.async('string')));
+  }
+
+  it('formats a line with its owners, "הצוות" when unassigned, and flags dropped items', () => {
+    expect(actionItemLine({ title: 'א', status: 'OPEN', assignees: ['דנה', 'יוסי'] })).toBe('א — דנה, יוסי');
+    expect(actionItemLine({ title: 'א', status: 'OPEN', assignees: [] })).toBe('א — הצוות');
+    expect(actionItemLine({ title: 'א', status: 'DROPPED', assignees: [] })).toContain('ירדה מהפרק');
+  });
+
+  it('adds one extra slide with both columns when there are action items', async () => {
+    const without = await slideTexts(await buildSprintSummaryPptx(baseInput));
+    const withItems = await slideTexts(await buildSprintSummaryPptx({
+      ...baseInput,
+      actionItems: {
+        created: [{ title: 'לתקן את ה-CI', status: 'OPEN', assignees: ['דנה'] }],
+        closed: [{ title: 'לעדכן תיעוד', status: 'DONE', assignees: [] }]
+      }
+    }));
+
+    expect(withItems).toHaveLength(without.length + 1);
+    const slide = withItems.find(x => x.includes('משימות המשך'))!;
+    expect(slide).toContain('נוצרו ברטרו הזה');
+    expect(slide).toContain('נסגרו בספרינט הזה');
+    expect(slide).toContain('לתקן את ה-CI');
+    expect(slide).toContain('לעדכן תיעוד');
+  });
+
+  it('adds no slide when the lists are empty or omitted', async () => {
+    const without = await slideTexts(await buildSprintSummaryPptx(baseInput));
+    const empty = await slideTexts(await buildSprintSummaryPptx({ ...baseInput, actionItems: { created: [], closed: [] } }));
+    expect(empty).toHaveLength(without.length);
+  });
+
+  it('strips XML-invalid characters from action item text', async () => {
+    const slides = await slideTexts(await buildSprintSummaryPptx({
+      ...baseInput,
+      actionItems: { created: [{ title: 'כותרת\u0001', status: 'OPEN', assignees: [] }], closed: [] }
+    }));
+    expect(slides.find(x => x.includes('משימות המשך'))).not.toContain('\u0001');
   });
 });

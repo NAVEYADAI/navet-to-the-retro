@@ -22,6 +22,7 @@ import { LoadErrorNative } from '@/components/load-error-native';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
 import { SprintLengthHistoryPanelNative } from './sprint-length-history-panel-native';
 import { trackEvent } from '@/lib/analytics';
+import { ActionItemsSection, draftTitleFromComment, type ActionItemDraft } from '@/features/action-items';
 import { formatDate, formatTime, formatDateRange } from '@/lib/format-date';
 import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
@@ -83,6 +84,9 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
   const [isLoading, setIsLoading] = useState(true);
   // BUG-34: a failed comments load must not render as "no notes yet".
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Feature 16: "הפוך למשימה" hands a draft to the action-items section; the refresh action bumps the key.
+  const [taskDraft, setTaskDraft] = useState<ActionItemDraft | null>(null);
+  const [actionItemsRefreshKey, setActionItemsRefreshKey] = useState(0);
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -224,6 +228,9 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
     (filterCategories.length === 0 || filterCategories.includes(String(c.categoryId))) &&
     (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase())) &&
     (!highlightedOnly || c.isHighlighted);
+
+  const handleMakeTask = (comment: { id: number; content: string }) =>
+    setTaskDraft({ title: draftTitleFromComment(comment.content), sourceCommentId: comment.id });
 
   const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
@@ -373,6 +380,15 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
             {`${formatDate(comment.createdAt)} · ${formatTime(comment.createdAt)}`}
           </Text>
         </View>
+        <TouchableOpacity
+          accessibilityRole="button"
+          onPress={() => handleMakeTask({ id: comment.id, content: comment.content })}
+          style={{ alignSelf: 'flex-end', minHeight: t.layout.minTouchTarget, justifyContent: 'center' }}
+        >
+          <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.textSecondary }]}>
+            {Strings.actionItems.makeTaskButton}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -503,7 +519,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); }}
+                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); setActionItemsRefreshKey((k) => k + 1); }}
                 disabled={isLoading}
               >
                 <Icon name="refresh" size="sm" tone="muted" />
@@ -670,6 +686,15 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
         {canViewLengthHistory && (
           <SprintLengthHistoryPanelNative teamId={team.id} sprintId={sprintData.id} token={token} />
         )}
+
+        <ActionItemsSection
+          team={team}
+          sprintId={sprintData.id}
+          token={token}
+          draft={taskDraft}
+          onDraftHandled={() => setTaskDraft(null)}
+          refreshKey={actionItemsRefreshKey}
+        />
 
         {/* Main form for posting (RTL formatted) */}
         <View

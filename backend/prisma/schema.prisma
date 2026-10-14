@@ -51,6 +51,8 @@ model User {
   sprintLengthChanges       SprintLengthChange[]
   createdCommentCategories  TeamCommentCategory[]      @relation("TeamCommentCategoryCreator")
   messagingLinks            UserMessagingLink[]
+  createdActionItems        ActionItem[]               @relation("ActionItemCreator")
+  actionItemAssignments     ActionItemAssignee[]
 }
 
 // Feature 10 (telegram comment ingestion, product-backlog/10-telegram-comment-ingestion.md §10.0
@@ -70,24 +72,24 @@ enum MessagingChannel {
 }
 
 model UserMessagingLink {
-  id                    Int               @id @default(autoincrement())
-  userId                Int
-  channel               MessagingChannel
-  externalId            String
-  isRevoked             Boolean           @default(false)
-  activeTeamId          Int?
-  activeSprintId        Int?
-  pendingCommentContent String?
-  pendingCommentType    CommentType?
-  lastProcessedUpdateId Int?
-  linkedAt              DateTime          @default(now())
+  id                     Int              @id @default(autoincrement())
+  userId                 Int
+  channel                MessagingChannel
+  externalId             String
+  isRevoked              Boolean          @default(false)
+  activeTeamId           Int?
+  activeSprintId         Int?
+  pendingCommentContent  String?
+  pendingCommentType     CommentType?
+  lastProcessedUpdateId  Int?
+  linkedAt               DateTime         @default(now())
   // Team/sprint context stickiness (Nave's explicit ask, 2026-09-27 — supersedes the earlier
   // "no time-based expiry" decision in product-backlog/10-*.md §10.0 #5). `contextSetAt` is
   // refreshed whenever activeTeamId/activeSprintId is (re)confirmed; `contextStickyHours` is a
   // per-link, user-configurable duration (null = never expire, back to the original behavior) —
   // configured via `PATCH /auth/telegram/link/settings`.
-  contextSetAt          DateTime?
-  contextStickyHours    Int?              @default(24)
+  contextSetAt           DateTime?
+  contextStickyHours     Int?             @default(24)
   // Set only by an explicit "↩️ חזור" from the Keep/Improve stage back to team/sprint selection —
   // forces an explicit re-ask even when there's only one team/sprint candidate (normally silent),
   // so the user can confirm or change it. Cleared once team+sprint are both resolved again.
@@ -132,6 +134,7 @@ model Team {
   invites           TeamInvite[]
   googleCalendars   GoogleCalendarTeamCalendar[]
   commentCategories TeamCommentCategory[]
+  actionItems       ActionItem[]
   // Feature 19 (team logo, product-backlog/19-team-logo.md §19.0): the image bytes live in
   // `TeamLogo` so every query that includes `Team` doesn't drag a blob along. `logoUpdatedAt`
   // doubles as "has a logo" (null = none) and the cache-buster in the logo URL; `accentHue`
@@ -281,24 +284,25 @@ enum CommentType {
 }
 
 model Sprint {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   name        String
   description String?
   startDate   DateTime
   endDate     DateTime
   teamId      Int
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   // Feature 14 (product-backlog/14-sprint-and-team-deletion.md): soft delete. A non-null
   // `deletedAt` means "deleted, restorable for 30 days"; after that the purge hard-deletes the row
   // and the existing cascades remove comments / Google events / length history with it.
   deletedAt   DateTime?
   deletedById Int?
 
-  team         Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  deletedBy    User?               @relation("SprintDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
-  comments     Comment[]
-  googleEvents SprintGoogleEvent[]
+  team          Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  deletedBy     User?                @relation("SprintDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  comments      Comment[]
+  googleEvents  SprintGoogleEvent[]
   lengthChanges SprintLengthChange[]
+  actionItems   ActionItem[]
 }
 
 // Feature 5 (product-backlog/05-sprint-length-audit-log.md §5.0 decision #2): append-only audit
@@ -323,12 +327,12 @@ model SprintLengthChange {
 }
 
 model Comment {
-  id              Int          @id @default(autoincrement())
+  id              Int         @id @default(autoincrement())
   content         String
   type            CommentType
-  isAnonymous     Boolean      @default(false)
-  isHighlighted   Boolean      @default(false)
-  createdAt       DateTime     @default(now())
+  isAnonymous     Boolean     @default(false)
+  isHighlighted   Boolean     @default(false)
+  createdAt       DateTime    @default(now())
   authorId        Int
   teamId          Int
   sprintId        Int
@@ -346,9 +350,56 @@ model Comment {
   // teams' comments were migrated from the old `category` enum to this field.
   categoryId      Int?
 
-  author   User                 @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  postedByAdmin User?           @relation("CommentPostedByAdmin", fields: [postedByAdminId], references: [id], onDelete: SetNull)
-  team     Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  sprint   Sprint               @relation(fields: [sprintId], references: [id], onDelete: Cascade)
-  category TeamCommentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author        User                 @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  postedByAdmin User?                @relation("CommentPostedByAdmin", fields: [postedByAdminId], references: [id], onDelete: SetNull)
+  team          Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sprint        Sprint               @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  category      TeamCommentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  actionItems   ActionItem[]
+}
+
+// Feature 16 (product-backlog/16-action-items.md): a concrete follow-up commitment that closes the
+// retro loop. Owned by the team (not the sprint) — `sprintId` only records where it was born, and
+// an open item keeps showing up until it is closed. Built in the per-team-owned-entity pattern
+// (TeamInvite / TeamCommentCategory).
+enum ActionItemStatus {
+  OPEN
+  DONE
+  DROPPED
+}
+
+model ActionItem {
+  id              Int              @id @default(autoincrement())
+  teamId          Int
+  sprintId        Int
+  // The comment this item was created from, if any. A deleted source comment must not delete the
+  // item (§16.0 technical default #2), hence SetNull.
+  sourceCommentId Int?
+  title           String
+  status          ActionItemStatus @default(OPEN)
+  dueDate         DateTime?
+  createdById     Int?
+  createdAt       DateTime         @default(now())
+  // Set on a move to DONE/DROPPED, cleared on reopen. Decides "closed during this sprint" in the
+  // sprint summary deck (§16.0 technical default #7).
+  closedAt        DateTime?
+
+  team          Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sprint        Sprint               @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  sourceComment Comment?             @relation(fields: [sourceCommentId], references: [id], onDelete: SetNull)
+  createdBy     User?                @relation("ActionItemCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  assignees     ActionItemAssignee[]
+
+  @@index([teamId, status])
+}
+
+model ActionItemAssignee {
+  id           Int @id @default(autoincrement())
+  actionItemId Int
+  userId       Int
+
+  actionItem ActionItem @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([actionItemId, userId])
 }

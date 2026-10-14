@@ -48,6 +48,9 @@ describe('SprintsService', () => {
     comment: {
       findMany: jest.fn(),
     },
+    actionItem: {
+      findMany: jest.fn(),
+    },
     sprintLengthChange: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -659,6 +662,7 @@ describe('SprintsService', () => {
     const comments = [{ content: 'x', type: 'KEEP', category: null }];
 
     beforeEach(() => {
+      mockPrismaService.actionItem.findMany.mockResolvedValue([]);
       (buildSprintSummaryPptx as jest.Mock).mockResolvedValue(Buffer.from('fake-pptx'));
       (buildExportFileName as jest.Mock).mockReturnValue('Sprint 1 - 1.1.2026.pptx');
     });
@@ -748,6 +752,30 @@ describe('SprintsService', () => {
       expect(buildSprintSummaryPptx).toHaveBeenCalledWith(
         expect.objectContaining({ sprintName: sprint.name, teamName: team.name, comments, templateId: 'dark' })
       );
+    });
+
+    // Feature 16
+    it('passes the sprint\'s created action items and the ones closed in its date range to the builder', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(sprint);
+      mockPrismaService.comment.findMany.mockResolvedValue(comments);
+      const user = { username: 'dana', firstName: 'דנה', lastName: 'לוי' };
+      mockPrismaService.actionItem.findMany
+        .mockResolvedValueOnce([{ title: 'נוצרה', status: 'OPEN', assignees: [{ user }] }])
+        .mockResolvedValueOnce([{ title: 'נסגרה', status: 'DONE', assignees: [{ user: { username: 'u', firstName: null, lastName: null } }] }]);
+
+      await service.exportSummaryPptx(team.id, sprint.id, team.creatorId);
+
+      const closedWhere = mockPrismaService.actionItem.findMany.mock.calls[1][0].where;
+      expect(closedWhere).toMatchObject({ teamId: team.id, status: { in: ['DONE', 'DROPPED'] } });
+      expect(closedWhere.closedAt.gte).toEqual(sprint.startDate);
+      expect(closedWhere.closedAt.lte).toEqual(new Date('2026-01-14T23:59:59.999Z'));
+      expect(buildSprintSummaryPptx).toHaveBeenCalledWith(expect.objectContaining({
+        actionItems: {
+          created: [{ title: 'נוצרה', status: 'OPEN', assignees: ['דנה לוי'] }],
+          closed: [{ title: 'נסגרה', status: 'DONE', assignees: ['u'] }]
+        }
+      }));
     });
 
     it('falls back to the classic template for an unrecognized template id', async () => {

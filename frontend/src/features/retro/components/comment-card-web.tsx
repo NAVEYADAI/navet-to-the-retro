@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { Icon, Badge, TeamLogo } from '@/components/ui';
+import { Icon, Badge, Button, TeamLogo } from '@/components/ui';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 
 interface CommentCardWebProps {
@@ -25,9 +25,11 @@ interface CommentCardWebProps {
   onToggleHighlight?: (commentId: number, nextValue: boolean) => void;
   /** פיצ'ר 19, החלטה #10: סימן אנונימיות — לוגו הצוות לפני המילה "אנונימי". */
   teamLogo?: { teamId: number; name: string; logoUpdatedAt?: string | null };
+  /** פיצ'ר 16: "הפוך למשימה" — כל חבר צוות. כשלא מועבר, הכפתור לא מוצג (למשל בלוח הזיכרון). */
+  onMakeTask?: (comment: { id: number; content: string }) => void;
 }
 
-export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamLogo }: CommentCardWebProps) {
+export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamLogo, onMakeTask }: CommentCardWebProps) {
   const t = useTheme();
   const isKeep = comment.type === 'KEEP';
   const accent = isKeep ? t.color.status.success : t.color.status.danger;
@@ -142,6 +144,14 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamL
             </bdi>
           </Typography>
         </Box>
+
+        {onMakeTask && (
+          <Box>
+            <Button variant="ghost" size="sm" icon="plus" onPress={() => onMakeTask({ id: comment.id, content: comment.content })}>
+              {Strings.actionItems.makeTaskButton}
+            </Button>
+          </Box>
+        )}
       </Box>
     </Box>
   );

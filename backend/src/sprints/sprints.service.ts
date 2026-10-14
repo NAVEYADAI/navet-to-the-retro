@@ -310,12 +310,37 @@ export class SprintsService {
       select: { content: true, type: true, category: { select: { label: true } } }
     });
 
+    // Feature 16 (product-backlog/16-action-items.md §16.0 decision #8): the deck's action-items
+    // slide — what was created in this retro, and what was closed during the sprint (by
+    // `closedAt`, between startDate and the END of endDate's day).
+    const closedUntil = new Date(Date.UTC(
+      sprint.endDate.getUTCFullYear(), sprint.endDate.getUTCMonth(), sprint.endDate.getUTCDate(), 23, 59, 59, 999
+    ));
+    const [createdItems, closedItems] = await Promise.all([
+      this.prisma.actionItem.findMany({
+        where: { sprintId },
+        orderBy: { id: 'asc' },
+        select: { title: true, status: true, assignees: { select: { user: { select: { username: true, firstName: true, lastName: true } } } } }
+      }),
+      this.prisma.actionItem.findMany({
+        where: { teamId, status: { in: ['DONE', 'DROPPED'] }, closedAt: { gte: sprint.startDate, lte: closedUntil } },
+        orderBy: { closedAt: 'asc' },
+        select: { title: true, status: true, assignees: { select: { user: { select: { username: true, firstName: true, lastName: true } } } } }
+      })
+    ]);
+    const toExportItem = (item: typeof createdItems[number]) => ({
+      title: item.title,
+      status: item.status,
+      assignees: item.assignees.map(a => [a.user.firstName, a.user.lastName].filter(Boolean).join(' ') || a.user.username)
+    });
+
     const buffer = await buildSprintSummaryPptx({
       sprintName: sprint.name,
       teamName: team.name,
       startDate: sprint.startDate,
       endDate: sprint.endDate,
       comments: comments.map(c => ({ content: c.content, type: c.type, category: c.category?.label ?? null })),
+      actionItems: { created: createdItems.map(toExportItem), closed: closedItems.map(toExportItem) },
       templateId: resolveTemplateId(templateId),
       logo: team.logo ? { data: team.logo.data, contentType: team.logo.contentType } : null,
       accentHue: team.accentHue ?? null

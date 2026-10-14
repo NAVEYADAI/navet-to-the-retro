@@ -62,7 +62,7 @@ Backend-Frontend-בדיקות / "לא בטיפול".
 | 13 | [עריכה ומחיקה של הערה + נעילת לוח](./13-comment-edit-delete.md) | מאופיין, מוכן למימוש — כל ההחלטות נסגרו (2026-10-13) |
 | 14 | [מחיקת ספרינט ומחיקת צוות פעיל](./14-sprint-and-team-deletion.md) | מומש (2026-10-14) — Backend (מחיקה רכה + שחזור + purge, סינון בכל השירותים, סנכרון Google, איפוס טלגרם) + Frontend + בדיקות (Jest backend/frontend, backend e2e, Playwright Desktop+Mobile) ירוקים; נשארו: `db push` מול Neon (ממתין לאישור) ובדיקה ידנית מול Google Calendar אמיתי |
 | 15 | [מחיקת חשבון משתמש](./15-account-deletion.md) | מאופיין — כל ההחלטות נסגרו (2026-10-13); **מוכן למימוש** (11 ו-14 מומשו, 2026-10-14); סוגר את BUG-47 |
-| 16 | [משימות המשך (Action Items)](./16-action-items.md) | מאופיין, מוכן למימוש — כל ההחלטות נסגרו (2026-10-13) |
+| 16 | [משימות המשך (Action Items)](./16-action-items.md) | מומש ✅ (2026-10-14) — Backend+Frontend+בדיקות (§16.1/16.2/16.3) סגורים; Jest + backend e2e + Playwright (Desktop+Mobile) ירוקים; `db push` רץ רק מול `postgres-test` — **טרם מול Neon האמיתי** |
 | 17 | [רטרו בלייב — סשן מונחה בשלבים](./17-live-retro-session.md) | טיוטה (2026-10-13) — 11 שאלות פתוחות ב-§17.0; לא מומש |
 | 18 | [אינדיקציה לדברים שממתינים לי](./18-pending-indicators.md) | טיוטה (2026-10-13) — 4 שאלות פתוחות ב-§18.0; לא מומש |
 | 19 | [לוגו לצוות](./19-team-logo.md) | מומש (2026-10-13) — Backend+Frontend+בדיקות (Jest backend/frontend, backend e2e, Playwright Desktop+Mobile) ירוקים; נשארו: `db push` מול Neon (הורץ ב-2026-10-13), ובדיקות ידניות (PPTX בתוכנה אמיתית + נייטיב). חסימת `deletedAt` נסגרה עם פיצ'ר 14 |

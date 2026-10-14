@@ -131,6 +131,8 @@ export const Strings = {
     leaveSuccessorLabel: 'את/ה המנהל/ת האחרון/ה בצוות. מי יהיה המנהל/ת במקומך?',
     newLeaderLabel: 'למנות ראש צוות חדש? (לא חובה)',
     leaveLastMemberText: 'את/ה החבר/ה הרשום/ה האחרון/ה בצוות, ולכן אי אפשר לצאת ממנו.',
+    // Feature 14 (feature 11 §11.0 decision #8): the way out for the last real member is deleting the team.
+    leaveDeleteTeamButton: 'מחק את הצוות',
     leaveFailedError: 'היציאה מהצוות נכשלה.',
     removeNewLeaderLabel: (name: string) => `${name} הוא/היא ראש הצוות האחרון/ה. למנות ראש צוות חדש? (לא חובה)`,
   },
@@ -193,6 +195,52 @@ export const Strings = {
     teamNameRequiredError: 'שם צוות הוא שדה חובה.',
     teamDetailsUpdatedText: 'פרטי הצוות עודכנו בהצלחה.',
     teamDetailsUpdateErrorText: 'עדכון פרטי הצוות נכשל.',
+  },
+  // Feature 14 — soft delete + restore of sprints and teams (product-backlog/14-sprint-and-team-deletion.md).
+  sprintDeletion: {
+    deleteButton: 'מחק ספרינט',
+    confirmTitle: 'למחוק את הספרינט?',
+    warning: (commentCount: number) =>
+      commentCount === 0
+        ? 'לספרינט אין עדיין הערות.'
+        : commentCount === 1
+          ? 'הערה אחת תימחק יחד איתו.'
+          : `${commentCount} הערות יימחקו יחד איתו.`,
+    restoreHint: 'אפשר לשחזר אותו מהרשימה "ספרינטים שנמחקו" ב-30 הימים הקרובים, וההערות יחזרו איתו.',
+    // Not the same text as the header button: while the confirmation is open both are on screen.
+    confirmButton: 'כן, מחק את הספרינט',
+    cancelButton: 'ביטול',
+    deleteError: 'מחיקת הספרינט נכשלה.',
+    deletedSectionTitle: 'ספרינטים שנמחקו',
+    hideDeletedButton: 'הסתר ספרינטים שנמחקו',
+    noDeleted: 'אין ספרינטים שנמחקו.',
+    loadError: 'טעינת הספרינטים שנמחקו נכשלה.',
+    restoreButton: 'שחזר',
+    restoreError: 'שחזור הספרינט נכשל.',
+    commentCount: (n: number) => (n === 0 ? 'ללא הערות' : n === 1 ? 'הערה אחת' : `${n} הערות`),
+    daysLeft: (n: number) => (n <= 0 ? 'היום האחרון לשחזור' : n === 1 ? 'יום אחד לשחזור' : `${n} ימים לשחזור`),
+  },
+  teamDeletion: {
+    dangerZoneTitle: 'אזור מסוכן',
+    deleteTeamTitle: 'מחיקת הצוות',
+    deleteTeamDescription: 'הצוות, הספרינטים וההערות שלו ייעלמו מכל החברים. אפשר לשחזר אותו מ"צוותים שנמחקו" בהגדרות ב-30 הימים הקרובים.',
+    deleteTeamButton: 'מחק צוות',
+    confirmPrompt: (teamName: string) => `כדי לאשר, הקלידו את שם הצוות: ${teamName}`,
+    confirmLabel: 'שם הצוות',
+    confirmPlaceholder: 'הקלידו את שם הצוות',
+    confirmButton: 'מחק את הצוות',
+    cancelButton: 'ביטול',
+    deleteError: 'מחיקת הצוות נכשלה.',
+  },
+  deletedTeams: {
+    cardTitle: 'צוותים שנמחקו',
+    cardSubtitle: 'צוות שמחקתם נשמר 30 ימים, ואפשר לשחזר אותו עם כל החברים, הספרינטים וההערות.',
+    empty: 'אין צוותים שנמחקו.',
+    loadError: 'טעינת הצוותים שנמחקו נכשלה.',
+    restoreButton: 'שחזר',
+    restoreError: 'שחזור הצוות נכשל.',
+    sprintCount: (n: number) => (n === 0 ? 'ללא ספרינטים' : n === 1 ? 'ספרינט אחד' : `${n} ספרינטים`),
+    daysLeft: (n: number) => (n <= 0 ? 'היום האחרון לשחזור' : n === 1 ? 'יום אחד לשחזור' : `${n} ימים לשחזור`),
   },
   // Feature 19 — team logo + team colour (product-backlog/19-team-logo.md).
   teamLogo: {

@@ -25,6 +25,7 @@ import { trackEvent } from '@/lib/analytics';
 import { formatDate, formatTime, formatDateRange } from '@/lib/format-date';
 import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
+import { useDeleteSprint } from '../hooks/use-delete-sprint';
 
 interface SprintRetroBoardProps {
   sprint: any;
@@ -380,6 +381,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
   const canExportSummary = team.creatorId === user.id || !!myMembership?.isAdmin;
   // Only team admins may edit a sprint's own settings — same guard as sprint creation.
   const canEditSprint = !!myMembership?.isAdmin;
+  // Feature 14: deleting a sprint is admin-only, like editing it; the confirmation names how many comments go with it.
+  const deleteSprint = useDeleteSprint({ teamId: team.id, sprintId: sprintData.id, token, commentCount: comments.length, onDeleted: onBack });
 
   const startEditingSprint = () => {
     setEditError(null);
@@ -465,6 +468,18 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
                   </Text>
                 </TouchableOpacity>
               )}
+              {canEditSprint && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
+                  onPress={deleteSprint.ask}
+                  disabled={deleteSprint.isConfirming}
+                >
+                  <Icon name="trash" size="sm" tone="muted" />
+                  <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                    {Strings.sprintDeletion.deleteButton}
+                  </Text>
+                </TouchableOpacity>
+              )}
               {canExportSummary && (
                 <TouchableOpacity
                   style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
@@ -507,6 +522,51 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
               </Text>
             </TouchableOpacity>
           </View>
+
+          {deleteSprint.isConfirming ? (
+            <View
+              style={{
+                gap: t.space[2],
+                width: '100%',
+                backgroundColor: t.color.surface,
+                borderRadius: t.radius.card,
+                borderWidth: 1,
+                borderColor: t.color.status.danger.border,
+                padding: t.space[3],
+              }}
+            >
+              <Text style={[rnText(t.type.cardTitle), { color: t.color.text, textAlign: 'right' }]}>{Strings.sprintDeletion.confirmTitle}</Text>
+              <Text style={[rnText(t.type.bodyStrong), { color: t.color.status.danger.fg, textAlign: 'right' }]}>
+                {Strings.sprintDeletion.warning(comments.length)}
+              </Text>
+              <Text style={[rnText(t.type.caption), { color: t.color.textSecondary, textAlign: 'right' }]}>{Strings.sprintDeletion.restoreHint}</Text>
+              {!!deleteSprint.error && (
+                <View style={{ backgroundColor: t.color.status.danger.bg, borderWidth: 1, borderColor: t.color.status.danger.border, borderRadius: t.radius.field, padding: t.space[2] }}>
+                  <Text style={[rnText(t.type.caption), { color: t.color.status.danger.fg, textAlign: 'right' }]}>{deleteSprint.error}</Text>
+                </View>
+              )}
+              <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
+                <TouchableOpacity
+                  style={{ minHeight: t.layout.minTouchTarget, paddingHorizontal: t.space[4], borderRadius: t.radius.field, backgroundColor: t.color.status.danger.fg, justifyContent: 'center', alignItems: 'center' }}
+                  onPress={deleteSprint.confirm}
+                  disabled={deleteSprint.isDeleting}
+                >
+                  {deleteSprint.isDeleting ? (
+                    <ActivityIndicator size="small" color={t.color.surface} />
+                  ) : (
+                    <Text style={[rnText({ ...t.type.bodyStrong }), { color: t.color.surface }]}>{Strings.sprintDeletion.confirmButton}</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ minHeight: t.layout.minTouchTarget, paddingHorizontal: t.space[4], borderRadius: t.radius.field, borderWidth: 1, borderColor: t.color.border, justifyContent: 'center', alignItems: 'center' }}
+                  onPress={deleteSprint.cancel}
+                  disabled={deleteSprint.isDeleting}
+                >
+                  <Text style={[rnText({ ...t.type.bodyStrong }), { color: t.color.text }]}>{Strings.sprintDeletion.cancelButton}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null}
 
           {isEditingSprint ? (
             <View

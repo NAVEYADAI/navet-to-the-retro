@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, Param, Query, Headers, Res } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Delete, Body, Param, Query, Headers, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { SprintsService } from './sprints.service';
 import { AuthService } from '../auth/auth.service';
@@ -29,6 +29,36 @@ export class SprintsController {
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.sprintsService.findAll(teamId, user.id);
+  }
+
+  // Feature 14. `deleted` is declared before every ':sprintId' route so it is never read as an id.
+  @Get('deleted')
+  async findDeleted(
+    @Headers('authorization') authHeader: string,
+    @Param('teamId', IntIdPipe) teamId: number
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.sprintsService.findDeleted(teamId, user.id);
+  }
+
+  @Delete(':sprintId')
+  async remove(
+    @Headers('authorization') authHeader: string,
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('sprintId', IntIdPipe) sprintId: number
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.sprintsService.remove(teamId, sprintId, user.id);
+  }
+
+  @Post(':sprintId/restore')
+  async restore(
+    @Headers('authorization') authHeader: string,
+    @Param('teamId', IntIdPipe) teamId: number,
+    @Param('sprintId', IntIdPipe) sprintId: number
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.sprintsService.restore(teamId, sprintId, user.id);
   }
 
   @Patch(':sprintId')

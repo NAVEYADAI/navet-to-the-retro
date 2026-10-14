@@ -32,3 +32,9 @@ export class LeaveTeamDto {
   successorAdminMemberId?: number;
   newLeaderMemberId?: number;
 }
+
+// Feature 14 (product-backlog/14-sprint-and-team-deletion.md §14.0 decision #4): deleting a team
+// requires typing its exact name, so a stray click can't remove one.
+export class DeleteTeamDto {
+  confirmName?: string;
+}

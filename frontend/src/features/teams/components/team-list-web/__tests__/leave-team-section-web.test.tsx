@@ -17,9 +17,9 @@ const member = (id: number, over: Record<string, any> = {}) => ({
   user: { username: `u${id}`, firstName: `User${id}`, lastName: '', isPhantom: false }, ...over,
 });
 
-function Harness({ members, me, onLeft }: { members: any[]; me: any; onLeft: () => void }) {
+function Harness({ members, me, onLeft, onDeleteTeam }: { members: any[]; me: any; onLeft: () => void; onDeleteTeam?: () => void }) {
   const state = useLeaveTeam({ teamId: 9, members, me, token: 'tok', onLeft });
-  return <LeaveTeamSection teamName="Core" state={state} />;
+  return <LeaveTeamSection teamName="Core" state={state} onDeleteTeam={onDeleteTeam} />;
 }
 
 let mounted: Mounted | null = null;
@@ -80,5 +80,25 @@ describe('LeaveTeamSection (web, feature 11)', () => {
 
     expect(findByText(mounted.container, 'שגיאת שרת')).not.toBeNull();
     expect(onLeft).not.toHaveBeenCalled();
+  });
+  it('the last real member gets a "delete the team" way out (feature 14) — and it does not leave', async () => {
+    const onDeleteTeam = jest.fn();
+    const me = member(1, { isAdmin: true });
+    mounted = await mountWeb(<Harness members={[me, member(2, { user: { username: 'g', firstName: 'Ghost', isPhantom: true } })]} me={me} onLeft={jest.fn()} onDeleteTeam={onDeleteTeam} />);
+
+    await clickText(mounted.container, Strings.teamList.leaveTeamButton);
+    expect(findByText(mounted.container, Strings.teamList.leaveLastMemberText)).not.toBeNull();
+    await clickText(mounted.container, Strings.teamList.leaveDeleteTeamButton);
+
+    expect(onDeleteTeam).toHaveBeenCalledTimes(1);
+    expect(mockedAxios.post).not.toHaveBeenCalled();
+  });
+
+  it('without the callback (a non-admin) the last real member only gets the explanation', async () => {
+    const me = member(1);
+    mounted = await mountWeb(<Harness members={[me, member(2, { user: { username: 'g', firstName: 'Ghost', isPhantom: true } })]} me={me} onLeft={jest.fn()} />);
+    await clickText(mounted.container, Strings.teamList.leaveTeamButton);
+    expect(findByText(mounted.container, Strings.teamList.leaveLastMemberText)).not.toBeNull();
+    expect(findByText(mounted.container, Strings.teamList.leaveDeleteTeamButton)).toBeNull();
   });
 });

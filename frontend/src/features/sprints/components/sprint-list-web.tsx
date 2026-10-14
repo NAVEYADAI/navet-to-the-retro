@@ -10,6 +10,7 @@ import { validateSprintDateRange } from '../sprint-validation';
 import { getSprintBucket } from '../sprint-lifecycle';
 import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup, NoActiveSprintRow } from './sprint-rows-web';
 import { openSprint } from '@/lib/sprint-routes';
+import { DeletedSprintsSectionWeb } from './deleted-sprints-section-web';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -279,6 +280,8 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint, on
           {showExpiredSection ? <ExpiredSprintsGroup sprints={expired} onSelect={(sprint) => onSelectSprint(sprint, team)} /> : null}
         </Box>
       )}
+      {/* Feature 14 (§14.2): admins can bring back sprints they deleted in the last 30 days. */}
+      {isAdmin ? <DeletedSprintsSectionWeb teamId={team.id} token={token} onRestored={fetchSprints} /> : null}
     </Box>
   );
 }

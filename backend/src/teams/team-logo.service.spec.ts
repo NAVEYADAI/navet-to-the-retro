@@ -144,4 +144,19 @@ describe('TeamLogoService (feature 19)', () => {
       await expect(service.getLogo(7, 2)).rejects.toBeInstanceOf(NotFoundException);
     });
   });
+  describe('a soft-deleted team (feature 14, §19.0 decision #13)', () => {
+    const deletedTeam = { id: 7, status: 'ACTIVE', deletedAt: new Date() };
+
+    it('every operation is 404 — the logo bytes outlive a soft delete, so they must not be served', async () => {
+      prisma.team.findUnique.mockResolvedValue(deletedTeam);
+      prisma.teamLogo.findUnique.mockResolvedValue({ data: new Uint8Array(PNG), contentType: 'image/png' });
+
+      await expect(service.setLogo(7, 1, { buffer: PNG }, undefined)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.removeLogo(7, 1)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.setAccent(7, 1, 100)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.getLogo(7, 1)).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.teamLogo.upsert).not.toHaveBeenCalled();
+      expect(prisma.teamLogo.findUnique).not.toHaveBeenCalled();
+    });
+  });
 });

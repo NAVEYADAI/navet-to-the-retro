@@ -68,7 +68,7 @@
 
 - [ ] **BUG-30 — ב-native session לא נשמר וברירת המחדל localhost** · 📖 · **תוקן בקוד 07.10.2026 (לא נבדק על מכשיר):** הטוקן נשמר ב-AsyncStorage ונטען בהפעלה; בפיתוח native הכתובת נגזרת מ-`hostUri` של Expo. **נשאר:** אימות על מכשיר/סימולטור; החלטה על SecureStore (הטוקן כרגע לא מוצפן); build native לפרודקשן עדיין ברירת מחדל `localhost:5005` — צריך `EXPO_PUBLIC_BACKEND_URL` או כתובת Fly כברירת מחדל.
 
-- [ ] **BUG-59 — `EMAIL_FROM` לא מוגדר בפרודקשן; מיילים יוצאים מכתובת הבדיקה של Resend** · 📖 (נמצא 13.10.2026, לא נבדק מול לוח הבקרה של Resend)
+- [ ] **BUG-59 — `EMAIL_FROM` לא מוגדר בפרודקשן; מיילים יוצאים מכתובת הבדיקה של Resend** · ✅ (נמצא 13.10.2026; **אומת 13.10.2026**: ניסיון שליחה ללירון דרך ה-API של Resend עם שולח ברירת המחדל נדחה ב-403 — "You can only send testing emails to your own email address (naveyadai@gmail.com)")
   - **מיקום:** `email.service.ts:24` (fallback ל-`onboarding@resend.dev`); `fly secrets list -a navet-to-retro-backend` לא כולל `EMAIL_FROM`, וגם `backend/fly.toml` לא מגדיר אותו.
   - **פירוט:** הדומיין `resend.dev` מיועד לבדיקות, ולפי מה שידוע לנו מוסר מיילים רק לכתובת של בעל חשבון ה-Resend. אם זה נכון, מיילי אישור צוות (`sendTeamApprovalRequest`) והזמנה לצוות (`sendTeamJoinInvite`) לא מגיעים לנמענים אחרים. חוסם גם את פיצ'ר 12 (איפוס סיסמה).
   - **תיקון:** לאמת דומיין שולח ב-Resend, ואז `fly secrets set EMAIL_FROM="נווט לרט <no-reply@<domain>>" -a navet-to-retro-backend`. אימות: לשלוח הזמנה לכתובת שאינה של בעל החשבון.

@@ -7,7 +7,7 @@ import type { LeaveTeamState } from '@/features/teams/hooks/use-leave-team';
 import { MemberPicker } from './member-picker';
 
 /** Feature 11 §11.2 — "יציאה מהצוות" at the bottom of the members panel, with inline confirmation. */
-export function LeaveTeamSection({ teamName, state }: { teamName: string; state: LeaveTeamState }) {
+export function LeaveTeamSection({ teamName, state, onDeleteTeam }: { teamName: string; state: LeaveTeamState; onDeleteTeam?: () => void }) {
   const t = useTheme();
 
   if (!state.isConfirming) {
@@ -71,6 +71,12 @@ export function LeaveTeamSection({ teamName, state }: { teamName: string; state:
         {!state.lastRealMember && (
           <Button size="sm" variant="danger" onPress={state.confirm} disabled={!state.canConfirm} loading={state.isLeaving}>
             {Strings.teamList.leaveConfirmButton}
+          </Button>
+        )}
+        {/* Feature 14: the last real member can't leave, but an admin can delete the team (opens the settings' danger zone). */}
+        {state.lastRealMember && onDeleteTeam && (
+          <Button size="sm" variant="danger" icon="trash" onPress={onDeleteTeam}>
+            {Strings.teamList.leaveDeleteTeamButton}
           </Button>
         )}
         <Button size="sm" variant="secondary" onPress={state.cancel} disabled={state.isLeaving}>

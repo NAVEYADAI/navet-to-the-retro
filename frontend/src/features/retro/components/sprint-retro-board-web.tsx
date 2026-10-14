@@ -6,6 +6,7 @@ import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Page, PageHeader, Grid, Card, Button, Field, Segmented, Icon } from '@/components/ui';
 import { CommentCardWeb } from './comment-card-web';
+import { useDeleteSprint } from '../hooks/use-delete-sprint';
 import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
 import { SprintLengthHistoryPanelWeb } from './sprint-length-history-panel-web';
@@ -238,6 +239,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
   // Same permission as creating a sprint in the first place (sprints.service.ts::create) — no
   // one should be able to edit a sprint they couldn't have created.
   const canEditSprint = !!myMembership?.isAdmin;
+  // Feature 14: deleting a sprint is admin-only, like editing it; the confirmation names how many comments go with it.
+  const deleteSprint = useDeleteSprint({ teamId: team.id, sprintId: sprintData.id, token, commentCount: comments.length, onDeleted: onBack });
 
   const startEditingSprint = () => {
     setEditName(sprintData.name);
@@ -289,6 +292,11 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                 {Strings.retroBoard.editSprintButton}
               </Button>
             ) : null}
+            {canEditSprint ? (
+              <Button variant="ghost" size="sm" icon="trash" onPress={deleteSprint.ask} disabled={deleteSprint.isConfirming}>
+                {Strings.sprintDeletion.deleteButton}
+              </Button>
+            ) : null}
             {canExportSummary ? (
               <Button variant="ghost" size="sm" icon="presentation" onPress={() => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); }}>
                 {Strings.sprintSummary.openButton}
@@ -317,6 +325,29 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
           </Box>
         }
       />
+
+      {deleteSprint.isConfirming ? (
+        <Card>
+          <Typography component="h2" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
+            {Strings.sprintDeletion.confirmTitle}
+          </Typography>
+          <Typography sx={{ ...t.type.bodyStrong, color: t.color.status.danger.fg }}>
+            {Strings.sprintDeletion.warning(comments.length)}
+          </Typography>
+          <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>
+            {Strings.sprintDeletion.restoreHint}
+          </Typography>
+          {deleteSprint.error ? <Alert severity="error" sx={{ ...t.type.body }}>{deleteSprint.error}</Alert> : null}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: `${t.space[2]}px` }}>
+            <Button variant="danger" onPress={deleteSprint.confirm} disabled={deleteSprint.isDeleting} loading={deleteSprint.isDeleting}>
+              {Strings.sprintDeletion.confirmButton}
+            </Button>
+            <Button variant="secondary" onPress={deleteSprint.cancel} disabled={deleteSprint.isDeleting}>
+              {Strings.sprintDeletion.cancelButton}
+            </Button>
+          </Box>
+        </Card>
+      ) : null}
 
       {isEditingSprint ? (
         <Card>

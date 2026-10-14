@@ -5,6 +5,8 @@ import { buildSprintSummaryPptx, buildExportFileName, resolveTemplateId } from '
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { assertCanManageTeamContent } from '../teams/team-permissions.util';
 import { requireNonEmptyString, assertOptionalString, parseDateString } from '../common/validation';
+import { LIVE_SPRINT, daysLeftToRestore, isDeleted, isRestorable } from '../common/soft-delete';
+import { purgeExpiredSoftDeleted } from '../common/soft-delete-purge';
 
 // BUG-12: a sprint must not end before it starts. Equal dates (a one-day sprint) are allowed.
 // Unparseable dates are rejected here too, otherwise `NaN` comparisons would silently pass and
@@ -39,7 +41,7 @@ export class SprintsService {
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
     });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     if (team.status !== 'ACTIVE') {
@@ -124,7 +126,7 @@ export class SprintsService {
 
     // 1. Verify team exists
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
 
@@ -137,8 +139,8 @@ export class SprintsService {
       throw new ForbiddenException('Only team admins can edit sprints');
     }
 
-    // 3. Verify the sprint exists and belongs to this team
-    const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId } });
+    // 3. Verify the sprint exists, belongs to this team and isn't soft-deleted (feature 14)
+    const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId, deletedAt: null } });
     if (!sprint) {
       throw new NotFoundException('Sprint not found');
     }
@@ -234,7 +236,7 @@ export class SprintsService {
     // which sprint ids exist (404) from which don't (403).
     await assertCanManageTeamContent(this.prisma, teamId, requesterId);
 
-    const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId } });
+    const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId, ...LIVE_SPRINT } });
     if (!sprint) {
       throw new NotFoundException('Sprint not found');
     }
@@ -264,9 +266,15 @@ export class SprintsService {
       throw new ForbiddenException('You do not belong to this team');
     }
 
+    // Feature 14: a soft-deleted team has no sprints list (the membership rows survive a soft delete).
+    const team = await this.prisma.team.findUnique({ where: { id: teamId }, select: { deletedAt: true } });
+    if (isDeleted(team)) {
+      throw new NotFoundException('Team not found');
+    }
+
     // 2. Get sprints ordered by start date desc
     return this.prisma.sprint.findMany({
-      where: { teamId: teamId },
+      where: { teamId: teamId, deletedAt: null },
       orderBy: { startDate: 'desc' }
     });
   }
@@ -274,7 +282,7 @@ export class SprintsService {
   async exportSummaryPptx(teamId: number, sprintId: number, requesterId: number, templateId?: string): Promise<{ buffer: Buffer; fileName: string }> {
     // Feature 19: the logo bytes ride along so the deck can carry the team's mark and colour.
     const team = await this.prisma.team.findUnique({ where: { id: teamId }, include: { logo: true } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
 
@@ -289,7 +297,7 @@ export class SprintsService {
       throw new ForbiddenException('רק מי שיצר את הצוות או מנהל צוות יכולים לייצא סיכום ספרינט');
     }
 
-    const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId } });
+    const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId, deletedAt: null } });
     if (!sprint) {
       throw new NotFoundException('Sprint not found');
     }
@@ -314,5 +322,101 @@ export class SprintsService {
     });
 
     return { buffer, fileName: buildExportFileName(sprint.name) };
+  }
+  // ---- Feature 14 (product-backlog/14-sprint-and-team-deletion.md): soft delete + restore ----
+
+  // Admin-only on a live team (404 for a missing/deleted team, 403 for a non-admin) — the same gate as
+  // creating and editing a sprint (§14.0 decision #2).
+  private async assertTeamAdmin(teamId: number, requesterId: number, message: string) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team || isDeleted(team)) {
+      throw new NotFoundException('Team not found');
+    }
+    const membership = await this.prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: requesterId, teamId } }
+    });
+    if (!membership || membership.status !== 'ACTIVE' || !membership.isAdmin) {
+      throw new ForbiddenException(message);
+    }
+    return team;
+  }
+
+  async remove(teamId: number, sprintId: number, requesterId: number) {
+    await this.assertTeamAdmin(teamId, requesterId, 'Only team admins can delete sprints');
+
+    const sprint = await this.prisma.sprint.findFirst({
+      where: { id: sprintId, teamId, deletedAt: null },
+      include: { _count: { select: { comments: true } } }
+    });
+    if (!sprint) {
+      throw new NotFoundException('Sprint not found');
+    }
+
+    // The row is marked first, so a crash in the best-effort steps below can never leave a sprint
+    // that is half-deleted: from this moment on it does not exist for the rest of the system.
+    const deletedAt = new Date();
+    await this.prisma.$transaction([
+      this.prisma.sprint.update({ where: { id: sprintId }, data: { deletedAt, deletedById: requesterId } }),
+      // §14.0 technical default #3: a Telegram chat that was pointed at this sprint is reset, so the
+      // bot doesn't keep posting into a sprint that no longer exists (no FK there, so nothing else does it).
+      this.prisma.userMessagingLink.updateMany({
+        where: { activeSprintId: sprintId },
+        data: { activeSprintId: null, pendingCommentContent: null, pendingCommentType: null }
+      })
+    ]);
+
+    try {
+      await this.googleCalendarService.syncSprintDeleted(sprintId, teamId);
+    } catch (err) {
+      this.logger.warn(`Google Calendar sync failed for deleted sprint ${sprintId}`, err instanceof Error ? err.stack : err);
+    }
+
+    return { id: sprintId, deletedAt, commentCount: sprint._count.comments };
+  }
+
+  async restore(teamId: number, sprintId: number, requesterId: number) {
+    const team = await this.assertTeamAdmin(teamId, requesterId, 'Only team admins can restore sprints');
+
+    const sprint = await this.prisma.sprint.findFirst({ where: { id: sprintId, teamId, deletedAt: { not: null } } });
+    // Past the window the purge may not have run yet — it is gone as far as the user is concerned.
+    if (!sprint || !isRestorable(sprint.deletedAt)) {
+      throw new NotFoundException('Sprint not found');
+    }
+
+    const restored = await this.prisma.sprint.update({
+      where: { id: sprintId },
+      data: { deletedAt: null, deletedById: null }
+    });
+
+    try {
+      await this.googleCalendarService.syncSprintRestored({
+        sprintId: restored.id,
+        teamId,
+        name: restored.name,
+        teamName: team.name,
+        startDate: restored.startDate,
+        endDate: restored.endDate
+      });
+    } catch (err) {
+      this.logger.warn(`Google Calendar sync failed for restored sprint ${sprintId}`, err instanceof Error ? err.stack : err);
+    }
+
+    return restored;
+  }
+
+  async findDeleted(teamId: number, requesterId: number) {
+    await this.assertTeamAdmin(teamId, requesterId, 'Only team admins can see deleted sprints');
+    await purgeExpiredSoftDeleted(this.prisma);
+
+    const sprints = await this.prisma.sprint.findMany({
+      where: { teamId, deletedAt: { not: null } },
+      orderBy: { deletedAt: 'desc' },
+      include: { _count: { select: { comments: true } } }
+    });
+    return sprints.map(({ _count, ...sprint }) => ({
+      ...sprint,
+      commentCount: _count.comments,
+      daysLeft: daysLeftToRestore(sprint.deletedAt as Date)
+    }));
   }
 }

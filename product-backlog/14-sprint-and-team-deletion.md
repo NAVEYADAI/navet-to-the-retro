@@ -1,4 +1,4 @@
-## פיצ'ר 14: מחיקת ספרינט ומחיקת צוות פעיל (מחיקה רכה + שחזור) — מאופיין, מוכן למימוש (כל ההחלטות נסגרו 2026-10-13)
+## פיצ'ר 14: מחיקת ספרינט ומחיקת צוות פעיל (מחיקה רכה + שחזור) — מומש (2026-10-14) — Backend+Frontend+בדיקות ירוקים; `db push` מול Neon טרם הורץ
 
 ### נקודות מרכזיות (touchpoints)
 
@@ -51,28 +51,34 @@
 
 ### 14.1 Backend
 
-- [ ] Prisma: `deletedAt` + `deletedById` ל-`Sprint` ול-`Team`. `db push`.
-- [ ] סינון `deletedAt: null` בכל שאילתה על `Sprint`/`Team` במודולים: teams, sprints, comments, invites, team-categories, google-calendar, telegram (רשימה מלאה תיבנה ב-PR עם grep על `prisma.sprint.`/`prisma.team.`).
-- [ ] `DELETE /teams/:teamId/sprints/:sprintId` (מנהל): `syncSprintDeleted` → איפוס טלגרם → `deletedAt`.
-- [ ] `DELETE /teams/:teamId` (מנהל, `confirmName` תואם): `syncTeamDeleted` → איפוס טלגרם → `deletedAt`.
-- [ ] `restore` לשניהם (מנהל, בתוך 30 יום) + סנכרון יומן מחדש.
-- [ ] `GET` רשימות "נמחקו" + purge (ברירת מחדל 4).
-- [ ] Unit tests: הרשאות; `confirmName` שגוי → 400; Google נכשל → המחיקה עדיין מצליחה; ספרינט שנמחק מחזיר 404 בהערות; שחזור מחזיר הערות; purge מוחק רק מה שישן מ-30 יום; הקשר טלגרם מתאפס.
+- [x] Prisma: `deletedAt` + `deletedById` ל-`Sprint` ול-`Team`. `db push`. **`db push` נדחף ל-`postgres-test` בלבד; מול Neon — ממתין לאישור מפורש של נוה.**
+- [x] סינון `deletedAt: null` בכל שאילתה נבנה עם `common/soft-delete.ts` (`isDeleted`, `LIVE_SPRINT`, `LIVE_TEAM`) — כל בדיקת קיום-צוות בכל השירותים (teams, invites, team-categories, team-logo, sprints) וכל חיפוש ספרינט (sprints, comments, telegram, google-calendar backfill). על `Sprint`/`Team` במודולים: teams, sprints, comments, invites, team-categories, google-calendar, telegram (רשימה מלאה תיבנה ב-PR עם grep על `prisma.sprint.`/`prisma.team.`).
+- [x] `DELETE /teams/:teamId/sprints/:sprintId` (מנהל): `syncSprintDeleted` → איפוס טלגרם → `deletedAt`.
+- [x] `DELETE /teams/:teamId` (מנהל, `confirmName` תואם): `syncTeamDeleted` → איפוס טלגרם → `deletedAt`.
+- [x] `restore` לשניהם (מנהל, בתוך 30 יום) + סנכרון יומן מחדש.
+- [x] `GET` רשימות "נמחקו" + purge (ברירת מחדל 4). ה-purge: `common/soft-delete-purge.ts` (צוותים לפני ספרינטים) + `SoftDeletePurgeBootstrap` בעליית השרת (מדלג תחת `NODE_ENV=test`) + לפני כל רשימת "נמחקו".
+- [x] Unit tests: הרשאות; `confirmName` שגוי → 400; Google נכשל → המחיקה עדיין מצליחה; ספרינט שנמחק מחזיר 404 בהערות; שחזור מחזיר הערות; purge מוחק רק מה שישן מ-30 יום; הקשר טלגרם מתאפס.
 
 ### 14.2 Frontend
 
-- [ ] "מחק ספרינט" ליד "ערוך ספרינט" (מנהל), עם אזהרת מספר ההערות. אחרי המחיקה — חזרה לרשימת הספרינטים. `trackEvent('sprint_delete_clicked' / 'sprint_deleted' / 'sprint_delete_cancelled')`.
-- [ ] "ספרינטים שנמחקו" (למנהל) בתחתית רשימת הספרינטים, עם "שחזר" וימים שנותרו. `sprint_restored`.
-- [ ] "אזור מסוכן" בהגדרות הצוות: מחיקה עם הקלדת שם. אחרי המחיקה — חזרה לדשבורד. `team_delete_clicked` / `team_deleted`.
-- [ ] "צוותים שנמחקו" במסך ההגדרות, עם "שחזר". `team_restored`.
-- [ ] Jest web+native.
+- [x] "מחק ספרינט" ליד "ערוך ספרינט" כפתור האישור נקרא "כן, מחק את הספרינט" (שונה מכפתור הכותרת כי שניהם על המסך יחד). (מנהל), עם אזהרת מספר ההערות. אחרי המחיקה — חזרה לרשימת הספרינטים. `trackEvent('sprint_delete_clicked' / 'sprint_deleted' / 'sprint_delete_cancelled')`.
+- [x] "ספרינטים שנמחקו" (למנהל) בתחתית רשימת הספרינטים, עם "שחזר" וימים שנותרו. `sprint_restored`.
+- [x] "אזור מסוכן" בהגדרות הצוות כל מנהל של הצוות; באנונימיות הצוות נשאר קישור ההזמנה פסול (404).: מחיקה עם הקלדת שם. אחרי המחיקה — חזרה לדשבורד. `team_delete_clicked` / `team_deleted`.
+- [x] "צוותים שנמחקו" במסך ההגדרות, עם "שחזר". `team_restored`.
+- [x] Jest web+native.
 
 ### 14.3 בדיקות
 
-- [ ] Playwright e2e (Desktop+Mobile): מנהל מוחק ספרינט ומשחזר אותו (ההערות חזרו); חבר רגיל לא רואה "מחק"; מחיקת צוות עם שם שגוי נחסמת ועם שם נכון מצליחה; הצוות נעלם לחבר אחר; מנהל משחזר.
-- [ ] Backend e2e: purge אחרי 30 יום מוחק בשרשור ספרינטים, הערות, הזמנות וקטגוריות.
+- [x] Playwright e2e (Desktop+Mobile): מנהל מוחק ספרינט ומשחזר אותו (ההערות חזרו); חבר רגיל לא רואה "מחק"; מחיקת צוות עם שם שגוי נחסמת ועם שם נכון מצליחה; הצוות נעלם לחבר אחר; מנהל משחזר.
+- [x] Backend e2e: purge אחרי 30 יום מוחק בשרשור ספרינטים, הערות, הזמנות וקטגוריות.
 
 ### לא בטיפול (פיצ'ר 14)
 
 - ארכוב צוות ("קפוא" — רואים, לא כותבים) כחלופה למחיקה.
 - מחיקת הערה בודדת — פיצ'ר 13.
+
+### פריטים שנגזרו מהמימוש
+
+- [x] פיצ'ר 11 (§11.0 החלטה 8): החבר האמיתי האחרון, אם הוא מנהל, רואה "מחק את הצוות" במקום ההסבר — הכפתור פותח את "אזור מסוכן" בהגדרות.
+- [x] פיצ'ר 19 (§19.0 החלטה #13): כל ה-endpoints של הלוגו (כולל `GET /invites/:token/logo`) מחזירים 404 לצוות שנמחק רכות; `TeamLogo` נוסף לרשימת ה-Cascade של ה-purge.
+- [ ] בדיקה ידנית מול Google Calendar אמיתי: מחיקת ספרינט/צוות מנקה את האירועים/היומן, ושחזור יוצר אותם מחדש (ה-sync נבדק רק עם `googleapis` ממוקם).

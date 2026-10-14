@@ -107,7 +107,7 @@
   - [x] החבר האמיתי האחרון מקבל הסבר למה אי אפשר לצאת, בלי כפתור אישור.
   - [x] תגובה של מי שעזב מוצגת עם "לא בצוות".
 - [x] Backend e2e (`backend/test/teams.e2e-spec.ts`): `POST /teams/:id/leave` עם כל מקרי ה-409/403, ושני המנהלים האחרונים יוצאים במקביל — רק אחד מצליח.
-- [ ] **פתוח, תלוי בפיצ'ר 14:** במקום ההסבר לחבר האמיתי האחרון — כפתור "מחק את הצוות" (החלטה 8). ה-backend כבר מחזיר `409` עם `code: LAST_REAL_MEMBER`, וה-UI רק צריך להחליף את ההסבר בכפתור כשמחיקת צוות תהיה קיימת.
+- [x] **נסגר עם פיצ'ר 14 (2026-10-14):** במקום ההסבר לחבר האמיתי האחרון — כפתור "מחק את הצוות" (החלטה 8). ה-backend כבר מחזיר `409` עם `code: LAST_REAL_MEMBER`, וה-UI רק צריך להחליף את ההסבר בכפתור כשמחיקת צוות תהיה קיימת.
 
 **הערות מימוש:** `src/features/teams/membership-rules.ts` (אותם כללים כמו בשרת, רק לתצוגה) ו-`src/features/teams/hooks/use-leave-team.ts` משותפים ל-web ול-native. `team-member-row` (web+native) פוצל: `member-role-editor.tsx`, `remove-member-confirm.tsx`, `member-picker.tsx`, ו-native `action-button.tsx`. בחירת מחליף/ראש צוות היא pills (role="radio") ולא `Field type="select"`, כי צוות הוא כמה אנשים בודדים.
 

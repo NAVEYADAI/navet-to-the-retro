@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma.service';
 import { EmailService } from '../email/email.service';
 import { InvitesService } from '../invites/invites.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
-import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto, RemoveMemberDto, LeaveTeamDto } from './dto/teams.dto';
+import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto, RemoveMemberDto, LeaveTeamDto, DeleteTeamDto } from './dto/teams.dto';
 import { assertCanManageTeamContent, assertCanRemoveMember } from './team-permissions.util';
 import { DEFAULT_CATEGORY_LABELS } from '../comments/comment-category-labels';
 import {
@@ -15,6 +15,8 @@ import {
   assertOptionalEnum,
   assertOptionalPositiveInt
 } from '../common/validation';
+import { daysLeftToRestore, isDeleted, isRestorable } from '../common/soft-delete';
+import { purgeExpiredSoftDeleted } from '../common/soft-delete-purge';
 
 // Feature 9 (phantom members, §9.2): `isPhantom` must be included everywhere a team member's
 // `User` is selected, or the frontend badge has nothing to key off of. This is the shared
@@ -166,7 +168,7 @@ export class TeamsService {
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
     });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     if (team.status !== 'PENDING_APPROVAL') {
@@ -190,7 +192,7 @@ export class TeamsService {
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
     });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     if (requesterId !== team.creatorId && requesterId !== team.pendingApproverId) {
@@ -212,7 +214,7 @@ export class TeamsService {
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
     });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     if (team.status !== 'ACTIVE') {
@@ -296,7 +298,7 @@ export class TeamsService {
 
   async acceptMemberInvite(teamId: number, memberId: number, requesterId: number) {
     const membership = await this.prisma.teamMember.findFirst({
-      where: { id: memberId, teamId: teamId }
+      where: { id: memberId, teamId: teamId, team: { deletedAt: null } }
     });
     if (!membership) {
       throw new NotFoundException('Invite not found');
@@ -319,7 +321,7 @@ export class TeamsService {
 
   async declineMemberInvite(teamId: number, memberId: number, requesterId: number) {
     const membership = await this.prisma.teamMember.findFirst({
-      where: { id: memberId, teamId: teamId }
+      where: { id: memberId, teamId: teamId, team: { deletedAt: null } }
     });
     if (!membership) {
       throw new NotFoundException('Invite not found');
@@ -354,11 +356,13 @@ export class TeamsService {
 
     const [memberships, pendingApprovals] = await Promise.all([
       this.prisma.teamMember.findMany({
-        where: { userId: userId },
+        // Feature 14: a soft-deleted team disappears from everyone's list (its membership rows stay,
+        // that is how "teams I can restore" finds the admins).
+        where: { userId: userId, team: { deletedAt: null } },
         include: { team: { include: teamInclude } }
       }),
       this.prisma.team.findMany({
-        where: { pendingApproverId: userId, status: 'PENDING_APPROVAL' },
+        where: { pendingApproverId: userId, status: 'PENDING_APPROVAL', deletedAt: null },
         include: teamInclude
       })
     ]);
@@ -378,7 +382,7 @@ export class TeamsService {
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
     });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
 
@@ -407,7 +411,7 @@ export class TeamsService {
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
     });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
 
@@ -488,7 +492,7 @@ export class TeamsService {
     const team = await this.prisma.team.findUnique({
       where: { id: teamId }
     });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
 
@@ -559,7 +563,7 @@ export class TeamsService {
     assertOptionalPositiveInt(dto?.newLeaderMemberId, 'ראש הצוות החדש שנבחר לא תקין');
 
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
 
@@ -679,7 +683,7 @@ export class TeamsService {
     assertOptionalEnum(dto.role, TEAM_ROLE_VALUES, INVALID_ROLE_MESSAGE);
 
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     // BUG-36: a team still awaiting approval isn't usable yet (same rule as addMember).
@@ -724,7 +728,7 @@ export class TeamsService {
     // BUG-39: a team that doesn't exist is a 404 (it used to fall through the membership check
     // below and come back as a misleading 403).
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
 
@@ -775,5 +779,115 @@ export class TeamsService {
     }
 
     return updatedTeam;
+  }
+  // ---- Feature 14 (product-backlog/14-sprint-and-team-deletion.md): soft-delete a team + restore ----
+
+  // §14.0 decision #4: any ADMIN of this specific team, with the exact team name typed as
+  // confirmation. §14.0 decision #5/#6: no e-mail to the members, no export offer — the team just
+  // disappears for them and can be restored from "צוותים שנמחקו" for 30 days.
+  async deleteTeam(teamId: number, dto: DeleteTeamDto, requesterId: number) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    if (!team || isDeleted(team)) {
+      throw new NotFoundException('Team not found');
+    }
+
+    const membership = await this.prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: requesterId, teamId } }
+    });
+    if (!membership || membership.status !== 'ACTIVE' || !membership.isAdmin) {
+      throw new ForbiddenException('Only team admins can delete the team');
+    }
+    // A team still awaiting approval is cancelled through `decline`, not deleted.
+    if (team.status !== 'ACTIVE') {
+      throw new ConflictException('צוות שטרם אושר מבטלים, לא מוחקים');
+    }
+
+    assertOptionalString(dto?.confirmName, 'אישור המחיקה לא תקין');
+    if (typeof dto?.confirmName !== 'string' || dto.confirmName.trim() !== team.name.trim()) {
+      throw new BadRequestException('שם הצוות שהוקלד לא תואם');
+    }
+
+    // The row is marked first (see SprintsService.remove): from here on the team does not exist
+    // for the rest of the system, whatever happens to the best-effort steps below.
+    const deletedAt = new Date();
+    await this.prisma.$transaction([
+      this.prisma.team.update({ where: { id: teamId }, data: { deletedAt, deletedById: requesterId } }),
+      // §14.0 technical default #3: a Telegram chat pointed at this team (or one of its sprints) is reset.
+      this.prisma.userMessagingLink.updateMany({
+        where: { activeTeamId: teamId },
+        data: { activeTeamId: null, activeSprintId: null, contextSetAt: null, pendingCommentContent: null, pendingCommentType: null }
+      })
+    ]);
+
+    try {
+      await this.googleCalendarService.syncTeamDeleted(teamId);
+    } catch (err) {
+      this.logger.warn(`Google Calendar sync failed for deleted team ${teamId}`, err instanceof Error ? err.stack : err);
+    }
+
+    return { id: teamId, deletedAt };
+  }
+
+  async restoreTeam(teamId: number, requesterId: number) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId } });
+    // Past the 30 days the purge may not have run yet — it is gone as far as the user is concerned.
+    if (!team || !isRestorable(team.deletedAt)) {
+      throw new NotFoundException('Team not found');
+    }
+
+    // The membership rows survive a soft delete, so "who was an admin when it was deleted" is
+    // simply who still is. Non-members get the same 404 as a team that was never deleted.
+    const membership = await this.prisma.teamMember.findUnique({
+      where: { userId_teamId: { userId: requesterId, teamId } }
+    });
+    if (!membership || membership.status !== 'ACTIVE') {
+      throw new NotFoundException('Team not found');
+    }
+    if (!membership.isAdmin) {
+      throw new ForbiddenException('Only team admins can restore the team');
+    }
+
+    const restored = await this.prisma.team.update({
+      where: { id: teamId },
+      data: { deletedAt: null, deletedById: null }
+    });
+
+    // §14.0 technical default #2: the calendar is rebuilt through the regular sprint sync.
+    try {
+      const sprints = await this.prisma.sprint.findMany({ where: { teamId, deletedAt: null } });
+      await this.googleCalendarService.syncTeamRestored(
+        sprints.map((s) => ({
+          sprintId: s.id,
+          teamId,
+          name: s.name,
+          teamName: restored.name,
+          startDate: s.startDate,
+          endDate: s.endDate
+        }))
+      );
+    } catch (err) {
+      this.logger.warn(`Google Calendar sync failed for restored team ${teamId}`, err instanceof Error ? err.stack : err);
+    }
+
+    return restored;
+  }
+
+  // §14.0 technical default #7: shown to whoever was an ACTIVE admin of the team at the moment it was deleted.
+  async findDeletedTeams(requesterId: number) {
+    await purgeExpiredSoftDeleted(this.prisma);
+
+    const teams = await this.prisma.team.findMany({
+      where: {
+        deletedAt: { not: null },
+        members: { some: { userId: requesterId, status: 'ACTIVE', isAdmin: true } }
+      },
+      orderBy: { deletedAt: 'desc' },
+      select: { id: true, name: true, mainOffice: true, deletedAt: true, _count: { select: { sprints: true } } }
+    });
+    return teams.map(({ _count, ...team }) => ({
+      ...team,
+      sprintCount: _count.sprints,
+      daysLeft: daysLeftToRestore(team.deletedAt as Date)
+    }));
   }
 }

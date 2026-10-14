@@ -9,7 +9,7 @@ import { MemberPicker } from './member-picker';
 import { ActionButton } from './action-button';
 
 /** Feature 11 §11.2 — "יציאה מהצוות" at the bottom of the members panel (same flow as web). */
-export function LeaveTeamSection({ teamName, state }: { teamName: string; state: LeaveTeamState }) {
+export function LeaveTeamSection({ teamName, state, onDeleteTeam }: { teamName: string; state: LeaveTeamState; onDeleteTeam?: () => void }) {
   const t = useTheme();
 
   if (!state.isConfirming) {
@@ -57,6 +57,10 @@ export function LeaveTeamSection({ teamName, state }: { teamName: string; state:
       <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
         {!state.lastRealMember && (
           <ActionButton label={Strings.teamList.leaveConfirmButton} onPress={state.confirm} kind="danger" disabled={!state.canConfirm} loading={state.isLeaving} />
+        )}
+        {/* Feature 14: the last real member can't leave, but an admin can delete the team (opens the settings' danger zone). */}
+        {state.lastRealMember && onDeleteTeam && (
+          <ActionButton label={Strings.teamList.leaveDeleteTeamButton} onPress={onDeleteTeam} kind="danger" />
         )}
         <ActionButton label={Strings.teamList.leaveCancelButton} onPress={state.cancel} kind="secondary" disabled={state.isLeaving} />
       </View>

@@ -375,4 +375,57 @@ describe('CommentsService', () => {
       });
     });
   });
+  describe('soft-deleted sprints and teams (feature 14)', () => {
+    const liveSprint = { ...sprint, deletedAt: null, team: { deletedAt: null } };
+    const deletedSprint = { ...sprint, deletedAt: new Date(), team: { deletedAt: null } };
+    const sprintOfDeletedTeam = { ...sprint, deletedAt: null, team: { deletedAt: new Date() } };
+
+    it.each([
+      ['a soft-deleted sprint', deletedSprint],
+      ['a sprint of a soft-deleted team', sprintOfDeletedTeam],
+    ])('create 404s for %s, even for an active member', async (_label, row) => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(row);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      await expect(service.create(sprint.id, createDto, member.userId)).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a soft-deleted sprint', deletedSprint],
+      ['a sprint of a soft-deleted team', sprintOfDeletedTeam],
+    ])('getCommentsForSprint 404s for %s — its comments are hidden until it is restored', async (_label, row) => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(row);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      await expect(service.getCommentsForSprint(sprint.id, admin.userId)).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.comment.findMany).not.toHaveBeenCalled();
+    });
+
+    it('a restored sprint (deletedAt back to null) serves its comments again', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(liveSprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.comment.findMany.mockResolvedValue([]);
+      await expect(service.getCommentsForSprint(sprint.id, admin.userId)).resolves.toEqual([]);
+    });
+
+    it('the lookup also loads the team, so a deleted team is noticed', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(liveSprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.comment.findMany.mockResolvedValue([]);
+      await service.getCommentsForSprint(sprint.id, admin.userId);
+      expect(mockPrismaService.sprint.findUnique).toHaveBeenCalledWith({
+        where: { id: sprint.id },
+        include: { team: { select: { deletedAt: true } } },
+      });
+    });
+
+    it.each([
+      ['a soft-deleted sprint', { id: 1, teamId: sprint.teamId, sprint: { deletedAt: new Date(), team: { deletedAt: null } } }],
+      ['a sprint of a soft-deleted team', { id: 1, teamId: sprint.teamId, sprint: { deletedAt: null, team: { deletedAt: new Date() } } }],
+    ])('highlighting a comment of %s is 404', async (_label, comment) => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(comment);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      await expect(service.setHighlighted(1, { isHighlighted: true }, admin.userId)).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+  });
 });

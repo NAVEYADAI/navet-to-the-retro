@@ -10,6 +10,7 @@ import { validateSprintDates, getSprintApiErrorMessage } from '../sprint-validat
 import { getSprintBucket } from '../sprint-lifecycle';
 import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup, NoActiveSprintRow } from './sprint-rows-native';
 import { openSprint } from '@/lib/sprint-routes';
+import { DeletedSprintsSectionNative } from './deleted-sprints-section-native';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -297,6 +298,8 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint,
           )}
         </View>
       )}
+      {/* Feature 14 (§14.2): admins can bring back sprints they deleted in the last 30 days. */}
+      {isAdmin ? <DeletedSprintsSectionNative teamId={team.id} token={token} onRestored={fetchSprints} /> : null}
     </View>
   );
 }

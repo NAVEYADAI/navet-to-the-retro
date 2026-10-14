@@ -724,4 +724,45 @@ describe('InvitesService', () => {
       expect((result.user as any).password).toBeUndefined();
     });
   });
+  describe('invites to a soft-deleted team (feature 14, §14.0 technical default #1)', () => {
+    const usable = { isRevoked: false, expiresAt: null, maxUses: null, useCount: 0, email: null, teamId: team.id };
+    const png = new Uint8Array([1, 2, 3]);
+
+    it('GET /invites/:token answers 404 instead of a valid-looking invite', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({
+        ...usable,
+        team: { name: 'Core Team', logoUpdatedAt: null, accentHue: null, deletedAt: new Date() },
+      });
+      await expect(service.getInvite('tok')).rejects.toThrow(NotFoundException);
+    });
+
+    it('the invite logo is not served for a deleted team', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({
+        ...usable,
+        team: { id: team.id, deletedAt: new Date(), logo: { data: png, contentType: 'image/png' } },
+      });
+      await expect(service.getInviteLogo('tok')).rejects.toThrow(NotFoundException);
+    });
+
+    it('consuming the invite 404s as "invite not found" and creates no membership', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({ ...usable, id: 5, token: 'tok', role: 'DEVELOPER' });
+      mockPrismaService.team.findUnique.mockResolvedValue({ ...team, deletedAt: new Date() });
+      await expect(service.consumeInvite('tok', { id: 99, email: 'x@example.com' })).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.teamMember.create).not.toHaveBeenCalled();
+    });
+
+    it('a phantom-conversion link into a deleted team is unknown', async () => {
+      mockPrismaService.teamInvite.findUnique.mockResolvedValue({ ...usable, convertsMemberId: 7 });
+      mockPrismaService.team.findUnique.mockResolvedValue({ deletedAt: new Date() });
+      await expect(
+        service.consumePhantomConversionInvite('tok', { username: 'u', email: 'u@example.com', password: 'password123' })
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('admin-side invite management 404s on a deleted team', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue({ ...team, deletedAt: new Date() });
+      await expect(service.listInvites(team.id, admin.userId)).rejects.toThrow(NotFoundException);
+      await expect(service.createInvite(team.id, {}, admin.userId)).rejects.toThrow(NotFoundException);
+    });
+  });
 });

@@ -15,6 +15,7 @@ import {
 } from '../common/validation';
 import { getJwtSecret } from '../config/jwt-secret';
 import { MIN_PASSWORD_LENGTH } from '../auth/auth.service';
+import { isDeleted } from '../common/soft-delete';
 
 // BUG-15: shape check for the public invite token (generated as 48 hex chars). A token carrying
 // a NUL byte or an absurd length used to reach Prisma/Postgres and come back as a 500.
@@ -74,7 +75,7 @@ export class InvitesService {
 
   async createInvite(teamId: number, dto: CreateInviteDto, requesterId: number) {
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     await this.assertIsTeamAdmin(teamId, requesterId);
@@ -148,13 +149,14 @@ export class InvitesService {
     const invite = await this.prisma.teamInvite.findUnique({
       where: { token },
       include: {
-        team: { select: { name: true, logoUpdatedAt: true, accentHue: true } },
+        team: { select: { name: true, logoUpdatedAt: true, accentHue: true, deletedAt: true } },
         // Feature 9 (phantom members, §9.1): only populated for a conversion link — used below
         // to prefill the conversion form with the phantom's existing display name.
         convertsMember: { include: { user: { select: { firstName: true, lastName: true } } } }
       }
     });
-    if (!invite) {
+    // Feature 14 (§14.0 technical default #1): an invite to a soft-deleted team is as good as unknown.
+    if (!invite || isDeleted(invite.team)) {
       throw new NotFoundException('Invite not found');
     }
 
@@ -186,9 +188,9 @@ export class InvitesService {
     this.assertValidToken(token);
     const invite = await this.prisma.teamInvite.findUnique({
       where: { token },
-      include: { team: { select: { id: true, logo: true } } }
+      include: { team: { select: { id: true, logo: true, deletedAt: true } } }
     });
-    if (!invite || this.reasonForInvalidity(invite) || !invite.team.logo) {
+    if (!invite || isDeleted(invite.team) || this.reasonForInvalidity(invite) || !invite.team.logo) {
       throw new NotFoundException('Logo not found');
     }
     return { data: Buffer.from(invite.team.logo.data), contentType: invite.team.logo.contentType };
@@ -196,7 +198,7 @@ export class InvitesService {
 
   async listInvites(teamId: number, requesterId: number) {
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     await this.assertIsTeamAdmin(teamId, requesterId);
@@ -209,7 +211,7 @@ export class InvitesService {
 
   async revokeInvite(teamId: number, inviteId: number, requesterId: number) {
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     await this.assertIsTeamAdmin(teamId, requesterId);
@@ -249,6 +251,10 @@ export class InvitesService {
     }
 
     const team = await this.prisma.team.findUnique({ where: { id: invite.teamId } });
+    // Feature 14: an invite into a soft-deleted team is unknown, not merely "unapproved".
+    if (team && isDeleted(team)) {
+      throw new NotFoundException('Invite not found');
+    }
     if (!team || team.status !== 'ACTIVE') {
       throw new ConflictException('לא ניתן להצטרף לצוות שטרם אושר');
     }
@@ -283,7 +289,7 @@ export class InvitesService {
   // conversion flow instead of the regular join flow.
   async createPhantomConversionInvite(teamId: number, phantomMemberId: number, dto: CreatePhantomConversionInviteDto, requesterId: number) {
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     // BUG-44: same admin-only guard as list/revoke above — a TEAM_LEADER who isn't an admin
@@ -350,6 +356,11 @@ export class InvitesService {
 
     const invite = await this.prisma.teamInvite.findUnique({ where: { token } });
     if (!invite) {
+      throw new NotFoundException('Invite not found');
+    }
+    // Feature 14: no conversion into a soft-deleted team.
+    const inviteTeam = await this.prisma.team.findUnique({ where: { id: invite.teamId }, select: { deletedAt: true } });
+    if (isDeleted(inviteTeam)) {
       throw new NotFoundException('Invite not found');
     }
 

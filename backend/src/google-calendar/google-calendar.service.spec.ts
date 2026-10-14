@@ -13,6 +13,7 @@ const mockEventsPatch = jest.fn();
 const mockEventsDelete = jest.fn();
 const mockCalendarsPatch = jest.fn();
 const mockCalendarsInsert = jest.fn();
+const mockCalendarsDelete = jest.fn();
 const mockOAuth2On = jest.fn();
 
 jest.mock('googleapis', () => ({
@@ -30,7 +31,7 @@ jest.mock('googleapis', () => ({
     })),
     calendar: jest.fn().mockImplementation(() => ({
       events: { insert: mockEventsInsert, patch: mockEventsPatch, delete: mockEventsDelete },
-      calendars: { insert: mockCalendarsInsert, patch: mockCalendarsPatch },
+      calendars: { insert: mockCalendarsInsert, patch: mockCalendarsPatch, delete: mockCalendarsDelete },
     })),
   },
 }));
@@ -50,11 +51,13 @@ describe('GoogleCalendarService', () => {
       create: jest.fn(),
       findMany: jest.fn(),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
     },
     googleCalendarTeamCalendar: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       create: jest.fn(),
+      delete: jest.fn(),
     },
     teamMember: {
       findMany: jest.fn(),
@@ -280,7 +283,8 @@ describe('GoogleCalendarService', () => {
       await service.handleCallback('code', state);
 
       expect(mockPrisma.sprint.findMany).toHaveBeenCalledWith({
-        where: { teamId: { in: [1, 2] } },
+        // Feature 14: a soft-deleted sprint / a sprint of a soft-deleted team gets no event.
+        where: { teamId: { in: [1, 2] }, deletedAt: null, team: { deletedAt: null } },
         include: { team: { select: { name: true } } },
       });
       expect(mockEventsInsert).toHaveBeenCalledWith(
@@ -670,6 +674,158 @@ describe('GoogleCalendarService', () => {
 
       await expect(service.removeMemberFromTeam(7, 1)).resolves.toBeUndefined();
       expect(mockEventsDelete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('syncSprintDeleted (feature 14)', () => {
+    const link = (id: number, googleEventId: string, connectionId = 10) => ({
+      id,
+      connectionId,
+      googleEventId,
+      connection: { id: connectionId, accessToken: 'a1', refreshToken: 'r1' },
+    });
+
+    it('does nothing when Google Calendar is not configured', async () => {
+      const service = loadService({ GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', GOOGLE_REDIRECT_URI: '' });
+      await service.syncSprintDeleted(5, 1);
+      expect(mockPrisma.sprintGoogleEvent.findMany).not.toHaveBeenCalled();
+    });
+
+    it("deletes the sprint's event on every active connection and drops the links", async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockResolvedValue([link(1, 'ev-1', 10), link(2, 'ev-2', 11)]);
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValue({ calendarId: 'cal-1' });
+      mockEventsDelete.mockResolvedValue({});
+      const service = loadService(configuredEnv);
+
+      await service.syncSprintDeleted(5, 1);
+
+      expect(mockPrisma.sprintGoogleEvent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sprintId: 5, connection: { isRevoked: false } } })
+      );
+      expect(mockEventsDelete).toHaveBeenCalledWith({ calendarId: 'cal-1', eventId: 'ev-1' });
+      expect(mockEventsDelete).toHaveBeenCalledWith({ calendarId: 'cal-1', eventId: 'ev-2' });
+      expect(mockPrisma.sprintGoogleEvent.delete).toHaveBeenCalledTimes(2);
+    });
+
+    it('an event that is already gone (404/410) still counts as deleted', async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockResolvedValue([link(1, 'ev-1')]);
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValue({ calendarId: 'cal-1' });
+      mockEventsDelete.mockRejectedValue(Object.assign(new Error('Gone'), { code: 410 }));
+      const service = loadService(configuredEnv);
+
+      await service.syncSprintDeleted(5, 1);
+
+      expect(mockPrisma.sprintGoogleEvent.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    });
+
+    it('a failing Google call keeps that link, carries on, and never throws (the deletion must still succeed)', async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockResolvedValue([link(1, 'ev-1'), link(2, 'ev-2')]);
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValue({ calendarId: 'cal-1' });
+      mockEventsDelete.mockRejectedValueOnce(new Error('google is down')).mockResolvedValueOnce({});
+      const service = loadService(configuredEnv);
+
+      await expect(service.syncSprintDeleted(5, 1)).resolves.toBeUndefined();
+
+      expect(mockPrisma.sprintGoogleEvent.delete).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.sprintGoogleEvent.delete).toHaveBeenCalledWith({ where: { id: 2 } });
+    });
+
+    it('swallows a failure to look up the links', async () => {
+      mockPrisma.sprintGoogleEvent.findMany.mockRejectedValue(new Error('db down'));
+      const service = loadService(configuredEnv);
+      await expect(service.syncSprintDeleted(5, 1)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('syncTeamDeleted (feature 14)', () => {
+    const teamCalendar = (id: number, connectionId: number) => ({
+      id,
+      connectionId,
+      calendarId: `cal-${id}`,
+      connection: { id: connectionId, accessToken: 'a1', refreshToken: 'r1' },
+    });
+
+    it("deletes the team's secondary calendar on every connection, then its event links and calendar rows", async () => {
+      mockPrisma.googleCalendarTeamCalendar.findMany.mockResolvedValue([teamCalendar(1, 10), teamCalendar(2, 11)]);
+      mockCalendarsDelete.mockResolvedValue({});
+      const service = loadService(configuredEnv);
+
+      await service.syncTeamDeleted(1);
+
+      expect(mockPrisma.googleCalendarTeamCalendar.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { teamId: 1, connection: { isRevoked: false } } })
+      );
+      expect(mockCalendarsDelete).toHaveBeenCalledWith({ calendarId: 'cal-1' });
+      expect(mockCalendarsDelete).toHaveBeenCalledWith({ calendarId: 'cal-2' });
+      expect(mockPrisma.sprintGoogleEvent.deleteMany).toHaveBeenCalledWith({ where: { connectionId: 10, sprint: { teamId: 1 } } });
+      expect(mockPrisma.googleCalendarTeamCalendar.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(mockPrisma.googleCalendarTeamCalendar.delete).toHaveBeenCalledWith({ where: { id: 2 } });
+    });
+
+    it('a calendar the user already removed in Google (404/410) is fine', async () => {
+      mockPrisma.googleCalendarTeamCalendar.findMany.mockResolvedValue([teamCalendar(1, 10)]);
+      mockCalendarsDelete.mockRejectedValue(Object.assign(new Error('Not Found'), { code: 404 }));
+      const service = loadService(configuredEnv);
+
+      await service.syncTeamDeleted(1);
+
+      expect(mockPrisma.googleCalendarTeamCalendar.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    });
+
+    it('a failing connection keeps its rows, the others are still cleaned up, and nothing throws', async () => {
+      mockPrisma.googleCalendarTeamCalendar.findMany.mockResolvedValue([teamCalendar(1, 10), teamCalendar(2, 11)]);
+      mockCalendarsDelete.mockRejectedValueOnce(new Error('google is down')).mockResolvedValueOnce({});
+      const service = loadService(configuredEnv);
+
+      await expect(service.syncTeamDeleted(1)).resolves.toBeUndefined();
+
+      expect(mockPrisma.googleCalendarTeamCalendar.delete).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.googleCalendarTeamCalendar.delete).toHaveBeenCalledWith({ where: { id: 2 } });
+    });
+
+    it('does nothing when Google Calendar is not configured', async () => {
+      const service = loadService({ GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '', GOOGLE_REDIRECT_URI: '' });
+      await service.syncTeamDeleted(1);
+      expect(mockPrisma.googleCalendarTeamCalendar.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('syncSprintRestored / syncTeamRestored (feature 14)', () => {
+    it('restoring a sprint re-creates its event through the regular new-sprint sync', async () => {
+      mockPrisma.teamMember.findMany.mockResolvedValue([{ userId: 1 }]);
+      mockPrisma.googleCalendarConnection.findMany.mockResolvedValue([{ id: 10, userId: 1, accessToken: 'a', refreshToken: 'r', isRevoked: false }]);
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValue({ calendarId: 'cal-1' });
+      mockEventsInsert.mockResolvedValue({ data: { id: 'new-ev' } });
+      const service = loadService(configuredEnv);
+
+      await service.syncSprintRestored(sprintInfo);
+
+      expect(mockEventsInsert).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.sprintGoogleEvent.create).toHaveBeenCalledWith({
+        data: { sprintId: 5, connectionId: 10, googleEventId: 'new-ev' },
+      });
+    });
+
+    it("restoring a team re-creates the team calendar once (lazily) and an event per live sprint", async () => {
+      mockPrisma.teamMember.findMany.mockResolvedValue([{ userId: 1 }]);
+      mockPrisma.googleCalendarConnection.findMany.mockResolvedValue([{ id: 10, userId: 1, accessToken: 'a', refreshToken: 'r', isRevoked: false }]);
+      // First sprint: no calendar row yet (it was dropped on delete) -> created; second: found.
+      mockPrisma.googleCalendarTeamCalendar.findUnique.mockResolvedValueOnce(null).mockResolvedValue({ calendarId: 'cal-new' });
+      mockCalendarsInsert.mockResolvedValue({ data: { id: 'cal-new' } });
+      mockEventsInsert.mockResolvedValue({ data: { id: 'ev' } });
+      const service = loadService(configuredEnv);
+
+      await service.syncTeamRestored([sprintInfo, { ...sprintInfo, sprintId: 6, name: 'Sprint 2' }]);
+
+      expect(mockCalendarsInsert).toHaveBeenCalledTimes(1);
+      expect(mockEventsInsert).toHaveBeenCalledTimes(2);
+    });
+
+    it('a team with no live sprints restores without touching Google', async () => {
+      const service = loadService(configuredEnv);
+      await service.syncTeamRestored([]);
+      expect(mockEventsInsert).not.toHaveBeenCalled();
+      expect(mockCalendarsInsert).not.toHaveBeenCalled();
     });
   });
 

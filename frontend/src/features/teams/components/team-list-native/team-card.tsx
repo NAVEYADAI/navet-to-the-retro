@@ -148,7 +148,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
               newLeaderOptions={isTeamAdmin && isLastActiveLeader(sortedMembers, member) ? getSuccessorOptions(sortedMembers, member) : undefined}
             />
           ))}
-          {canLeave && <LeaveTeamSection teamName={team.name} state={leave} />}
+          {canLeave && <LeaveTeamSection teamName={team.name} state={leave} onDeleteTeam={isTeamAdmin ? () => { trackEvent('leave_last_member_delete_team_clicked', { teamId: team.id }); leave.cancel(); setOpenPanel('settings'); } : undefined} />}
         </View>
       )}
 

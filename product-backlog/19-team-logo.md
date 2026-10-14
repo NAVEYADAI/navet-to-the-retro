@@ -108,7 +108,7 @@
 - [x] `GET /teams/user/me`, `GET /teams/:id/members` ו-`GET /invites/:token`: להחזיר `logoUpdatedAt` ו-`accentHue` (בלי ה-blob — לוודא ש-`include`/`select` הקיימים לא מושכים `logo`).
 - [x] `sprints.service.ts` → `buildSprintSummaryPptx`: להעביר `logo` לקלט, ב-`sprint-summary.builder.ts` ליישם את החלטה #12: helper אחד לכל השקפים (פתיחה/קטגוריה/סיכום מספרי/אין תגובות/השקף של פיצ'ר 16), `addImage` רק ל-PNG/JPEG, פינה שמאלית-עליונה, והתאמה לכל תבנית (`classic`/`dark`/`vibrant`) ב-`SPRINT_SUMMARY_TEMPLATES`; `team-accent.util.ts` בבאקאנד עם נוסחת הצבע (ללא `dark`); צוות בלי לוגו = אין שינוי בפלט הקיים. עדכון `sprint-summary.builder.spec.ts`.
 - [x] `PUT /teams/:id/logo` מקבל גם שדה `accentHue` (מספר שלם 0-359 או ריק = בלי צבע), נשמר באותה טרנזקציה; `PATCH /teams/:id/accent` (admin בלבד) לשינוי הצבע בלי להחליף לוגו. `accentHue` מוחזר ב-`GET /teams/user/me` וב-`GET /teams/:id/members`. הסרת הלוגו מאפסת גם את `accentHue`.
-- [ ] (תלוי פיצ'ר 14, החלטה #13 — **טרם בוצע: ל-`Team` עוד אין `deletedAt`**; יש `TODO(feature 14)` ב-`team-logo.service.ts`) כל endpoint של לוגו טוען את `Team` וחוסם `deletedAt != null`; להוסיף `TeamLogo` לרשימת ה-Cascade בפיצ'ר 14 כשהוא ממומש (לא לערוך את קובץ 14 מכאן).
+- [x] (נסגר עם פיצ'ר 14, 2026-10-14, החלטה #13) כל endpoint של לוגו טוען את `Team` וחוסם `deletedAt != null`; להוסיף `TeamLogo` לרשימת ה-Cascade בפיצ'ר 14 כשהוא ממומש (לא לערוך את קובץ 14 מכאן).
 
 ### 19.2 Frontend
 

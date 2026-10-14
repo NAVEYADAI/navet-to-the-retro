@@ -30,6 +30,7 @@ describe('SprintsService', () => {
   const mockPrismaService = {
     team: {
       findUnique: jest.fn(),
+      deleteMany: jest.fn(),
     },
     teamMember: {
       findUnique: jest.fn(),
@@ -39,6 +40,10 @@ describe('SprintsService', () => {
       findMany: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    userMessagingLink: {
+      updateMany: jest.fn(),
     },
     comment: {
       findMany: jest.fn(),
@@ -54,6 +59,8 @@ describe('SprintsService', () => {
   const mockGoogleCalendarService = {
     syncSprintCreated: jest.fn().mockResolvedValue(undefined),
     syncSprintUpdated: jest.fn().mockResolvedValue(undefined),
+    syncSprintDeleted: jest.fn().mockResolvedValue(undefined),
+    syncSprintRestored: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
@@ -751,6 +758,175 @@ describe('SprintsService', () => {
       await service.exportSummaryPptx(team.id, sprint.id, team.creatorId, 'not-a-real-template');
 
       expect(buildSprintSummaryPptx).toHaveBeenCalledWith(expect.objectContaining({ templateId: 'classic' }));
+    });
+  });
+  describe('soft delete (feature 14)', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const liveSprint = { id: 5, teamId: 1, name: 'S5', startDate: new Date('2026-01-01'), endDate: new Date('2026-01-14'), deletedAt: null, _count: { comments: 3 } };
+    const deletedTeam = { ...activeTeam, deletedAt: new Date() };
+    const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
+
+    beforeEach(() => {
+      // remove() uses the array form of $transaction (updates run together); the callback form is for create/update.
+      mockPrismaService.$transaction.mockImplementation((arg: unknown) =>
+        Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: typeof mockPrismaService) => unknown)(mockPrismaService)
+      );
+      mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.update.mockImplementation(({ data }: any) => Promise.resolve({ ...liveSprint, ...data }));
+      mockPrismaService.userMessagingLink.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.team.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.sprint.deleteMany.mockResolvedValue({ count: 0 });
+    });
+
+    describe('remove', () => {
+      it('soft-deletes the sprint (deletedAt + who), resets Telegram chats pointed at it, and syncs Google', async () => {
+        mockPrismaService.sprint.findFirst.mockResolvedValue(liveSprint);
+
+        const result = await service.remove(1, 5, admin.userId);
+
+        expect(mockPrismaService.sprint.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 5, teamId: 1, deletedAt: null } }));
+        expect(mockPrismaService.sprint.update).toHaveBeenCalledWith({
+          where: { id: 5 },
+          data: { deletedAt: expect.any(Date), deletedById: admin.userId },
+        });
+        expect(mockPrismaService.userMessagingLink.updateMany).toHaveBeenCalledWith({
+          where: { activeSprintId: 5 },
+          data: { activeSprintId: null, pendingCommentContent: null, pendingCommentType: null },
+        });
+        expect(mockGoogleCalendarService.syncSprintDeleted).toHaveBeenCalledWith(5, 1);
+        expect(result).toEqual({ id: 5, deletedAt: expect.any(Date), commentCount: 3 });
+      });
+
+      it('never hard-deletes anything', async () => {
+        mockPrismaService.sprint.findFirst.mockResolvedValue(liveSprint);
+        await service.remove(1, 5, admin.userId);
+        expect(mockPrismaService.sprint.deleteMany).not.toHaveBeenCalled();
+      });
+
+      it('admins only: a regular member, a non-member and a PENDING admin get 403', async () => {
+        mockPrismaService.sprint.findFirst.mockResolvedValue(liveSprint);
+        for (const m of [nonAdmin, null, { ...admin, status: 'PENDING' }]) {
+          mockPrismaService.teamMember.findUnique.mockResolvedValue(m);
+          await expect(service.remove(1, 5, 99)).rejects.toThrow(ForbiddenException);
+        }
+        expect(mockPrismaService.sprint.update).not.toHaveBeenCalled();
+      });
+
+      it('404 for a missing team, a deleted team, a missing sprint and an already-deleted sprint', async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue(null);
+        await expect(service.remove(1, 5, admin.userId)).rejects.toThrow(NotFoundException);
+        mockPrismaService.team.findUnique.mockResolvedValue(deletedTeam);
+        await expect(service.remove(1, 5, admin.userId)).rejects.toThrow(NotFoundException);
+
+        mockPrismaService.team.findUnique.mockResolvedValue(activeTeam);
+        mockPrismaService.sprint.findFirst.mockResolvedValue(null);
+        await expect(service.remove(1, 5, admin.userId)).rejects.toThrow(NotFoundException);
+      });
+
+      it('a Google Calendar failure never fails the deletion', async () => {
+        mockPrismaService.sprint.findFirst.mockResolvedValue(liveSprint);
+        mockGoogleCalendarService.syncSprintDeleted.mockRejectedValueOnce(new Error('google down'));
+        await expect(service.remove(1, 5, admin.userId)).resolves.toMatchObject({ id: 5 });
+        expect(mockPrismaService.sprint.update).toHaveBeenCalled();
+      });
+    });
+
+    describe('restore', () => {
+      const deletedSprint = { ...liveSprint, deletedAt: daysAgo(3) };
+
+      it('clears deletedAt/deletedById and re-syncs Google', async () => {
+        mockPrismaService.sprint.findFirst.mockResolvedValue(deletedSprint);
+
+        await service.restore(1, 5, admin.userId);
+
+        expect(mockPrismaService.sprint.findFirst).toHaveBeenCalledWith({ where: { id: 5, teamId: 1, deletedAt: { not: null } } });
+        expect(mockPrismaService.sprint.update).toHaveBeenCalledWith({ where: { id: 5 }, data: { deletedAt: null, deletedById: null } });
+        expect(mockGoogleCalendarService.syncSprintRestored).toHaveBeenCalledWith(
+          expect.objectContaining({ sprintId: 5, teamId: 1, name: 'S5', teamName: 'Team A' })
+        );
+      });
+
+      it('404 when the sprint was never deleted, or the 30-day window has passed', async () => {
+        mockPrismaService.sprint.findFirst.mockResolvedValue(null);
+        await expect(service.restore(1, 5, admin.userId)).rejects.toThrow(NotFoundException);
+
+        mockPrismaService.sprint.findFirst.mockResolvedValue({ ...liveSprint, deletedAt: daysAgo(31) });
+        await expect(service.restore(1, 5, admin.userId)).rejects.toThrow(NotFoundException);
+        expect(mockPrismaService.sprint.update).not.toHaveBeenCalled();
+      });
+
+      it("a sprint of a soft-deleted team can't be restored until the team is (404)", async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue(deletedTeam);
+        mockPrismaService.sprint.findFirst.mockResolvedValue(deletedSprint);
+        await expect(service.restore(1, 5, admin.userId)).rejects.toThrow(NotFoundException);
+      });
+
+      it('admins only', async () => {
+        mockPrismaService.sprint.findFirst.mockResolvedValue(deletedSprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(nonAdmin);
+        await expect(service.restore(1, 5, nonAdmin.userId)).rejects.toThrow(ForbiddenException);
+      });
+    });
+
+    describe('findDeleted', () => {
+      it('purges expired items first, then lists deleted sprints with comment count and days left', async () => {
+        mockPrismaService.sprint.findMany.mockResolvedValue([{ ...liveSprint, deletedAt: daysAgo(10), _count: { comments: 4 } }]);
+
+        const result = await service.findDeleted(1, admin.userId);
+
+        expect(mockPrismaService.sprint.deleteMany).toHaveBeenCalledWith({ where: { deletedAt: { lt: expect.any(Date) } } });
+        expect(mockPrismaService.team.deleteMany).toHaveBeenCalledWith({ where: { deletedAt: { lt: expect.any(Date) } } });
+        expect(mockPrismaService.sprint.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { teamId: 1, deletedAt: { not: null } } })
+        );
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({ id: 5, commentCount: 4, daysLeft: 20 });
+        expect(result[0]).not.toHaveProperty('_count');
+      });
+
+      it('admins only, and 404 on a deleted team', async () => {
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(nonAdmin);
+        await expect(service.findDeleted(1, nonAdmin.userId)).rejects.toThrow(ForbiddenException);
+
+        mockPrismaService.team.findUnique.mockResolvedValue(deletedTeam);
+        await expect(service.findDeleted(1, admin.userId)).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    describe('a deleted sprint / team does not exist for the rest of the sprints API', () => {
+      it('findAll excludes deleted sprints and 404s on a deleted team', async () => {
+        mockPrismaService.sprint.findMany.mockResolvedValue([]);
+        await service.findAll(1, admin.userId);
+        expect(mockPrismaService.sprint.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { teamId: 1, deletedAt: null } }));
+
+        mockPrismaService.team.findUnique.mockResolvedValue(deletedTeam);
+        await expect(service.findAll(1, admin.userId)).rejects.toThrow(NotFoundException);
+      });
+
+      it('create and update 404 on a deleted team', async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue(deletedTeam);
+        await expect(service.create(1, dto, admin.userId)).rejects.toThrow(NotFoundException);
+        await expect(service.update(1, 5, { name: 'x' }, admin.userId)).rejects.toThrow(NotFoundException);
+      });
+
+      it('update, length history and export look the sprint up among live sprints only', async () => {
+        mockPrismaService.sprint.findFirst.mockResolvedValue(null);
+
+        await expect(service.update(1, 5, { name: 'x' }, admin.userId)).rejects.toThrow(NotFoundException);
+        expect(mockPrismaService.sprint.findFirst).toHaveBeenLastCalledWith({ where: { id: 5, teamId: 1, deletedAt: null } });
+
+        await expect(service.getLengthHistory(1, 5, admin.userId)).rejects.toThrow(NotFoundException);
+        expect(mockPrismaService.sprint.findFirst).toHaveBeenLastCalledWith({ where: { id: 5, teamId: 1, deletedAt: null, team: { deletedAt: null } } });
+
+        await expect(service.exportSummaryPptx(1, 5, admin.userId)).rejects.toThrow(NotFoundException);
+        expect(mockPrismaService.sprint.findFirst).toHaveBeenLastCalledWith({ where: { id: 5, teamId: 1, deletedAt: null } });
+      });
+
+      it('export 404s on a deleted team', async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue({ ...deletedTeam, creatorId: admin.userId });
+        await expect(service.exportSummaryPptx(1, 5, admin.userId)).rejects.toThrow(NotFoundException);
+      });
     });
   });
 });

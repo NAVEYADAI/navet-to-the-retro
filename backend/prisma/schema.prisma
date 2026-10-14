@@ -40,6 +40,8 @@ model User {
   isPhantom                 Boolean                    @default(false)
   createdAt                 DateTime                   @default(now())
   createdTeams              Team[]                     @relation("TeamCreator")
+  deletedTeams              Team[]                     @relation("TeamDeletedBy")
+  deletedSprints            Sprint[]                   @relation("SprintDeletedBy")
   pendingApprovals          Team[]                     @relation("TeamPendingApprover")
   members                   TeamMember[]
   comments                  Comment[]                  @relation("CommentAuthor")
@@ -137,6 +139,11 @@ model Team {
   logoUpdatedAt     DateTime?
   accentHue         Int?
   logo              TeamLogo?
+  // Feature 14: soft delete (see Sprint.deletedAt). `TeamMember` rows are NOT touched by a soft
+  // delete — they are how "teams I can restore" knows who was an admin at the moment of deletion.
+  deletedAt         DateTime?
+  deletedById       Int?
+  deletedBy         User?                        @relation("TeamDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
 }
 
 // Feature 19: 1:1 with Team, normalised client-side to a 256x256 PNG (PNG/JPEG only, <=512KB).
@@ -281,8 +288,14 @@ model Sprint {
   endDate     DateTime
   teamId      Int
   createdAt   DateTime @default(now())
+  // Feature 14 (product-backlog/14-sprint-and-team-deletion.md): soft delete. A non-null
+  // `deletedAt` means "deleted, restorable for 30 days"; after that the purge hard-deletes the row
+  // and the existing cascades remove comments / Google events / length history with it.
+  deletedAt   DateTime?
+  deletedById Int?
 
   team         Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  deletedBy    User?               @relation("SprintDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   comments     Comment[]
   googleEvents SprintGoogleEvent[]
   lengthChanges SprintLengthChange[]

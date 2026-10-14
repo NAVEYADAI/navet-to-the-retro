@@ -37,8 +37,15 @@ describe('TeamsService', () => {
     team: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    // Feature 14: restore re-syncs the team's live sprints; the purge hard-deletes expired ones.
+    sprint: {
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
     },
     teamMember: {
       create: jest.fn(),
@@ -73,6 +80,8 @@ describe('TeamsService', () => {
   const mockGoogleCalendarService = {
     syncTeamRenamed: jest.fn().mockResolvedValue(undefined),
     removeMemberFromTeam: jest.fn().mockResolvedValue(undefined),
+    syncTeamDeleted: jest.fn().mockResolvedValue(undefined),
+    syncTeamRestored: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
@@ -1068,6 +1077,187 @@ describe('TeamsService', () => {
           }),
         })
       );
+    });
+  });
+  describe('team soft delete (feature 14)', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const daysAgo = (n: number) => new Date(Date.now() - n * DAY);
+    const liveTeam = { id: 10, name: 'Core Team', status: 'ACTIVE', mainOffice: null, deletedAt: null };
+    const adminMember = { userId: 1, teamId: 10, status: 'ACTIVE', isAdmin: true, role: 'DEVELOPER' };
+    const regularMember = { userId: 2, teamId: 10, status: 'ACTIVE', isAdmin: false, role: 'DEVELOPER' };
+
+    beforeEach(() => {
+      // deleteTeam uses the array form of $transaction; the default mock only understands callbacks.
+      mockPrismaService.$transaction.mockImplementation((arg: unknown) =>
+        Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => unknown)(mockPrismaService)
+      );
+      mockPrismaService.team.findUnique.mockResolvedValue(liveTeam);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(adminMember);
+      mockPrismaService.team.update.mockImplementation(({ data }: any) => Promise.resolve({ ...liveTeam, ...data }));
+      mockPrismaService.userMessagingLink.updateMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.team.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.sprint.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.sprint.findMany.mockResolvedValue([]);
+    });
+
+    describe('deleteTeam', () => {
+      it('soft-deletes the team (deletedAt + who), resets Telegram contexts, removes the Google calendars — and keeps every member row', async () => {
+        const result = await service.deleteTeam(10, { confirmName: 'Core Team' }, 1);
+
+        expect(mockPrismaService.team.update).toHaveBeenCalledWith({
+          where: { id: 10 },
+          data: { deletedAt: expect.any(Date), deletedById: 1 },
+        });
+        expect(mockPrismaService.userMessagingLink.updateMany).toHaveBeenCalledWith({
+          where: { activeTeamId: 10 },
+          data: { activeTeamId: null, activeSprintId: null, contextSetAt: null, pendingCommentContent: null, pendingCommentType: null },
+        });
+        expect(mockGoogleCalendarService.syncTeamDeleted).toHaveBeenCalledWith(10);
+        expect(mockPrismaService.team.delete).not.toHaveBeenCalled();
+        expect(mockPrismaService.teamMember.delete).not.toHaveBeenCalled();
+        expect(result).toEqual({ id: 10, deletedAt: expect.any(Date) });
+      });
+
+      it('the typed name must match exactly (surrounding whitespace is ignored): wrong, empty or missing → 400, nothing deleted', async () => {
+        for (const confirmName of ['core team', 'Core', '', undefined, 123 as any]) {
+          await expect(service.deleteTeam(10, { confirmName }, 1)).rejects.toThrow(BadRequestException);
+        }
+        await expect(service.deleteTeam(10, undefined as any, 1)).rejects.toThrow(BadRequestException);
+        expect(mockPrismaService.team.update).not.toHaveBeenCalled();
+
+        await expect(service.deleteTeam(10, { confirmName: '  Core Team  ' }, 1)).resolves.toBeDefined();
+      });
+
+      it('any admin of THIS team may delete; a regular member, a team leader without admin, a non-member and a PENDING admin may not (403)', async () => {
+        for (const m of [regularMember, { ...regularMember, role: 'TEAM_LEADER' }, null, { ...adminMember, status: 'PENDING' }]) {
+          mockPrismaService.teamMember.findUnique.mockResolvedValue(m);
+          await expect(service.deleteTeam(10, { confirmName: 'Core Team' }, 2)).rejects.toThrow(ForbiddenException);
+        }
+        expect(mockPrismaService.team.update).not.toHaveBeenCalled();
+      });
+
+      it('404 for a missing or already-deleted team; 409 for a team still awaiting approval (that one is cancelled, not deleted)', async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue(null);
+        await expect(service.deleteTeam(10, { confirmName: 'Core Team' }, 1)).rejects.toThrow(NotFoundException);
+        mockPrismaService.team.findUnique.mockResolvedValue({ ...liveTeam, deletedAt: new Date() });
+        await expect(service.deleteTeam(10, { confirmName: 'Core Team' }, 1)).rejects.toThrow(NotFoundException);
+
+        mockPrismaService.team.findUnique.mockResolvedValue({ ...liveTeam, status: 'PENDING_APPROVAL' });
+        await expect(service.deleteTeam(10, { confirmName: 'Core Team' }, 1)).rejects.toThrow(ConflictException);
+      });
+
+      it('a Google Calendar failure never fails the deletion', async () => {
+        mockGoogleCalendarService.syncTeamDeleted.mockRejectedValueOnce(new Error('google down'));
+        await expect(service.deleteTeam(10, { confirmName: 'Core Team' }, 1)).resolves.toMatchObject({ id: 10 });
+        expect(mockPrismaService.team.update).toHaveBeenCalled();
+      });
+
+      it('sends no e-mail to the members (§14.0 decision #5)', async () => {
+        await service.deleteTeam(10, { confirmName: 'Core Team' }, 1);
+        expect(mockEmailService.sendTeamApprovalRequest).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('restoreTeam', () => {
+      const deletedTeam = { ...liveTeam, deletedAt: daysAgo(5) };
+
+      it('clears deletedAt/deletedById and re-syncs the calendar for the live sprints, with the team name', async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue(deletedTeam);
+        mockPrismaService.sprint.findMany.mockResolvedValue([
+          { id: 7, name: 'S7', startDate: new Date('2026-01-01'), endDate: new Date('2026-01-14') },
+        ]);
+
+        await service.restoreTeam(10, 1);
+
+        expect(mockPrismaService.team.update).toHaveBeenCalledWith({ where: { id: 10 }, data: { deletedAt: null, deletedById: null } });
+        expect(mockPrismaService.sprint.findMany).toHaveBeenCalledWith({ where: { teamId: 10, deletedAt: null } });
+        expect(mockGoogleCalendarService.syncTeamRestored).toHaveBeenCalledWith([
+          expect.objectContaining({ sprintId: 7, teamId: 10, name: 'S7', teamName: 'Core Team' }),
+        ]);
+      });
+
+      it('404 when the team was never deleted, is unknown, or the 30-day window has passed', async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue(liveTeam);
+        await expect(service.restoreTeam(10, 1)).rejects.toThrow(NotFoundException);
+        mockPrismaService.team.findUnique.mockResolvedValue(null);
+        await expect(service.restoreTeam(10, 1)).rejects.toThrow(NotFoundException);
+        mockPrismaService.team.findUnique.mockResolvedValue({ ...liveTeam, deletedAt: daysAgo(31) });
+        await expect(service.restoreTeam(10, 1)).rejects.toThrow(NotFoundException);
+        expect(mockPrismaService.team.update).not.toHaveBeenCalled();
+      });
+
+      it('admins only: a regular member gets 403, an outsider the same 404 as for a team that was never deleted', async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue(deletedTeam);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(regularMember);
+        await expect(service.restoreTeam(10, 2)).rejects.toThrow(ForbiddenException);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+        await expect(service.restoreTeam(10, 3)).rejects.toThrow(NotFoundException);
+      });
+
+      it('a Google Calendar failure never fails the restore', async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue(deletedTeam);
+        mockGoogleCalendarService.syncTeamRestored.mockRejectedValueOnce(new Error('google down'));
+        await expect(service.restoreTeam(10, 1)).resolves.toMatchObject({ id: 10, deletedAt: null });
+      });
+    });
+
+    describe('findDeletedTeams', () => {
+      it('purges expired items, then lists only teams where the requester was an ACTIVE admin, with days left', async () => {
+        mockPrismaService.team.findMany.mockResolvedValue([
+          { id: 10, name: 'Core Team', mainOffice: null, deletedAt: daysAgo(12), _count: { sprints: 3 } },
+        ]);
+
+        const result = await service.findDeletedTeams(1);
+
+        expect(mockPrismaService.team.deleteMany).toHaveBeenCalledWith({ where: { deletedAt: { lt: expect.any(Date) } } });
+        expect(mockPrismaService.team.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { deletedAt: { not: null }, members: { some: { userId: 1, status: 'ACTIVE', isAdmin: true } } },
+          })
+        );
+        expect(result).toEqual([
+          expect.objectContaining({ id: 10, name: 'Core Team', sprintCount: 3, daysLeft: 18 }),
+        ]);
+        expect(result[0]).not.toHaveProperty('_count');
+      });
+    });
+
+    describe('a deleted team does not exist for the rest of the teams API', () => {
+      const deleted = { ...liveTeam, deletedAt: new Date() };
+
+      it('every team-scoped action 404s', async () => {
+        mockPrismaService.team.findUnique.mockResolvedValue(deleted);
+        await expect(service.getTeamMembers(10, 1)).rejects.toThrow(NotFoundException);
+        await expect(service.updateMember(10, 5, { role: 'DEVELOPER' } as any, 1)).rejects.toThrow(NotFoundException);
+        await expect(service.removeMember(10, 5, 1)).rejects.toThrow(NotFoundException);
+        await expect(service.leaveTeam(10, 1)).rejects.toThrow(NotFoundException);
+        await expect(service.updateTeam(10, { name: 'x' }, 1)).rejects.toThrow(NotFoundException);
+        await expect(service.addMember(10, { username: 'u' } as any, 1)).rejects.toThrow(NotFoundException);
+        await expect(service.createPhantomMember(10, { firstName: 'P' } as any, 1)).rejects.toThrow(NotFoundException);
+        await expect(service.approveTeam(10, 1)).rejects.toThrow(NotFoundException);
+        await expect(service.declineTeam(10, 1)).rejects.toThrow(NotFoundException);
+      });
+
+      it("the user's team list excludes deleted teams (memberships and pending approvals)", async () => {
+        mockPrismaService.teamMember.findMany.mockResolvedValue([]);
+        mockPrismaService.team.findMany.mockResolvedValue([]);
+
+        await service.getTeamsForUser(1);
+
+        expect(mockPrismaService.teamMember.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { userId: 1, team: { deletedAt: null } } })
+        );
+        expect(mockPrismaService.team.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { pendingApproverId: 1, status: 'PENDING_APPROVAL', deletedAt: null } })
+        );
+      });
+
+      it("accepting or declining an invitation to a deleted team is 'not found'", async () => {
+        mockPrismaService.teamMember.findFirst.mockResolvedValue(null);
+        await expect(service.acceptMemberInvite(10, 5, 2)).rejects.toThrow(NotFoundException);
+        await expect(service.declineMemberInvite(10, 5, 2)).rejects.toThrow(NotFoundException);
+        expect(mockPrismaService.teamMember.findFirst).toHaveBeenCalledWith({ where: { id: 5, teamId: 10, team: { deletedAt: null } } });
+      });
     });
   });
 });

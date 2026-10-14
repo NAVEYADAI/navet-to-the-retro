@@ -5,6 +5,7 @@ import { getTeamSettingsPanelStyles } from './team-settings-panel.styles';
 import { TeamDetailsSection } from './team-details-section';
 import { CategoryListSection } from './category-list-section';
 import { TeamLogoSection } from './team-logo-section';
+import { DangerZoneSection } from './danger-zone-section';
 import { useTeamSettingsPanel } from '@/features/teams/hooks/use-team-settings-panel';
 
 export type { TeamCategory } from '@/features/teams/types';
@@ -89,6 +90,11 @@ export function TeamSettingsPanelWeb({ teamId, token, isTeamAdmin, teamName, tea
         createError={p.createError}
         onCreateCategory={p.handleCreateCategory}
       />
+
+      {/* Feature 14: deleting the team — any admin, exact name typed. */}
+      {isTeamAdmin && (
+        <DangerZoneSection teamId={teamId} teamName={teamName} token={token} onDeleted={onTeamDetailsUpdated} />
+      )}
     </Box>
   );
 }

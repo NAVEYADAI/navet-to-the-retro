@@ -1,10 +1,11 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { assertValidLogoFile, parseAccentHue } from './team-logo.util';
+import { isDeleted } from '../common/soft-delete';
 
 // Feature 19 (product-backlog/19-team-logo.md). Kept out of TeamsService, which is already large.
-// TODO(feature 14): when `Team.deletedAt` lands, every method here must treat a soft-deleted team
-// as 404 (§19.0 decision #13) — the `Cascade` on TeamLogo only fires on the eventual purge.
+// A soft-deleted team (feature 14) is 404 in every method here (§19.0 decision #13): the `Cascade` on
+// TeamLogo only fires on the eventual purge, so the logo bytes outlive the soft delete.
 @Injectable()
 export class TeamLogoService {
   constructor(private readonly prisma: PrismaService) {}
@@ -13,7 +14,7 @@ export class TeamLogoService {
   // approval, BUG-36: the approval e-mail already went out with the original details).
   private async assertCanEditLogo(teamId: number, requesterId: number) {
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     const membership = await this.prisma.teamMember.findUnique({
@@ -77,8 +78,8 @@ export class TeamLogoService {
   // ACTIVE and PENDING members both see the logo (§19.0 decision #9: an invited member already
   // sees the team's name).
   async getLogo(teamId: number, requesterId: number) {
-    const team = await this.prisma.team.findUnique({ where: { id: teamId }, select: { id: true } });
-    if (!team) {
+    const team = await this.prisma.team.findUnique({ where: { id: teamId }, select: { id: true, deletedAt: true } });
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     const membership = await this.prisma.teamMember.findUnique({

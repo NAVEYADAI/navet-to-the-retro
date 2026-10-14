@@ -13,6 +13,7 @@ import { CardNative, ButtonNative, MessageNative, rnText } from './native/settin
 import { ProfileFormCardNative } from './native/profile-form-card-native';
 import { AppearanceCardNative } from './native/appearance-card-native';
 import { GoogleCalendarCardNative, TelegramLinkCardNative } from './native/integration-cards-native';
+import { DeletedTeamsCardNative } from './native/deleted-teams-card-native';
 
 /**
  * Native settings screen (BUG-09). The web screen is built on MUI, which doesn't run in React
@@ -65,6 +66,7 @@ export function SettingsScreenNative() {
             <AppearanceCardNative />
             <GoogleCalendarCardNative />
             <TelegramLinkCardNative />
+            <DeletedTeamsCardNative />
 
             <CardNative title={Strings.settings.createTeamSectionTitle}>
               {teamMessage ? <MessageNative text={teamMessage.text} isError={teamMessage.isError} /> : null}

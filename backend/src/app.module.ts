@@ -11,11 +11,12 @@ import { InvitesModule } from './invites/invites.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 import { TeamCategoriesModule } from './team-categories/team-categories.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { SoftDeletePurgeBootstrap } from './common/soft-delete-purge.bootstrap';
 
 @Module({
   imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule, InvitesModule, GoogleCalendarModule, TeamCategoriesModule, TelegramModule],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [AppService, PrismaService, SoftDeletePurgeBootstrap],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

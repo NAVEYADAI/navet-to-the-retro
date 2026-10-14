@@ -4,6 +4,7 @@ import * as jwt from 'jsonwebtoken';
 import { PrismaService } from '../prisma.service';
 import { getJwtSecret } from '../config/jwt-secret';
 import { SingleUseTokenRegistry } from '../config/single-use-tokens';
+import { LIVE_SPRINT } from '../common/soft-delete';
 
 // `calendar.events` only covers reading/writing events on calendars that already exist — it does
 // NOT allow creating a new (secondary) calendar. Since `getOrCreateTeamCalendar` calls
@@ -384,7 +385,8 @@ export class GoogleCalendarService {
     if (memberships.length === 0) return;
 
     const sprints = await this.prisma.sprint.findMany({
-      where: { teamId: { in: memberships.map((m) => m.teamId) } },
+      // Feature 14: a soft-deleted sprint (or a sprint of a soft-deleted team) gets no event.
+      where: { teamId: { in: memberships.map((m) => m.teamId) }, ...LIVE_SPRINT },
       include: { team: { select: { name: true } } }
     });
 
@@ -561,6 +563,117 @@ export class GoogleCalendarService {
         );
         await this.markRevokedIfInvalidGrant(link.connectionId, err);
       }
+    }
+  }
+  /**
+   * Feature 14 (§14.0 technical default #2): a soft-deleted sprint disappears from every member's
+   * Google calendar immediately. Deletes the event on each connection and drops the
+   * `SprintGoogleEvent` link only once Google confirms it is gone (deleted, or already 404/410);
+   * a failed delete keeps its link and is logged. Best-effort, never throws — a Google outage must
+   * never block the deletion itself.
+   */
+  async syncSprintDeleted(sprintId: number, teamId: number): Promise<void> {
+    if (!this.isConfigured()) {
+      return;
+    }
+
+    let links: Array<{
+      id: number;
+      connectionId: number;
+      googleEventId: string;
+      connection: { id: number; accessToken: string; refreshToken: string };
+    }>;
+    try {
+      links = await this.prisma.sprintGoogleEvent.findMany({
+        where: { sprintId, connection: { isRevoked: false } },
+        include: { connection: true }
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to look up Google Calendar events of deleted sprint ${sprintId}`, err instanceof Error ? err.stack : err);
+      return;
+    }
+
+    for (const link of links) {
+      try {
+        const teamCalendar = await this.prisma.googleCalendarTeamCalendar.findUnique({
+          where: { connectionId_teamId: { connectionId: link.connectionId, teamId } }
+        });
+        if (teamCalendar) {
+          const calendar = this.buildCalendarClient(link.connection);
+          try {
+            await calendar.events.delete({ calendarId: teamCalendar.calendarId, eventId: link.googleEventId });
+          } catch (err) {
+            if (!this.isGoogleNotFound(err)) throw err;
+          }
+        }
+        await this.prisma.sprintGoogleEvent.delete({ where: { id: link.id } });
+      } catch (err) {
+        this.logger.warn(
+          `Failed to delete Google Calendar event for deleted sprint ${sprintId} on connection ${link.connectionId}`,
+          err instanceof Error ? err.stack : err
+        );
+        await this.markRevokedIfInvalidGrant(link.connectionId, err);
+      }
+    }
+  }
+
+  /**
+   * Feature 14: a soft-deleted team loses its dedicated secondary calendar on every member's
+   * Google account (`calendars.delete` removes its events with it), and the link rows for its
+   * sprints and the `GoogleCalendarTeamCalendar` row are dropped once Google confirms. Restoring
+   * the team re-creates the calendar and the events (`syncTeamRestored`). Best-effort, never throws.
+   */
+  async syncTeamDeleted(teamId: number): Promise<void> {
+    if (!this.isConfigured()) {
+      return;
+    }
+
+    let calendars: Array<{ id: number; connectionId: number; calendarId: string; connection: { id: number; accessToken: string; refreshToken: string } }>;
+    try {
+      calendars = await this.prisma.googleCalendarTeamCalendar.findMany({
+        where: { teamId, connection: { isRevoked: false } },
+        include: { connection: true }
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to look up Google calendars of deleted team ${teamId}`, err instanceof Error ? err.stack : err);
+      return;
+    }
+
+    for (const teamCalendar of calendars) {
+      try {
+        const calendar = this.buildCalendarClient(teamCalendar.connection);
+        try {
+          await calendar.calendars.delete({ calendarId: teamCalendar.calendarId });
+        } catch (err) {
+          if (!this.isGoogleNotFound(err)) throw err;
+        }
+        await this.prisma.sprintGoogleEvent.deleteMany({
+          where: { connectionId: teamCalendar.connectionId, sprint: { teamId } }
+        });
+        await this.prisma.googleCalendarTeamCalendar.delete({ where: { id: teamCalendar.id } });
+      } catch (err) {
+        this.logger.warn(
+          `Failed to delete Google Calendar of deleted team ${teamId} on connection ${teamCalendar.connectionId}`,
+          err instanceof Error ? err.stack : err
+        );
+        await this.markRevokedIfInvalidGrant(teamCalendar.connectionId, err);
+      }
+    }
+  }
+
+  /**
+   * Feature 14: restoring a sprint re-creates its event on every active connection, through the
+   * same path as a brand-new sprint (`syncSprintCreated`). A link kept because an earlier Google
+   * delete failed makes that one insert fail on the unique constraint — logged, harmless.
+   */
+  async syncSprintRestored(sprint: SprintCalendarInfo): Promise<void> {
+    await this.syncSprintCreated(sprint);
+  }
+
+  /** Feature 14: restoring a team re-creates its calendar (lazily, via the first event) and every live sprint's event. */
+  async syncTeamRestored(sprints: SprintCalendarInfo[]): Promise<void> {
+    for (const sprint of sprints) {
+      await this.syncSprintCreated(sprint);
     }
   }
 }

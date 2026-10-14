@@ -295,7 +295,8 @@ export class TelegramConversationService {
   private async getOpenTeamCandidates(userId: number): Promise<TeamCandidate[]> {
     const dayAnchor = getSprintDayAnchor();
     const memberships = await this.prisma.teamMember.findMany({
-      where: { userId, status: 'ACTIVE' },
+      // Feature 14: a soft-deleted team is not a candidate the bot offers.
+      where: { userId, status: 'ACTIVE', team: { deletedAt: null } },
       select: { teamId: true, team: { select: { name: true } } }
     });
     if (memberships.length === 0) return [];
@@ -303,6 +304,7 @@ export class TelegramConversationService {
     const openSprints = await this.prisma.sprint.findMany({
       where: {
         teamId: { in: memberships.map((m) => m.teamId) },
+        deletedAt: null,
         startDate: { lte: dayAnchor },
         endDate: { gte: dayAnchor }
       },
@@ -318,7 +320,7 @@ export class TelegramConversationService {
   private async getOpenSprintsForTeam(teamId: number): Promise<SprintCandidate[]> {
     const dayAnchor = getSprintDayAnchor();
     const sprints = await this.prisma.sprint.findMany({
-      where: { teamId, startDate: { lte: dayAnchor }, endDate: { gte: dayAnchor } },
+      where: { teamId, deletedAt: null, team: { deletedAt: null }, startDate: { lte: dayAnchor }, endDate: { gte: dayAnchor } },
       select: { id: true, name: true },
       orderBy: { startDate: 'asc' }
     });
@@ -339,8 +341,12 @@ export class TelegramConversationService {
     });
     if (!membership || membership.status !== 'ACTIVE') return false;
 
-    const sprint = await this.prisma.sprint.findUnique({ where: { id: link.activeSprintId! } });
-    if (!sprint || sprint.teamId !== link.activeTeamId) return false;
+    // Feature 14: a sprint (or its team) deleted after the context was set invalidates it.
+    const sprint = await this.prisma.sprint.findUnique({
+      where: { id: link.activeSprintId! },
+      include: { team: { select: { deletedAt: true } } }
+    });
+    if (!sprint || sprint.deletedAt || sprint.team?.deletedAt || sprint.teamId !== link.activeTeamId) return false;
     if (!isSprintOpenNow(sprint, now)) return false;
 
     if (link.contextStickyHours != null && link.contextSetAt != null) {

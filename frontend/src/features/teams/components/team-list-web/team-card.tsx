@@ -143,7 +143,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
               />
             ))}
           </Box>
-          {canLeave && <LeaveTeamSection teamName={team.name} state={leave} />}
+          {canLeave && <LeaveTeamSection teamName={team.name} state={leave} onDeleteTeam={isTeamAdmin ? () => { trackEvent('leave_last_member_delete_team_clicked', { teamId: team.id }); leave.cancel(); setOpenPanel('settings'); } : undefined} />}
         </Box>
       )}
 

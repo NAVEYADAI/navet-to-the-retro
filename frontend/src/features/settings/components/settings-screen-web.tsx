@@ -7,6 +7,7 @@ import { ProfileFormCard } from './profile-form-card';
 import { AppearanceCard } from './appearance-card';
 import { GoogleCalendarCard } from './google-calendar-card';
 import { TelegramLinkCard } from './telegram-link-card';
+import { DeletedTeamsCard } from './deleted-teams-card';
 import { useProfileForm } from '../hooks/use-profile-form';
 import { useTeamsAdmin } from '../hooks/use-teams-admin';
 import { useTheme } from '@/design/theme-context';
@@ -58,6 +59,7 @@ export function SettingsScreenWeb() {
           <AppearanceCard />
           <GoogleCalendarCard />
           <TelegramLinkCard />
+          <DeletedTeamsCard />
         </Box>
 
         <Card padding={5}>

@@ -5,7 +5,7 @@ import { TeamsService } from './teams.service';
 import { TeamLogoService } from './team-logo.service';
 import { AuthService } from '../auth/auth.service';
 import { IntIdPipe } from '../common/validation';
-import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto, RemoveMemberDto, LeaveTeamDto } from './dto/teams.dto';
+import { CreateTeamDto, AddMemberDto, UpdateMemberDto, CreatePhantomMemberDto, RemoveMemberDto, LeaveTeamDto, DeleteTeamDto } from './dto/teams.dto';
 
 @Controller('teams')
 export class TeamsController {
@@ -76,6 +76,32 @@ export class TeamsController {
   ) {
     const user = await this.authService.validateToken(authHeader);
     return this.teamsService.declineMemberInvite(teamId, memberId, user.id);
+  }
+
+  // Feature 14. Static segments ('deleted') are declared before every ':id' route.
+  @Get('deleted')
+  async findDeleted(@Headers('authorization') authHeader: string) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamsService.findDeletedTeams(user.id);
+  }
+
+  @Delete(':id')
+  async remove(
+    @Headers('authorization') authHeader: string,
+    @Param('id', IntIdPipe) teamId: number,
+    @Body() dto: DeleteTeamDto
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamsService.deleteTeam(teamId, dto, user.id);
+  }
+
+  @Post(':id/restore')
+  async restore(
+    @Headers('authorization') authHeader: string,
+    @Param('id', IntIdPipe) teamId: number
+  ) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.teamsService.restoreTeam(teamId, user.id);
   }
 
   @Get('user/me')

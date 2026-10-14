@@ -8,6 +8,7 @@ import {
   assertOptionalEnum,
   assertOptionalPositiveInt
 } from '../common/validation';
+import { isDeleted } from '../common/soft-delete';
 
 // BUG-15: values the Prisma `CommentType` enum accepts.
 const COMMENT_TYPE_VALUES = ['KEEP', 'IMPROVE'];
@@ -30,10 +31,12 @@ export class CommentsService {
     assertOptionalPositiveInt(dto.onBehalfOfUserId, 'מזהה המשתמש לא תקין');
 
     // 1. Verify sprint exists
+    // Feature 14: a soft-deleted sprint — or a sprint of a soft-deleted team — does not exist.
     const sprint = await this.prisma.sprint.findUnique({
-      where: { id: sprintId }
+      where: { id: sprintId },
+      include: { team: { select: { deletedAt: true } } }
     });
-    if (!sprint) {
+    if (!sprint || isDeleted(sprint) || isDeleted(sprint.team)) {
       throw new NotFoundException('Sprint not found');
     }
 
@@ -137,10 +140,12 @@ export class CommentsService {
 
   async getCommentsForSprint(sprintId: number, requesterId: number) {
     // 1. Verify sprint exists
+    // Feature 14: a soft-deleted sprint — or a sprint of a soft-deleted team — does not exist.
     const sprint = await this.prisma.sprint.findUnique({
-      where: { id: sprintId }
+      where: { id: sprintId },
+      include: { team: { select: { deletedAt: true } } }
     });
-    if (!sprint) {
+    if (!sprint || isDeleted(sprint) || isDeleted(sprint.team)) {
       throw new NotFoundException('Sprint not found');
     }
 
@@ -238,8 +243,12 @@ export class CommentsService {
       throw new BadRequestException('ערך ההדגשה לא תקין');
     }
 
-    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
-    if (!comment) {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      include: { sprint: { select: { deletedAt: true, team: { select: { deletedAt: true } } } } }
+    });
+    // Feature 14: comments of a soft-deleted sprint/team are hidden until it is restored.
+    if (!comment || isDeleted(comment.sprint) || isDeleted(comment.sprint?.team)) {
       throw new NotFoundException('Comment not found');
     }
 

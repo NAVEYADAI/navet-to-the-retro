@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma.service';
 import { CreateTeamCategoryDto, UpdateTeamCategoryDto } from './dto/team-categories.dto';
 import { assertCanManageTeamContent } from '../teams/team-permissions.util';
 import { assertOptionalBoolean } from '../common/validation';
+import { isDeleted } from '../common/soft-delete';
 
 // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.1), built
 // on the same shape as invites.service.ts (see backend/AGENTS.md's "per-team-owned entities"
@@ -34,7 +35,7 @@ export class TeamCategoriesService {
   // who don't request it and can ignore the field.
   async listCategories(teamId: number, requesterId: number, enabledOnly: boolean, sprintIds?: number[]) {
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     await this.assertIsTeamMember(teamId, requesterId);
@@ -61,7 +62,7 @@ export class TeamCategoriesService {
 
   async createCategory(teamId: number, dto: CreateTeamCategoryDto, requesterId: number) {
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     await assertCanManageTeamContent(this.prisma, teamId, requesterId);
@@ -86,7 +87,7 @@ export class TeamCategoriesService {
   // MVP: toggle isEnabled only — no rename, no hard delete (§3.0 decision #3, "לא בטיפול").
   async updateCategory(teamId: number, categoryId: number, dto: UpdateTeamCategoryDto, requesterId: number) {
     const team = await this.prisma.team.findUnique({ where: { id: teamId } });
-    if (!team) {
+    if (!team || isDeleted(team)) {
       throw new NotFoundException('Team not found');
     }
     await assertCanManageTeamContent(this.prisma, teamId, requesterId);

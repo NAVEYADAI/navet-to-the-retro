@@ -222,8 +222,8 @@ describe('SprintRetroBoard Component', () => {
       })
     );
     expect(input.props.value).toBe('');
-    // 2 GETs on mount (comments + team categories) + 1 more GET (fetchComments) after posting.
-    expect(mockedAxios.get).toHaveBeenCalledTimes(3);
+    // 4 GETs on mount (comments + team categories + sprint focus points + proposed comments) + 1 more GET (fetchComments) after posting.
+    expect(mockedAxios.get).toHaveBeenCalledTimes(5);
   });
 
   describe('filtering comments', () => {

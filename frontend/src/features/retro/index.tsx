@@ -10,6 +10,7 @@ interface SprintRetroBoardProps {
   onBack: () => void;
   onOpenSummary: () => void;
   onOpenMemory: () => void;
+  onOpenFocusPoints?: () => void;
 }
 
 export function SprintRetroBoard(props: SprintRetroBoardProps) {

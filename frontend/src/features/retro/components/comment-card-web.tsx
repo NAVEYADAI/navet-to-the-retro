@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { Icon, Badge, TeamLogo } from '@/components/ui';
+import { Icon, Badge, Button, TeamLogo } from '@/components/ui';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 
 interface CommentCardWebProps {
@@ -25,9 +25,13 @@ interface CommentCardWebProps {
   onToggleHighlight?: (commentId: number, nextValue: boolean) => void;
   /** פיצ'ר 19, החלטה #10: סימן אנונימיות — לוגו הצוות לפני המילה "אנונימי". */
   teamLogo?: { teamId: number; name: string; logoUpdatedAt?: string | null };
+  /** פיצ'ר 20: "הצע כנקודה" — כל חבר צוות. כשלא מועבר, הכפתור לא מוצג (למשל בלוח הזיכרון). */
+  onPropose?: (commentId: number) => void;
+  /** פיצ'ר 20: המשתמש כבר הציע את ההערה הזו (אותו חבר לא מציע פעמיים). */
+  isProposed?: boolean;
 }
 
-export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamLogo }: CommentCardWebProps) {
+export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamLogo, onPropose, isProposed }: CommentCardWebProps) {
   const t = useTheme();
   const isKeep = comment.type === 'KEEP';
   const accent = isKeep ? t.color.status.success : t.color.status.danger;
@@ -142,6 +146,32 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamL
             </bdi>
           </Typography>
         </Box>
+
+        {onPropose && (
+          // פיצ'ר 20: שורת פעולה נפרדת מתחת לפרטי ההערה (קו מפריד), עם תווית שמסבירה מה הכפתור עושה.
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: `${t.space[2]}px`,
+              borderTop: `1px solid ${t.color.border}`,
+              paddingTop: `${t.space[3]}px`,
+              marginTop: `${t.space[1]}px`,
+            }}
+          >
+            {isProposed ? (
+              <Badge tone="success" icon="check">{Strings.focusPoints.proposedBadge}</Badge>
+            ) : (
+              <Button variant="secondary" size="sm" icon="target" onPress={() => onPropose(comment.id)}>
+                {isKeep ? Strings.focusPoints.proposeKeepButton : Strings.focusPoints.proposeButton}
+              </Button>
+            )}
+            <Typography sx={{ ...t.type.caption, color: t.color.textMuted, flex: '1 1 160px', minWidth: 0 }}>
+              {isProposed ? Strings.focusPoints.proposedHint : Strings.focusPoints.proposeHint}
+            </Typography>
+          </Box>
+        )}
       </Box>
     </Box>
   );

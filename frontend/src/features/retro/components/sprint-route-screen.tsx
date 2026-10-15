@@ -9,7 +9,7 @@ import { MaxContentWidth } from '@/constants/theme';
 import { SprintRetroBoard } from '@/features/retro';
 import { MemoryBoard } from './memory-board';
 import { SprintSummary } from '@/features/sprint-summary';
-import { goBackOr, openSprint, sprintPath, type SprintView } from '@/lib/sprint-routes';
+import { goBackOr, openFocusPoints, openSprint, sprintPath, type SprintView } from '@/lib/sprint-routes';
 import { useSprintRouteData } from '../hooks/use-sprint-route-data';
 import { SprintRouteStateNative } from './sprint-route-state-native';
 
@@ -47,6 +47,7 @@ export function SprintRouteScreen({ view }: { view: SprintView }) {
         onBack={goToDashboard}
         onOpenSummary={() => openSprint(team.id, sprint.id, 'summary')}
         onOpenMemory={() => openSprint(team.id, sprint.id, 'memory')}
+        onOpenFocusPoints={() => openFocusPoints(team.id)}
       />
     );
   }

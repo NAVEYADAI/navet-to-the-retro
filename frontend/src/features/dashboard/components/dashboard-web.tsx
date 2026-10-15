@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { router } from 'expo-router';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
 import { TeamList } from '@/features/teams';
+import { MyFocusTasksCard } from '@/features/focus-points';
 import { Strings } from '@/constants/strings';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
@@ -18,6 +19,8 @@ export function DashboardWeb() {
   const { teams, isLoadingTeams, isRefreshing, loadError, setSelectedTeam, fetchMyTeams, refresh } = useTeamsData(token);
   // כל כרטיס מדווח כמה ספרינטים פעילים יש לו אחרי שטען אותם — לשורת הסיכום מתחת לכותרת.
   const [activeByTeam, setActiveByTeam] = useState<Record<number, number>>({});
+  // פיצ'ר 20: כפתור הרענון מושך מחדש גם את "המשימות שלי".
+  const [myTasksRefreshKey, setMyTasksRefreshKey] = useState(0);
 
   useEffect(() => subscribeGoHome(() => {
     setSelectedTeam(null);
@@ -46,7 +49,7 @@ export function DashboardWeb() {
               size="sm"
               icon="refresh"
               iconOnlyOnMobile
-              onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
+              onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); setMyTasksRefreshKey((k) => k + 1); }}
               disabled={isLoadingTeams || isRefreshing}
             >
               {Strings.common.refreshButton}
@@ -69,6 +72,8 @@ export function DashboardWeb() {
           {loadError}
         </Alert>
       ) : null}
+
+      <MyFocusTasksCard token={token} refreshKey={myTasksRefreshKey} />
 
       {isLoadingTeams ? (
         <Box

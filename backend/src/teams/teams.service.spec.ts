@@ -56,6 +56,9 @@ describe('TeamsService', () => {
       delete: jest.fn(),
       count: jest.fn(),
     },
+    // Feature 20: a leaving member's ratings/proposals lose their identity (the scores stay).
+    focusPointRating: { updateMany: jest.fn() },
+    focusPointProposal: { updateMany: jest.fn() },
     // Feature 11: the Telegram bot's sticky team context is cleared when its user leaves the team.
     userMessagingLink: {
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -737,6 +740,22 @@ describe('TeamsService', () => {
 
     beforeEach(() => {
       mockPrismaService.team.findUnique.mockResolvedValue(mockTeam);
+    });
+
+    it('erases the leaving member\'s identity from ratings and proposals but keeps them (feature 20)', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(me);
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(3);
+
+      await service.leaveTeam(mockTeam.id, me.userId);
+
+      expect(mockPrismaService.focusPointRating.updateMany).toHaveBeenCalledWith({
+        where: { userId: me.userId, focusPoint: { teamId: mockTeam.id } },
+        data: { userId: null },
+      });
+      expect(mockPrismaService.focusPointProposal.updateMany).toHaveBeenCalledWith({
+        where: { userId: me.userId, comment: { teamId: mockTeam.id } },
+        data: { userId: null },
+      });
     });
 
     it('throws NotFoundException when the team does not exist', async () => {

@@ -14,6 +14,11 @@ export function openSprint(teamId: number | string, sprintId: number | string, v
   router.push(sprintPath(teamId, sprintId, view) as Href);
 }
 
+/** Feature 20: the management space (team leader / admin) for improvement points. */
+export function openFocusPoints(teamId: number | string): void {
+  router.push(`/team/${teamId}/focus-points` as Href);
+}
+
 /**
  * "Back" inside the app: pops the stack when there is something to pop; after a refresh or a
  * deep link the sprint route is the only entry, so go to `fallback` instead of leaving the app.

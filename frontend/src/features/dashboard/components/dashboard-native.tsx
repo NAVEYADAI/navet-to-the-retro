@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreateTeamForm, TeamList } from '@/features/teams';
+import { MyFocusTasksCard } from '@/features/focus-points';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
@@ -41,6 +42,8 @@ export function DashboardNative() {
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   // כל כרטיס מדווח כמה ספרינטים פעילים יש לו אחרי שטען אותם — לשורת הסיכום מתחת לכותרת.
   const [activeByTeam, setActiveByTeam] = useState<Record<number, number>>({});
+  // פיצ'ר 20: כפתור הרענון מושך מחדש גם את "המשימות שלי".
+  const [myTasksRefreshKey, setMyTasksRefreshKey] = useState(0);
 
   const { teams, isLoadingTeams, isRefreshing, loadError, fetchMyTeams, refresh } = useTeamsData(token);
 
@@ -107,7 +110,7 @@ export function DashboardNative() {
                   accessibilityRole="button"
                   accessibilityLabel={Strings.common.refreshButton}
                   style={{ width: t.layout.minTouchTarget, height: t.layout.minTouchTarget, alignItems: 'center', justifyContent: 'center' }}
-                  onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); }}
+                  onPress={() => { trackEvent('refresh_clicked', { screen: 'dashboard' }); refresh(); setMyTasksRefreshKey((k) => k + 1); }}
                   disabled={isLoadingTeams || isRefreshing}
                 >
                   <Icon name="refresh" size="sm" tone="muted" />
@@ -153,6 +156,8 @@ export function DashboardNative() {
                 </Text>
               </View>
             )}
+
+            <MyFocusTasksCard token={token} refreshKey={myTasksRefreshKey} />
 
             {isLoadingTeams ? (
               <View style={{ padding: t.space[4], alignItems: 'center', gap: t.space[2] }}>

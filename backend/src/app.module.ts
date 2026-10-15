@@ -10,11 +10,12 @@ import { SprintsModule } from './sprints/sprints.module';
 import { InvitesModule } from './invites/invites.module';
 import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 import { TeamCategoriesModule } from './team-categories/team-categories.module';
+import { FocusPointsModule } from './focus-points/focus-points.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { SoftDeletePurgeBootstrap } from './common/soft-delete-purge.bootstrap';
 
 @Module({
-  imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule, InvitesModule, GoogleCalendarModule, TeamCategoriesModule, TelegramModule],
+  imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule, InvitesModule, GoogleCalendarModule, TeamCategoriesModule, FocusPointsModule, TelegramModule],
   controllers: [AppController],
   providers: [AppService, PrismaService, SoftDeletePurgeBootstrap],
 })

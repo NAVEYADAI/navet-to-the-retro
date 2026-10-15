@@ -51,6 +51,14 @@ model User {
   sprintLengthChanges       SprintLengthChange[]
   createdCommentCategories  TeamCommentCategory[]      @relation("TeamCommentCategoryCreator")
   messagingLinks            UserMessagingLink[]
+  createdFocusPoints        FocusPoint[]               @relation("FocusPointCreator")
+  focusPointTextChanges     FocusPointTextVersion[]    @relation("FocusPointTextChanger")
+  focusPointProposals       FocusPointProposal[]
+  focusPointSelections      FocusPointSprint[]
+  focusPointRatings         FocusPointRating[]
+  sprintRatingCloses        SprintRatingClose[]
+  assignedFocusPointTasks   FocusPointTask[]           @relation("FocusPointTaskAssignee")
+  createdFocusPointTasks    FocusPointTask[]           @relation("FocusPointTaskCreator")
 }
 
 // Feature 10 (telegram comment ingestion, product-backlog/10-telegram-comment-ingestion.md §10.0
@@ -70,24 +78,24 @@ enum MessagingChannel {
 }
 
 model UserMessagingLink {
-  id                    Int               @id @default(autoincrement())
-  userId                Int
-  channel               MessagingChannel
-  externalId            String
-  isRevoked             Boolean           @default(false)
-  activeTeamId          Int?
-  activeSprintId        Int?
-  pendingCommentContent String?
-  pendingCommentType    CommentType?
-  lastProcessedUpdateId Int?
-  linkedAt              DateTime          @default(now())
+  id                     Int              @id @default(autoincrement())
+  userId                 Int
+  channel                MessagingChannel
+  externalId             String
+  isRevoked              Boolean          @default(false)
+  activeTeamId           Int?
+  activeSprintId         Int?
+  pendingCommentContent  String?
+  pendingCommentType     CommentType?
+  lastProcessedUpdateId  Int?
+  linkedAt               DateTime         @default(now())
   // Team/sprint context stickiness (Nave's explicit ask, 2026-09-27 — supersedes the earlier
   // "no time-based expiry" decision in product-backlog/10-*.md §10.0 #5). `contextSetAt` is
   // refreshed whenever activeTeamId/activeSprintId is (re)confirmed; `contextStickyHours` is a
   // per-link, user-configurable duration (null = never expire, back to the original behavior) —
   // configured via `PATCH /auth/telegram/link/settings`.
-  contextSetAt          DateTime?
-  contextStickyHours    Int?              @default(24)
+  contextSetAt           DateTime?
+  contextStickyHours     Int?             @default(24)
   // Set only by an explicit "↩️ חזור" from the Keep/Improve stage back to team/sprint selection —
   // forces an explicit re-ask even when there's only one team/sprint candidate (normally silent),
   // so the user can confirm or change it. Cleared once team+sprint are both resolved again.
@@ -132,6 +140,9 @@ model Team {
   invites           TeamInvite[]
   googleCalendars   GoogleCalendarTeamCalendar[]
   commentCategories TeamCommentCategory[]
+  focusPoints       FocusPoint[]
+  // Feature 20 §20.0 decision #10: how many improvement points management may select per sprint.
+  focusPointQuota   Int                          @default(3)
   // Feature 19 (team logo, product-backlog/19-team-logo.md §19.0): the image bytes live in
   // `TeamLogo` so every query that includes `Team` doesn't drag a blob along. `logoUpdatedAt`
   // doubles as "has a logo" (null = none) and the cache-buster in the logo URL; `accentHue`
@@ -281,24 +292,27 @@ enum CommentType {
 }
 
 model Sprint {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   name        String
   description String?
   startDate   DateTime
   endDate     DateTime
   teamId      Int
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   // Feature 14 (product-backlog/14-sprint-and-team-deletion.md): soft delete. A non-null
   // `deletedAt` means "deleted, restorable for 30 days"; after that the purge hard-deletes the row
   // and the existing cascades remove comments / Google events / length history with it.
   deletedAt   DateTime?
   deletedById Int?
 
-  team         Team                @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  deletedBy    User?               @relation("SprintDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
-  comments     Comment[]
-  googleEvents SprintGoogleEvent[]
-  lengthChanges SprintLengthChange[]
+  team                 Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  deletedBy            User?                @relation("SprintDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  comments             Comment[]
+  googleEvents         SprintGoogleEvent[]
+  lengthChanges        SprintLengthChange[]
+  focusPointSelections FocusPointSprint[]
+  focusPointRatings    FocusPointRating[]
+  ratingClose          SprintRatingClose?
 }
 
 // Feature 5 (product-backlog/05-sprint-length-audit-log.md §5.0 decision #2): append-only audit
@@ -323,12 +337,12 @@ model SprintLengthChange {
 }
 
 model Comment {
-  id              Int          @id @default(autoincrement())
+  id              Int         @id @default(autoincrement())
   content         String
   type            CommentType
-  isAnonymous     Boolean      @default(false)
-  isHighlighted   Boolean      @default(false)
-  createdAt       DateTime     @default(now())
+  isAnonymous     Boolean     @default(false)
+  isHighlighted   Boolean     @default(false)
+  createdAt       DateTime    @default(now())
   authorId        Int
   teamId          Int
   sprintId        Int
@@ -346,9 +360,164 @@ model Comment {
   // teams' comments were migrated from the old `category` enum to this field.
   categoryId      Int?
 
-  author   User                 @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  postedByAdmin User?           @relation("CommentPostedByAdmin", fields: [postedByAdminId], references: [id], onDelete: SetNull)
-  team     Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  sprint   Sprint               @relation(fields: [sprintId], references: [id], onDelete: Cascade)
-  category TeamCommentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author              User                 @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  postedByAdmin       User?                @relation("CommentPostedByAdmin", fields: [postedByAdminId], references: [id], onDelete: SetNull)
+  team                Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  sprint              Sprint               @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  category            TeamCommentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  focusPointSources   FocusPointSource[]
+  focusPointProposals FocusPointProposal[]
+}
+
+// Feature 20 (product-backlog/20-issue-tracking.md): improvement points tracked across sprints.
+// Team-owned entities (per-team pattern, backend/AGENTS.md). Anonymity rule (§20.0 #15, #20): a
+// rating / proposal keeps `userId` only to enforce "one per member"; the API never returns it, and
+// it is nulled when the member leaves the team or deletes the account — the scores stay.
+enum FocusPointKind {
+  IMPROVE
+  KEEP
+}
+
+enum FocusPointStatus {
+  ACTIVE
+  CLOSED
+  ARCHIVED
+  MERGED
+}
+
+enum FocusPointProposalStatus {
+  PENDING
+  MERGED
+  DISMISSED
+}
+
+enum FocusPointTaskStatus {
+  OPEN
+  DONE
+  DROPPED
+}
+
+model FocusPoint {
+  id               Int              @id @default(autoincrement())
+  teamId           Int
+  kind             FocusPointKind
+  text             String
+  status           FocusPointStatus @default(ACTIVE)
+  // IMPROVE only: the starting score management sets when the point enters the pool (1-5).
+  initialScore     Int?
+  // "Keep watching for N more sprints" — counts only sprints with a valid rating (§20.0 #18).
+  watchSprintsLeft Int?
+  mergedIntoId     Int?
+  createdById      Int?
+  createdAt        DateTime         @default(now())
+  closedAt         DateTime?
+
+  team       Team                    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  createdBy  User?                   @relation("FocusPointCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  mergedInto FocusPoint?             @relation("FocusPointMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom FocusPoint[]            @relation("FocusPointMerge")
+  versions   FocusPointTextVersion[]
+  sources    FocusPointSource[]
+  proposals  FocusPointProposal[]
+  selections FocusPointSprint[]
+  ratings    FocusPointRating[]
+  tasks      FocusPointTask[]
+
+  @@index([teamId, status])
+}
+
+model FocusPointTextVersion {
+  id           Int      @id @default(autoincrement())
+  focusPointId Int
+  text         String
+  changedById  Int?
+  createdAt    DateTime @default(now())
+
+  focusPoint FocusPoint @relation(fields: [focusPointId], references: [id], onDelete: Cascade)
+  changedBy  User?      @relation("FocusPointTextChanger", fields: [changedById], references: [id], onDelete: SetNull)
+}
+
+model FocusPointSource {
+  id           Int @id @default(autoincrement())
+  focusPointId Int
+  commentId    Int
+
+  focusPoint FocusPoint @relation(fields: [focusPointId], references: [id], onDelete: Cascade)
+  comment    Comment    @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([focusPointId, commentId])
+}
+
+model FocusPointProposal {
+  id           Int                      @id @default(autoincrement())
+  commentId    Int
+  userId       Int?
+  focusPointId Int?
+  status       FocusPointProposalStatus @default(PENDING)
+  createdAt    DateTime                 @default(now())
+
+  comment    Comment     @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  focusPoint FocusPoint? @relation(fields: [focusPointId], references: [id], onDelete: SetNull)
+
+  @@unique([commentId, userId])
+}
+
+model FocusPointSprint {
+  id           Int      @id @default(autoincrement())
+  focusPointId Int
+  sprintId     Int
+  selectedById Int?
+  createdAt    DateTime @default(now())
+
+  focusPoint FocusPoint @relation(fields: [focusPointId], references: [id], onDelete: Cascade)
+  sprint     Sprint     @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  selectedBy User?      @relation(fields: [selectedById], references: [id], onDelete: SetNull)
+
+  @@unique([focusPointId, sprintId])
+}
+
+model FocusPointRating {
+  id            Int      @id @default(autoincrement())
+  focusPointId  Int
+  // Nulled when the sprint is purged (feature 14) — the score history survives, `sprintEndedAt` orders it.
+  sprintId      Int?
+  sprintEndedAt DateTime
+  userId        Int?
+  score         Int
+  // Optional "why". Stored with the rater but exposed by no endpoint (§20.0 #15).
+  reason        String?
+  updatedAt     DateTime @updatedAt
+
+  focusPoint FocusPoint @relation(fields: [focusPointId], references: [id], onDelete: Cascade)
+  sprint     Sprint?    @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  user       User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([focusPointId, sprintId])
+}
+
+model SprintRatingClose {
+  id         Int      @id @default(autoincrement())
+  sprintId   Int      @unique
+  closedById Int?
+  closedAt   DateTime @default(now())
+
+  sprint   Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  closedBy User?  @relation(fields: [closedById], references: [id], onDelete: SetNull)
+}
+
+model FocusPointTask {
+  id           Int                  @id @default(autoincrement())
+  focusPointId Int
+  title        String
+  assigneeId   Int?
+  status       FocusPointTaskStatus @default(OPEN)
+  dueDate      DateTime?
+  createdById  Int?
+  createdAt    DateTime             @default(now())
+  closedAt     DateTime?
+
+  focusPoint FocusPoint @relation(fields: [focusPointId], references: [id], onDelete: Cascade)
+  assignee   User?      @relation("FocusPointTaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy  User?      @relation("FocusPointTaskCreator", fields: [createdById], references: [id], onDelete: SetNull)
 }

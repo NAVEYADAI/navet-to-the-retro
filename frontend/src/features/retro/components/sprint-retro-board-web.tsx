@@ -11,6 +11,7 @@ import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
 import { SprintLengthHistoryPanelWeb } from './sprint-length-history-panel-web';
 import { trackEvent } from '@/lib/analytics';
+import { SprintFocusPointsSection, useSprintFocusPoints } from '@/features/focus-points';
 import { formatDateRange } from '@/lib/format-date';
 import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
 
@@ -23,6 +24,8 @@ interface SprintRetroBoardWebProps {
   /** Summary and memory board are their own routes (BUG-33) — the screen owns navigation. */
   onOpenSummary: () => void;
   onOpenMemory: () => void;
+  /** Feature 20: navigation to the management space (team leader / admin) — the screen owns it. */
+  onOpenFocusPoints?: () => void;
 }
 
 // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
@@ -38,7 +41,7 @@ interface TeamCategory {
   createdAt: string;
 }
 
-export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenSummary, onOpenMemory }: SprintRetroBoardWebProps) {
+export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenSummary, onOpenMemory, onOpenFocusPoints }: SprintRetroBoardWebProps) {
   const t = useTheme();
   const [comments, setComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,6 +49,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
   const [loadError, setLoadError] = useState<string | null>(null);
   // BUG-53: bumped after each successful sprint edit so the length-history panel refetches.
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  // Feature 20: this sprint's improvement points + my ratings/proposals.
+  const focus = useSprintFocusPoints(sprint.id, token);
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -214,6 +219,15 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
     }
   };
 
+  const handlePropose = async (commentId: number) => {
+    try {
+      await focus.propose(commentId);
+    } catch (err) {
+      console.error('Failed to propose a focus point:', err);
+      setError(Strings.focusPoints.proposeError);
+    }
+  };
+
   const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
   // BUG-54: the "highlighted only" toggle is a filter too — with it on and zero hits the column
@@ -297,6 +311,11 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                 {Strings.sprintDeletion.deleteButton}
               </Button>
             ) : null}
+            {canHighlight && onOpenFocusPoints ? (
+              <Button variant="ghost" size="sm" icon="target" onPress={() => { trackEvent('focus_points_opened', { screen: 'retro_board' }); onOpenFocusPoints?.(); }}>
+                {Strings.focusPoints.openButton}
+              </Button>
+            ) : null}
             {canExportSummary ? (
               <Button variant="ghost" size="sm" icon="presentation" onPress={() => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); }}>
                 {Strings.sprintSummary.openButton}
@@ -316,7 +335,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
               size="sm"
               icon="refresh"
               iconOnlyOnMobile
-              onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); }}
+              onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); }}
               disabled={isLoading}
             >
               {Strings.common.refreshButton}
@@ -400,6 +419,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
       {canViewLengthHistory && (
         <SprintLengthHistoryPanelWeb teamId={team.id} sprintId={sprintData.id} token={token} refreshKey={historyRefreshKey} />
       )}
+
+      <SprintFocusPointsSection focus={focus} />
 
       {/* Compose form */}
       <Card>
@@ -587,6 +608,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                   canHighlight={canHighlight}
                   onToggleHighlight={handleToggleHighlight}
                   teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }}
+                  onPropose={handlePropose}
+                  isProposed={focus.proposedIds.includes(comment.id)}
                 />
               ))
             )}
@@ -625,6 +648,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                   canHighlight={canHighlight}
                   onToggleHighlight={handleToggleHighlight}
                   teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }}
+                  onPropose={handlePropose}
+                  isProposed={focus.proposedIds.includes(comment.id)}
                 />
               ))
             )}

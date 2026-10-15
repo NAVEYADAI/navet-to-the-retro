@@ -22,6 +22,7 @@ import { LoadErrorNative } from '@/components/load-error-native';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
 import { SprintLengthHistoryPanelNative } from './sprint-length-history-panel-native';
 import { trackEvent } from '@/lib/analytics';
+import { SprintFocusPointsSection, useSprintFocusPoints } from '@/features/focus-points';
 import { formatDate, formatTime, formatDateRange } from '@/lib/format-date';
 import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
@@ -36,6 +37,8 @@ interface SprintRetroBoardProps {
   /** Summary and memory board are their own routes (BUG-33) — the screen owns navigation. */
   onOpenSummary: () => void;
   onOpenMemory: () => void;
+  /** Feature 20: navigation to the management space (team leader / admin) — the screen owns it. */
+  onOpenFocusPoints?: () => void;
 }
 
 // Feature 3 (team comment categories, product-backlog/03-team-comment-categories.md §3.2): the
@@ -74,7 +77,7 @@ function editFieldStyle(t: ReturnType<typeof useTheme>): TextStyle {
   };
 }
 
-export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOpenSummary, onOpenMemory }: SprintRetroBoardProps) {
+export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOpenSummary, onOpenMemory, onOpenFocusPoints }: SprintRetroBoardProps) {
   const t = useTheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -83,6 +86,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
   const [isLoading, setIsLoading] = useState(true);
   // BUG-34: a failed comments load must not render as "no notes yet".
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Feature 20: this sprint's improvement points + my ratings/proposals.
+  const focus = useSprintFocusPoints(sprint.id, token);
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -224,6 +229,15 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
     (filterCategories.length === 0 || filterCategories.includes(String(c.categoryId))) &&
     (!filterText.trim() || c.content?.toLowerCase().includes(filterText.trim().toLowerCase())) &&
     (!highlightedOnly || c.isHighlighted);
+
+  const handlePropose = async (commentId: number) => {
+    try {
+      await focus.propose(commentId);
+    } catch (err) {
+      console.error('Failed to propose a focus point:', err);
+      setError(Strings.focusPoints.proposeError);
+    }
+  };
 
   const keepComments = comments.filter(c => c.type === 'KEEP' && matchesFilters(c));
   const improveComments = comments.filter(c => c.type === 'IMPROVE' && matchesFilters(c));
@@ -373,6 +387,32 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
             {`${formatDate(comment.createdAt)} · ${formatTime(comment.createdAt)}`}
           </Text>
         </View>
+        {/* פיצ'ר 20: שורת פעולה נפרדת מתחת לפרטי ההערה, עם תווית שמסבירה מה הכפתור עושה. */}
+        <View style={{ borderTopWidth: 1, borderTopColor: t.color.border, paddingTop: t.space[2], gap: t.space[1] }}>
+          {focus.proposedIds.includes(comment.id) ? (
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1] }}>
+              <Icon name="check" size="sm" tone="success" />
+              <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.status.success.fg }]}>{Strings.focusPoints.proposedBadge}</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => handlePropose(comment.id)}
+              style={{
+                alignSelf: 'flex-end', flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1], minHeight: t.layout.minTouchTarget,
+                paddingHorizontal: t.space[3], borderRadius: t.radius.field, borderWidth: 1, borderColor: t.color.borderStrong, backgroundColor: t.color.surface,
+              }}
+            >
+              <Icon name="target" size="sm" tone="default" />
+              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                {comment.type === 'KEEP' ? Strings.focusPoints.proposeKeepButton : Strings.focusPoints.proposeButton}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <Text style={[rnText(t.type.caption), { color: t.color.textMuted, textAlign: 'right' }]}>
+            {focus.proposedIds.includes(comment.id) ? Strings.focusPoints.proposedHint : Strings.focusPoints.proposeHint}
+          </Text>
+        </View>
       </View>
     );
   };
@@ -480,6 +520,17 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
                   </Text>
                 </TouchableOpacity>
               )}
+              {canHighlight && !!onOpenFocusPoints && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
+                  onPress={() => { trackEvent('focus_points_opened', { screen: 'retro_board' }); onOpenFocusPoints?.(); }}
+                >
+                  <Icon name="target" size="sm" tone="muted" />
+                  <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+                    {Strings.focusPoints.openButton}
+                  </Text>
+                </TouchableOpacity>
+              )}
               {canExportSummary && (
                 <TouchableOpacity
                   style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
@@ -503,7 +554,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); }}
+                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); }}
                 disabled={isLoading}
               >
                 <Icon name="refresh" size="sm" tone="muted" />
@@ -670,6 +721,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
         {canViewLengthHistory && (
           <SprintLengthHistoryPanelNative teamId={team.id} sprintId={sprintData.id} token={token} />
         )}
+
+        <SprintFocusPointsSection focus={focus} />
 
         {/* Main form for posting (RTL formatted) */}
         <View

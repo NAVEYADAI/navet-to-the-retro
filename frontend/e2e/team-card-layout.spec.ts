@@ -94,6 +94,11 @@ test.describe('Team card layout — collapsed members, add-member modal, sprint 
     await expect(page.getByText(oldName)).toHaveCount(0);
     await page.getByText(Strings.sprints.expiredHeader(1)).click();
     await expect(page.getByText(oldName)).toBeVisible();
+    // Closing animates (Collapse) and unmounts the rows once the transition ends.
+    await page.getByText(Strings.sprints.expiredHeader(1)).click();
+    await expect(page.getByText(oldName)).toHaveCount(0);
+    await page.getByText(Strings.sprints.expiredHeader(1)).click();
+    await expect(page.getByText(oldName)).toBeVisible();
 
     // --- Filter: a single compact button (3 sprints are listed), opening a menu ---
     const filterButton = page.getByRole('button', { name: Strings.sprints.filterButtonLabel });

@@ -182,6 +182,19 @@ describe('TeamSprintsManagerWeb', () => {
       expect(c.textContent).toContain('Sprint Long Gone');
     });
 
+    it('closes the expired group again with an animated collapse (content leaves the DOM after the transition)', async () => {
+      mockedAxios.get.mockResolvedValue({ data: lifecycle });
+      const c = await render();
+      await clickText(c, Strings.sprints.expiredHeader(1));
+      expect(c.textContent).toContain('Sprint Long Gone');
+
+      await clickText(c, Strings.sprints.expiredHeader(1));
+      const header = Array.from(c.querySelectorAll('button')).find((b) => b.textContent?.includes(Strings.sprints.expiredHeader(1)));
+      expect(header?.getAttribute('aria-expanded')).toBe('false');
+      await act(async () => { await new Promise((r) => setTimeout(r, 400)); });
+      expect(c.textContent).not.toContain('Sprint Long Gone');
+    });
+
     it('hides the recent and expired groups under the "פעילים" filter', async () => {
       mockedAxios.get.mockResolvedValue({ data: lifecycle });
       const c = await render();

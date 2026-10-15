@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { Badge, Icon } from '@/components/ui';
+import { Badge, Collapse, Icon } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 import { formatDateCompact } from '@/lib/format-date';
 import { daysUntilStart, getSprintProgress } from '../sprint-lifecycle';
@@ -228,7 +228,7 @@ export function ExpiredSprintsGroup({ sprints, onSelect }: { sprints: any[]; onS
         <Icon name="chevron-down" size="sm" tone="muted" rotate={isOpen ? 180 : 0} />
         {Strings.sprints.expiredHeader(sprints.length)}
       </Box>
-      {isOpen && (
+      <Collapse open={isOpen}>
         <Box sx={{ paddingInline: `${t.space[2]}px`, paddingBlockEnd: `${t.space[3]}px` }}>
           {sprints.map((sprint) => (
             <Box
@@ -252,7 +252,7 @@ export function ExpiredSprintsGroup({ sprints, onSelect }: { sprints: any[]; onS
             </Box>
           ))}
         </Box>
-      )}
+      </Collapse>
     </>
   );
 }

@@ -5,6 +5,7 @@ import { useTheme } from '@/design/theme-context';
 import { Icon } from '@/components/ui';
 import type { Tone } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
+import { animateNextLayout } from '@/lib/animate-layout';
 import { formatDateCompact } from '@/lib/format-date';
 import { daysUntilStart, getSprintProgress } from '../sprint-lifecycle';
 
@@ -149,7 +150,7 @@ export function ExpiredSprintsGroup({ sprints, onSelect }: { sprints: any[]; onS
       <TouchableOpacity
         testID="toggle-expired-sprints"
         accessibilityState={{ expanded: isOpen }}
-        onPress={() => { trackEvent('sprint_expired_toggled', { open: !isOpen }); setIsOpen(!isOpen); }}
+        onPress={() => { trackEvent('sprint_expired_toggled', { open: !isOpen }); animateNextLayout(); setIsOpen(!isOpen); }}
         style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2], minHeight: t.layout.minTouchTarget, marginVertical: t.space[2], paddingHorizontal: t.space[2] }}
       >
         <Icon name="chevron-down" size="sm" tone="muted" rotate={isOpen ? 180 : 0} />

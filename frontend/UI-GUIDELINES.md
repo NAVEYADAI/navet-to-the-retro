@@ -55,6 +55,7 @@ Rubik לכותרות ולאלמנטי UI, Heebo לטקסט גוף. אקסנט א
 
 `transition` על hover / focus / press בלבד, `0.15s ease`.
 **אין** `Grow`, `Fade`, `Collapse` על טעינת מסך, ואין `animation: pulse`.
+חריג: פתיחה/סגירה של אזור שהמשתמש מחליף בלחיצה (כמו "ספרינטים שהסתיימו") מונפשת — web: `Collapse` מ-`components/ui`; native: `animateNextLayout()` מ-`lib/animate-layout` לפני ה-`setState`. שניהם מכבדים "הפחתת תנועה".
 
 ## 7. מה אסור — checklist לפני כל commit של UI
 

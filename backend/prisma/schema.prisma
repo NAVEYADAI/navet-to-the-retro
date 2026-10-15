@@ -59,6 +59,23 @@ model User {
   sprintRatingCloses        SprintRatingClose[]
   assignedFocusPointTasks   FocusPointTask[]           @relation("FocusPointTaskAssignee")
   createdFocusPointTasks    FocusPointTask[]           @relation("FocusPointTaskCreator")
+  onboardingState           UserOnboardingState?
+}
+
+// Feature 21 (product-backlog/21-onboarding-and-feature-discovery.md §21.0 default #2): UI state
+// only — whether the getting-started checklist was dismissed, and which "what's new" feature keys
+// the user has already seen. Checklist progress is deliberately NOT stored: it is derived from
+// existing data on every `GET /onboarding/status`. The row is created lazily (first write), so no
+// backfill is needed for existing users. 1:1 with User, cascade on delete.
+model UserOnboardingState {
+  id                   Int       @id @default(autoincrement())
+  userId               Int       @unique
+  checklistDismissedAt DateTime?
+  seenFeatureKeys      String[]  @default([])
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // Feature 10 (telegram comment ingestion, product-backlog/10-telegram-comment-ingestion.md §10.0

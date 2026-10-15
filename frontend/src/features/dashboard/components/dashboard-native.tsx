@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreateTeamForm, TeamList } from '@/features/teams';
 import { MyFocusTasksCard } from '@/features/focus-points';
+import { OnboardingSection } from '@/features/onboarding';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
@@ -42,7 +43,7 @@ export function DashboardNative() {
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   // כל כרטיס מדווח כמה ספרינטים פעילים יש לו אחרי שטען אותם — לשורת הסיכום מתחת לכותרת.
   const [activeByTeam, setActiveByTeam] = useState<Record<number, number>>({});
-  // פיצ'ר 20: כפתור הרענון מושך מחדש גם את "המשימות שלי".
+  // פיצ'ר 20/21: כפתור הרענון מושך מחדש גם את "המשימות שלי" ואת הצ'קליסט / "מה חדש".
   const [myTasksRefreshKey, setMyTasksRefreshKey] = useState(0);
 
   const { teams, isLoadingTeams, isRefreshing, loadError, fetchMyTeams, refresh } = useTeamsData(token);
@@ -156,6 +157,8 @@ export function DashboardNative() {
                 </Text>
               </View>
             )}
+
+            <OnboardingSection token={token} refreshKey={myTasksRefreshKey} teams={teams} userId={user.id} />
 
             <MyFocusTasksCard token={token} refreshKey={myTasksRefreshKey} />
 

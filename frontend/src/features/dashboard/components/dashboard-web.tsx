@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
 import { TeamList } from '@/features/teams';
 import { MyFocusTasksCard } from '@/features/focus-points';
+import { OnboardingSection } from '@/features/onboarding';
 import { Strings } from '@/constants/strings';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
@@ -19,7 +20,7 @@ export function DashboardWeb() {
   const { teams, isLoadingTeams, isRefreshing, loadError, setSelectedTeam, fetchMyTeams, refresh } = useTeamsData(token);
   // כל כרטיס מדווח כמה ספרינטים פעילים יש לו אחרי שטען אותם — לשורת הסיכום מתחת לכותרת.
   const [activeByTeam, setActiveByTeam] = useState<Record<number, number>>({});
-  // פיצ'ר 20: כפתור הרענון מושך מחדש גם את "המשימות שלי".
+  // פיצ'ר 20/21: כפתור הרענון מושך מחדש גם את "המשימות שלי" ואת הצ'קליסט / "מה חדש".
   const [myTasksRefreshKey, setMyTasksRefreshKey] = useState(0);
 
   useEffect(() => subscribeGoHome(() => {
@@ -72,6 +73,8 @@ export function DashboardWeb() {
           {loadError}
         </Alert>
       ) : null}
+
+      <OnboardingSection token={token} refreshKey={myTasksRefreshKey} teams={teams} userId={user.id} />
 
       <MyFocusTasksCard token={token} refreshKey={myTasksRefreshKey} />
 

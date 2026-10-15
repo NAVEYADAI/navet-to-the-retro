@@ -4,6 +4,7 @@ import { Box, Typography, Alert } from '@mui/material';
 import { Button, Card, Page, PageHeader, Grid } from '@/components/ui';
 import { CreateTeamForm } from '@/features/teams';
 import { ProfileFormCard } from './profile-form-card';
+import { QuickStartCard } from './quick-start-card';
 import { AppearanceCard } from './appearance-card';
 import { GoogleCalendarCard } from './google-calendar-card';
 import { TelegramLinkCard } from './telegram-link-card';
@@ -56,6 +57,7 @@ export function SettingsScreenWeb() {
             profileMessage={profileMessage}
             onUpdateProfile={handleUpdateProfile}
           />
+          <QuickStartCard />
           <AppearanceCard />
           <GoogleCalendarCard />
           <TelegramLinkCard />

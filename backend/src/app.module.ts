@@ -12,10 +12,11 @@ import { GoogleCalendarModule } from './google-calendar/google-calendar.module';
 import { TeamCategoriesModule } from './team-categories/team-categories.module';
 import { FocusPointsModule } from './focus-points/focus-points.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
 import { SoftDeletePurgeBootstrap } from './common/soft-delete-purge.bootstrap';
 
 @Module({
-  imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule, InvitesModule, GoogleCalendarModule, TeamCategoriesModule, FocusPointsModule, TelegramModule],
+  imports: [AuthModule, TeamsModule, CommentsModule, SprintsModule, InvitesModule, GoogleCalendarModule, TeamCategoriesModule, FocusPointsModule, TelegramModule, OnboardingModule],
   controllers: [AppController],
   providers: [AppService, PrismaService, SoftDeletePurgeBootstrap],
 })

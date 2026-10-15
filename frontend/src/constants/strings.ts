@@ -628,4 +628,97 @@ export const Strings = {
     myTasksSubtitle: 'משימות מנקודות לשיפור שאתם אחראים להן, מכל הצוותים.',
     myTasksLoadError: 'לא הצלחנו לטעון את המשימות שלך.',
   },
+  // Feature 21 (product-backlog/21-onboarding-and-feature-discovery.md): starter checklist + "what's new".
+  onboarding: {
+    checklistTitle: 'התחלה מהירה',
+    checklistSubtitleMember: 'כמה צעדים קצרים עד שהערות הרטרו שלכם עולות לשימוש.',
+    checklistSubtitleManagement: 'כמה צעדים קצרים עד שהצוות שלכם מריץ ספרינט ראשון עם הערות.',
+    progress: (done: number, total: number) => `${done} מתוך ${total}`,
+    hideButton: 'הסתר',
+    stepDone: 'הושלם',
+    stepRecommended: 'מומלץ',
+    steps: {
+      'join-team': {
+        title: 'הצטרפות לצוות',
+        description: 'אתם כבר חברים בצוות, אז אפשר להתחיל.',
+      },
+      'first-comment': {
+        title: 'כתיבת הערה ראשונה',
+        description: 'נכנסים לספרינט פעיל מכרטיס הצוות וכותבים מה כדאי לשמר ומה לשפר.',
+      },
+      'connect-telegram': {
+        title: 'חיבור טלגרם',
+        description: 'אפשר לכתוב הערות ישירות מהצ\'אט עם הבוט.',
+        cta: 'להגדרות',
+      },
+      'create-team': {
+        title: 'יצירת צוות',
+        description: 'יוצרים צוות בהגדרות. ההקמה מחכה לאישור של מי שתבחרו כמאשר.',
+        cta: 'ליצירת צוות',
+      },
+      'invite-member': {
+        title: 'הזמנת חבר צוות',
+        description: 'בכרטיס הצוות אפשר להוסיף חבר לפי אימייל או ליצור קישור הזמנה.',
+      },
+      'open-sprint': {
+        title: 'פתיחת ספרינט',
+        description: 'בכרטיס הצוות יוצרים ספרינט חדש ומגדירים לו תאריכים.',
+      },
+      'close-sprint': {
+        title: 'סיום ספרינט וייצוא מצגת',
+        description: 'כשהספרינט מסתיים, בסיכום הספרינט אפשר להוריד מצגת PPTX.',
+      },
+      'pick-focus-point': {
+        title: 'בחירת נקודה לשיפור',
+        description: 'במסך נקודות לשיפור בוחרים על מה הצוות עובד בספרינט הבא.',
+        cta: 'לנקודות לשיפור',
+      },
+    },
+    // --- "what's new" card ---
+    whatsNewBadge: 'חדש',
+    managementOnlyBadge: 'להנהלה בלבד',
+    whatsNewDismissButton: 'סגור',
+    // --- feature catalogue (registry.ts); only those newer than the backend cut-off ever surface ---
+    features: {
+      'focus-points': {
+        title: 'נקודות לשיפור',
+        description: 'במקום שנושאים ילכו לאיבוד בין ספרינטים, אוספים אותם במאגר אחד, בוחרים מה לקדם בכל ספרינט, והצוות מדרג באנונימיות כמה השתפרנו.',
+        cta: 'לנקודות לשיפור',
+      },
+      'team-logo': {
+        title: 'לוגו וצבע לצוות',
+        description: 'בהגדרות הצוות, בכרטיס הצוות, אפשר להעלות לוגו ולבחור צבע שיזהה את הצוות.',
+      },
+      telegram: {
+        title: 'טלגרם',
+        description: 'מקשרים את חשבון הטלגרם בהגדרות וכותבים הערות ישירות מהצ\'אט עם הבוט.',
+        cta: 'להגדרות',
+      },
+      'comment-categories': {
+        title: 'קטגוריות להערות',
+        description: 'בהגדרות הצוות אפשר להגדיר קטגוריות להערות, כדי לסדר את הלוח לפי נושאים.',
+      },
+      'google-calendar': {
+        title: 'יומן Google',
+        description: 'מחברים את יומן Google בהגדרות, ותאריכי הספרינטים מופיעים ביומן אוטומטית.',
+        cta: 'להגדרות',
+      },
+      'phantom-members': {
+        title: 'חברי פנטום',
+        description: 'אפשר להוסיף לצוות אנשים שעדיין אין להם חשבון, ולכתוב הערות בשמם.',
+      },
+      'pptx-export': {
+        title: 'ייצוא מצגת',
+        description: 'בסיכום הספרינט אפשר להוריד את ההערות כמצגת PPTX.',
+      },
+    },
+    // --- settings: "quick start" card ---
+    quickStartTitle: 'התחלה מהירה',
+    quickStartSubtitle: 'הצ\'קליסט שמלווה בצעדים הראשונים בעמוד הראשי.',
+    quickStartDismissedText: 'הצ\'קליסט מוסתר כרגע.',
+    quickStartVisibleText: 'הצ\'קליסט מוצג בעמוד הראשי.',
+    quickStartCompleteText: 'השלמתם את כל הצעדים, ולכן אין מה להציג.',
+    quickStartRestoreButton: 'הצג שוב',
+    quickStartRestoreError: 'לא הצלחנו להחזיר את הצ\'קליסט. נסו שוב.',
+  },
 };

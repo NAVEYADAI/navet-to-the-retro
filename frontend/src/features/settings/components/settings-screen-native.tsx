@@ -11,6 +11,7 @@ import { useProfileForm } from '../hooks/use-profile-form';
 import { useTeamsAdmin } from '../hooks/use-teams-admin';
 import { CardNative, ButtonNative, MessageNative, rnText } from './native/settings-native-parts';
 import { ProfileFormCardNative } from './native/profile-form-card-native';
+import { QuickStartCardNative } from './native/quick-start-card-native';
 import { AppearanceCardNative } from './native/appearance-card-native';
 import { GoogleCalendarCardNative, TelegramLinkCardNative } from './native/integration-cards-native';
 import { DeletedTeamsCardNative } from './native/deleted-teams-card-native';
@@ -63,6 +64,7 @@ export function SettingsScreenNative() {
               profileMessage={profile.profileMessage}
               onUpdateProfile={profile.handleUpdateProfile}
             />
+            <QuickStartCardNative />
             <AppearanceCardNative />
             <GoogleCalendarCardNative />
             <TelegramLinkCardNative />

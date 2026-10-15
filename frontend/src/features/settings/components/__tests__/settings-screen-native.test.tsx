@@ -33,6 +33,7 @@ jest.mock('../native/integration-cards-native', () => ({
   GoogleCalendarCardNative: () => null,
   TelegramLinkCardNative: () => null,
 }));
+jest.mock('../native/quick-start-card-native', () => ({ QuickStartCardNative: () => null }));
 jest.mock('@/features/teams', () => ({ CreateTeamForm: () => null }));
 jest.mock('react-native-safe-area-context', () => {
   const { View } = jest.requireActual('react-native');

@@ -16,7 +16,7 @@
 
 ## Modules
 
-One NestJS module per domain under `src/`: `auth`, `teams`, `invites`, `sprints`, `comments`, `email`.
+One NestJS module per domain under `src/`: `auth`, `teams`, `invites`, `sprints`, `comments`, `email`, `onboarding`.
 
 ## Architecture Patterns
 

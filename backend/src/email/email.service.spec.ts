@@ -1,4 +1,10 @@
 const mockSend = jest.fn();
+const mockSendMail = jest.fn();
+const mockCreateTransport = jest.fn(() => ({ sendMail: mockSendMail }));
+
+jest.mock('nodemailer', () => ({
+  createTransport: (...args: unknown[]) => (mockCreateTransport as any)(...args),
+}));
 
 jest.mock('resend', () => ({
   Resend: jest.fn().mockImplementation(() => ({
@@ -117,5 +123,60 @@ describe('EmailService HTML escaping (BUG-23)', () => {
     const { subject } = mockSend.mock.calls[0][0];
     expect(subject).toContain('R&D');
     expect(subject).not.toMatch(/[\r\n]/);
+  });
+});
+
+describe('EmailService transports (BUG-59)', () => {
+  const originalEnv = process.env;
+  const params = { to: 'lironka13@gmail.com', teamName: 'Core Team', creatorName: 'Dana' };
+
+  beforeEach(() => {
+    jest.resetModules();
+    mockSend.mockReset();
+    mockSendMail.mockReset();
+    mockCreateTransport.mockClear();
+    process.env = { ...originalEnv };
+    delete process.env.EMAIL_FROM;
+    delete process.env.SMTP_HOST;
+    delete process.env.SMTP_PORT;
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+  });
+
+  it('sends through SMTP (not Resend) when SMTP_USER and SMTP_PASS are set', async () => {
+    process.env.SMTP_USER = 'sender@gmail.com';
+    process.env.SMTP_PASS = 'app-password';
+    process.env.RESEND_API_KEY = 'test-key';
+    mockSendMail.mockResolvedValue({ messageId: 'm1' });
+    const { EmailService } = require('./email.service');
+
+    await new EmailService().sendTeamApprovalRequest(params);
+
+    expect(mockCreateTransport).toHaveBeenCalledWith(
+      expect.objectContaining({ host: 'smtp.gmail.com', port: 465, secure: true })
+    );
+    expect(mockSendMail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: params.to, from: expect.stringContaining('sender@gmail.com') })
+    );
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when SMTP delivery fails', async () => {
+    process.env.SMTP_USER = 'sender@gmail.com';
+    process.env.SMTP_PASS = 'app-password';
+    mockSendMail.mockRejectedValue(new Error('auth failed'));
+    const { EmailService } = require('./email.service');
+
+    await expect(new EmailService().sendTeamJoinInvite({ ...params, inviterName: 'Dana', token: 't' })).resolves.toBeUndefined();
+  });
+
+  it('does not throw when Resend returns an error result instead of rejecting', async () => {
+    process.env.RESEND_API_KEY = 'test-key';
+    mockSend.mockResolvedValue({ data: null, error: { message: 'testing emails only' } });
+    const { EmailService } = require('./email.service');
+
+    await expect(new EmailService().sendTeamApprovalRequest(params)).resolves.toBeUndefined();
   });
 });

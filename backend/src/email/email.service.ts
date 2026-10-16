@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 
 // BUG-23: user-controlled strings (team name, names, office) are interpolated into HTML templates.
 export function escapeHtml(value: unknown): string {
@@ -20,14 +22,47 @@ function sanitizeSubject(value: string): string {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly client: Resend | null;
-  private readonly fromAddress = process.env.EMAIL_FROM || 'Retro App <onboarding@resend.dev>';
+  // BUG-59: Resend's shared sender only delivers to the account owner, so when SMTP_USER/SMTP_PASS are set
+  // (e.g. Gmail + App Password) mail goes through SMTP instead and reaches any recipient.
+  private readonly smtp: Transporter | null;
+  private readonly fromAddress: string;
   private readonly frontendUrl = process.env.FRONTEND_URL || 'https://navet-to-retro-frontend.fly.dev';
 
   constructor() {
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    this.smtp =
+      smtpUser && smtpPass
+        ? nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.gmail.com',
+            port: Number(process.env.SMTP_PORT) || 465,
+            secure: (Number(process.env.SMTP_PORT) || 465) === 465,
+            auth: { user: smtpUser, pass: smtpPass }
+          })
+        : null;
+    this.fromAddress =
+      process.env.EMAIL_FROM || (this.smtp ? `נווט לרט <${smtpUser}>` : 'Retro App <onboarding@resend.dev>');
+
     const apiKey = process.env.RESEND_API_KEY;
-    this.client = apiKey ? new Resend(apiKey) : null;
-    if (!this.client) {
-      this.logger.warn('RESEND_API_KEY is not set — team approval emails will be logged but not sent.');
+    this.client = !this.smtp && apiKey ? new Resend(apiKey) : null;
+    if (!this.smtp && !this.client) {
+      this.logger.warn('Neither SMTP_USER/SMTP_PASS nor RESEND_API_KEY is set — emails will be logged but not sent.');
+    }
+  }
+
+  private get canSend() {
+    return Boolean(this.smtp || this.client);
+  }
+
+  private async deliver(to: string, subject: string, html: string) {
+    if (this.smtp) {
+      await this.smtp.sendMail({ from: this.fromAddress, to, subject, html });
+      return;
+    }
+    // Resend reports failures (e.g. 403 for unverified senders) in the result instead of throwing.
+    const result = await this.client!.emails.send({ from: this.fromAddress, to, subject, html });
+    if (result?.error) {
+      throw new Error(`Resend rejected the email: ${result.error.message ?? JSON.stringify(result.error)}`);
     }
   }
 
@@ -48,18 +83,13 @@ export class EmailService {
       </div>
     `;
 
-    if (!this.client) {
-      this.logger.warn(`[email skipped, no API key] Would have sent "${subject}" to ${to}`);
+    if (!this.canSend) {
+      this.logger.warn(`[email skipped, no mail transport] Would have sent "${subject}" to ${to}`);
       return;
     }
 
     try {
-      await this.client.emails.send({
-        from: this.fromAddress,
-        to,
-        subject,
-        html
-      });
+      await this.deliver(to, subject, html);
     } catch (err) {
       this.logger.error(`Failed to send team approval email to ${to}`, err instanceof Error ? err.stack : err);
     }
@@ -83,18 +113,13 @@ export class EmailService {
       </div>
     `;
 
-    if (!this.client) {
-      this.logger.warn(`[email skipped, no API key] Would have sent "${subject}" to ${to}`);
+    if (!this.canSend) {
+      this.logger.warn(`[email skipped, no mail transport] Would have sent "${subject}" to ${to}`);
       return;
     }
 
     try {
-      await this.client.emails.send({
-        from: this.fromAddress,
-        to,
-        subject,
-        html
-      });
+      await this.deliver(to, subject, html);
     } catch (err) {
       this.logger.error(`Failed to send team join invite email to ${to}`, err instanceof Error ? err.stack : err);
     }

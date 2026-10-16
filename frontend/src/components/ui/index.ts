@@ -12,3 +12,4 @@ export { Modal, type ModalProps } from './modal';
 export { Avatar, avatarInitial, type AvatarProps } from './avatar';
 export { TeamLogo, type TeamLogoProps } from './team-logo';
 export { TeamBanner, type TeamBannerProps } from './team-banner';
+export { ActionMenu, type ActionMenuProps, type ActionMenuItem } from './action-menu';

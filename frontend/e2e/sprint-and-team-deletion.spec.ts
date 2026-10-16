@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { clickDeleteSprint, expectNoSprintManageActions } from './sprint-actions-ui';
 import { openTeamSettings } from './team-members-ui';
 
 // Feature 14 (product-backlog/14-sprint-and-team-deletion.md): soft delete + restore of sprints and
@@ -63,14 +64,14 @@ test.describe('Sprint and team deletion (product-backlog/14-sprint-and-team-dele
     await expect(page.getByText(note)).toBeVisible();
 
     // The confirmation says what is about to go with it, and cancelling changes nothing.
-    await page.getByRole('button', { name: Strings.sprintDeletion.deleteButton }).click();
+    await clickDeleteSprint(page);
     await expect(page.getByText(Strings.sprintDeletion.confirmTitle)).toBeVisible();
     await expect(page.getByText(Strings.sprintDeletion.warning(2))).toBeVisible();
     await page.getByRole('button', { name: Strings.sprintDeletion.cancelButton }).click();
     await expect(page.getByText(Strings.sprintDeletion.confirmTitle)).toHaveCount(0);
     expect((await request.get(`${BACKEND_URL}/teams/${team.id}/sprints`, { headers: auth(leader.token) }).then((r) => r.json())).length).toBe(1);
 
-    await page.getByRole('button', { name: Strings.sprintDeletion.deleteButton }).click();
+    await clickDeleteSprint(page);
     await page.getByRole('button', { name: Strings.sprintDeletion.confirmButton }).click();
 
     // Back on the dashboard: the sprint is gone from the list, and appears under "deleted sprints".
@@ -104,7 +105,7 @@ test.describe('Sprint and team deletion (product-backlog/14-sprint-and-team-dele
 
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
     await page.getByText(Strings.retroBoard.writeNoteHeader).waitFor();
-    await expect(page.getByRole('button', { name: Strings.sprintDeletion.deleteButton })).toHaveCount(0);
+    await expectNoSprintManageActions(page);
 
     expect((await request.delete(`${BACKEND_URL}/teams/${team.id}/sprints/${sprint.id}`, { headers: auth(member.token) })).status()).toBe(403);
     expect((await request.get(`${BACKEND_URL}/teams/${team.id}/sprints/deleted`, { headers: auth(member.token) })).status()).toBe(403);

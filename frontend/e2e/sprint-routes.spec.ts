@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { clickEditSprint, openSprintTools } from './sprint-actions-ui';
 
 // BUG-33: the retro board, sprint summary and memory game are real routes
 // (/team/:teamId/sprint/:sprintId[/summary|/memory]) — URL reflects the view, F5 stays in place,
@@ -130,6 +131,7 @@ test.describe('Sprint screens are real routes (BUG-33)', () => {
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
 
     // Summary (the leader is the team creator, so the button is there).
+    await openSprintTools(page);
     await page.getByText(Strings.sprintSummary.openButton).click();
     await expect(page).toHaveURL(new RegExp(`${board}/summary$`));
     await expect(page.getByText(Strings.sprintSummary.pageTitle)).toBeVisible();
@@ -139,6 +141,7 @@ test.describe('Sprint screens are real routes (BUG-33)', () => {
     await expect(page).toHaveURL(new RegExp(`${board}$`));
     await expect(page.getByText(commentContent)).toBeVisible();
 
+    await openSprintTools(page);
     await page.getByText(Strings.memoryBoard.openButton).click();
     await expect(page).toHaveURL(new RegExp(`${board}/memory$`));
     await expect(page.getByText(Strings.memoryBoard.keepCanvasHeader)).toBeVisible();
@@ -226,7 +229,7 @@ test.describe('Sprint screens are real routes (BUG-33)', () => {
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
 
-    await page.getByRole('button', { name: Strings.retroBoard.editSprintButton }).click();
+    await clickEditSprint(page);
     await page.getByPlaceholder(Strings.sprints.sprintNamePlaceholder).fill(renamed);
     await page.getByRole('button', { name: Strings.teamList.saveButton }).click();
     await expect(page.getByText(renamed).first()).toBeVisible();

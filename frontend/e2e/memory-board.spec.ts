@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { openSprintTools } from './sprint-actions-ui';
 
 const BACKEND_URL = 'http://localhost:5006';
 // Team creation only accepts a hardcoded approver allowlist (backend/src/teams/teams.service.ts)
@@ -124,6 +125,7 @@ test.describe('Memory board (memory-game retro view)', () => {
     await expect(page.getByText(improveContent)).toBeVisible();
 
     // The "משחק זיכרון" entry point is visible/enabled for a plain member — no isAdmin/role gate.
+    await openSprintTools(page);
     const openMemoryBoardButton = page.getByText(Strings.memoryBoard.openButton);
     await expect(openMemoryBoardButton).toBeVisible();
     await openMemoryBoardButton.click();
@@ -180,6 +182,7 @@ test.describe('Memory board (memory-game retro view)', () => {
     // Returning to the regular retro board via the same button.
     await page.getByText(Strings.memoryBoard.backButton).click();
     await expect(page.getByText(keepContent)).toBeVisible();
+    await openSprintTools(page);
     await expect(page.getByText(Strings.memoryBoard.openButton)).toBeVisible();
   });
 
@@ -196,6 +199,7 @@ test.describe('Memory board (memory-game retro view)', () => {
     await loginAs(page, member.token);
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
+    await openSprintTools(page);
     await page.getByText(Strings.memoryBoard.openButton).click();
 
     const faceDownCards = page.getByRole('button', { name: Strings.memoryBoard.flipCardHint });
@@ -223,6 +227,7 @@ test.describe('Memory board (memory-game retro view)', () => {
       await loginAs(secondPage, leader.token);
       await secondPage.getByText(teamName).waitFor();
       await secondPage.getByText(Strings.sprints.enterRetroButton).first().click();
+      await openSprintTools(secondPage);
       await secondPage.getByText(Strings.memoryBoard.openButton).click();
       await expect(secondPage.getByText(keepContent)).toHaveCount(0);
       await expect(secondPage.getByRole('button', { name: Strings.memoryBoard.flipCardHint })).toHaveCount(2);
@@ -240,6 +245,7 @@ test.describe('Memory board (memory-game retro view)', () => {
     await loginAs(page, member.token);
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
+    await openSprintTools(page);
     await page.getByText(Strings.memoryBoard.openButton).click();
 
     const keepCard = page.getByRole('button', { name: Strings.memoryBoard.flipCardHint }).first();

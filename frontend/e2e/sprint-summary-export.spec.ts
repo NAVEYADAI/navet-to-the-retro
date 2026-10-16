@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { openSprintTools } from './sprint-actions-ui';
 
 const BACKEND_URL = 'http://localhost:5006';
 // Team creation only accepts a hardcoded approver allowlist (backend/src/teams/teams.service.ts)
@@ -136,6 +137,7 @@ test.describe('Sprint summary export', () => {
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
 
+    await openSprintTools(page);
     await expect(page.getByText(Strings.sprintSummary.openButton)).toBeVisible();
     await page.getByText(Strings.sprintSummary.openButton).click();
 
@@ -190,6 +192,7 @@ test.describe('Sprint summary export', () => {
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
 
     await expect(page.getByText('Great sprint overall.')).toBeVisible();
+    await openSprintTools(page);
     await expect(page.getByText(Strings.sprintSummary.openButton)).toHaveCount(0);
 
     // --- Browser, as a non-creator team ADMIN: sees the button and can download too ---
@@ -199,6 +202,7 @@ test.describe('Sprint summary export', () => {
     await page.getByText(teamName).waitFor();
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
 
+    await openSprintTools(page);
     await expect(page.getByText(Strings.sprintSummary.openButton)).toBeVisible();
     await page.getByText(Strings.sprintSummary.openButton).click();
 

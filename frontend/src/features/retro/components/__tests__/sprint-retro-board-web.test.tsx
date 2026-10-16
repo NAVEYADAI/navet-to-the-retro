@@ -5,11 +5,14 @@
  * BUG-27 (clearing the description), BUG-34 (load error state), BUG-53 (length-history refresh
  * after a dates edit), BUG-54 ("highlighted only" with no hits) and BUG-58 (he-IL dates).
  */
-import React from 'react';
+import React, { act } from 'react';
 import axios from 'axios';
 import { SprintRetroBoardWeb } from '../sprint-retro-board-web';
 import { Strings } from '@/constants/strings';
 import { mountWeb, clickText, setInput, dateInputs, inputByPlaceholder, flush, type Mounted } from '@/test-utils/web-dom';
+
+// jest-expo resolves `.native.tsx` first, which would pull the bottom-sheet menu into this jsdom test — load the web one.
+jest.mock('@/components/ui/action-menu', () => jest.requireActual('@/components/ui/action-menu.tsx'));
 
 // Factory mock: automocking would load axios' browser build, which needs TextEncoder in jsdom.
 jest.mock('axios', () => ({ __esModule: true, default: { get: jest.fn(), post: jest.fn(), patch: jest.fn() } }));
@@ -46,8 +49,14 @@ afterEach(() => {
   jest.clearAllMocks();
 });
 
+// Edit/delete live behind the "⋯" menu; MUI renders the menu in a portal on document.body.
 async function openEditForm(c: HTMLElement) {
-  await clickText(c, Strings.retroBoard.editSprintButton);
+  const trigger = c.querySelector<HTMLElement>(`[aria-label="${Strings.retroBoard.moreActionsLabel}"]`);
+  if (!trigger) throw new Error('more-actions menu button not found');
+  await act(async () => {
+    trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
+  await clickText(document.body, Strings.retroBoard.editSprintButton);
 }
 
 // Mounts the full board (MUI + real DOM) per test — ~0.5s alone, but past the 5s default when the
@@ -57,6 +66,8 @@ jest.setTimeout(20000);
 describe('SprintRetroBoardWeb', () => {
   it('BUG-33: the summary and memory-game buttons hand off to the route callbacks instead of swapping local views', async () => {
     const c = await render();
+    // The destinations sit behind the collapsed "כלי ספרינט" row.
+    await clickText(c, Strings.retroBoard.toolsToggle(2));
     await clickText(c, Strings.sprintSummary.openButton);
     expect(onOpenSummary).toHaveBeenCalledTimes(1);
     expect(onOpenMemory).not.toHaveBeenCalled();

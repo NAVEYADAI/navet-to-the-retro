@@ -331,6 +331,8 @@ export const Strings = {
     formerMemberBadge: 'לא בצוות',
     backButton: '← חזרה לדשבורד',
     editSprintButton: 'ערוך ספרינט',
+    moreActionsLabel: 'עוד פעולות',
+    toolsToggle: (count: number) => `כלי ספרינט · ${count}`,
     editSprintHeader: 'עריכת פרטי ספרינט',
     editSprintErrorText: 'שמירת השינויים נכשלה. נסו שוב.',
     writeNoteHeader: 'כתוב הערת רטרו',

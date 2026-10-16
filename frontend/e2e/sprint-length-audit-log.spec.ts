@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { clickEditSprint } from './sprint-actions-ui';
 
 const BACKEND_URL = 'http://localhost:5006';
 // Team creation only accepts a hardcoded approver allowlist (backend/src/teams/teams.service.ts)
@@ -94,7 +95,7 @@ test.describe('Sprint length audit log', () => {
     await expect(page.getByText(sprintName)).toBeVisible();
 
     // Edit #1: extend end date 14 -> 21 days, with a reason.
-    await page.getByRole('button', { name: Strings.retroBoard.editSprintButton }).click();
+    await clickEditSprint(page);
     await expect(page.getByText(Strings.retroBoard.editSprintHeader)).toBeVisible();
 
     const endDateInput = page.getByPlaceholder(Strings.sprints.endDateLabel);
@@ -109,7 +110,7 @@ test.describe('Sprint length audit log', () => {
 
     // Edit #2: extend end date 21 -> 28 days, no reason this time. The reason field must
     // reset to blank on every re-open (§5.2), so we deliberately don't touch it here.
-    await page.getByRole('button', { name: Strings.retroBoard.editSprintButton }).click();
+    await clickEditSprint(page);
     await expect(page.getByText(Strings.retroBoard.editSprintHeader)).toBeVisible();
     await expect(page.getByPlaceholder(Strings.retroBoard.editReasonPlaceholder)).toHaveValue('');
 

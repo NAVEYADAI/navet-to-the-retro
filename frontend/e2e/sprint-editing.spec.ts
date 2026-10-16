@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { clickEditSprint, expectNoSprintManageActions } from './sprint-actions-ui';
 
 const BACKEND_URL = 'http://localhost:5006';
 // Team creation only accepts a hardcoded approver allowlist (backend/src/teams/teams.service.ts)
@@ -90,7 +91,7 @@ test.describe('Sprint editing', () => {
 
     await expect(page.getByText(sprintName)).toBeVisible();
 
-    await page.getByRole('button', { name: Strings.retroBoard.editSprintButton }).click();
+    await clickEditSprint(page);
     await expect(page.getByText(Strings.retroBoard.editSprintHeader)).toBeVisible();
 
     const nameInput = page.getByPlaceholder(Strings.sprints.sprintNamePlaceholder);
@@ -116,7 +117,7 @@ test.describe('Sprint editing', () => {
     await page.getByText(Strings.sprints.enterRetroButton).first().click();
 
     await expect(page.getByText(updatedSprintName)).toBeVisible();
-    await expect(page.getByRole('button', { name: Strings.retroBoard.editSprintButton })).toHaveCount(0);
+    await expectNoSprintManageActions(page);
   });
   test('editing: end-before-start is blocked with a Hebrew error, and a description can be cleared', async ({ page, request }) => {
     const suffix = `${Date.now()}_${test.info().project.name.replace(/\s+/g, '')}_val`;
@@ -155,7 +156,7 @@ test.describe('Sprint editing', () => {
     await expect(page.getByText(description)).toBeVisible();
 
     // BUG-12: end date before start date -> Hebrew error, edit form stays open.
-    await page.getByRole('button', { name: Strings.retroBoard.editSprintButton }).click();
+    await clickEditSprint(page);
     const endDateInput = page.getByPlaceholder(Strings.sprints.endDateLabel);
     await endDateInput.fill('');
     await endDateInput.fill(new Date(today.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10));

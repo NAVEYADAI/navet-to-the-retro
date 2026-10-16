@@ -17,9 +17,11 @@ import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
-import { Icon, TeamLogo } from '@/components/ui';
+import { Icon, TeamLogo, ActionMenu, type ActionMenuItem } from '@/components/ui';
 import { LoadErrorNative } from '@/components/load-error-native';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
+import { SprintNavActionsNative } from './sprint-nav-actions-native';
+import type { SprintNavAction } from './sprint-nav-actions-web';
 import { SprintLengthHistoryPanelNative } from './sprint-length-history-panel-native';
 import { trackEvent } from '@/lib/analytics';
 import { SprintFocusPointsSection, useSprintFocusPoints } from '@/features/focus-points';
@@ -434,6 +436,27 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
     setIsEditingSprint(true);
   };
 
+  // יעדי הספרינט כאריחים מתחת לכותרת; פעולות ניהול (עריכה/מחיקה) מאחורי "⋯" — לא שורת כפתורים.
+  const navActions: SprintNavAction[] = [
+    ...(canHighlight && !!onOpenFocusPoints ? [{
+      key: 'focus-points', icon: 'target' as const, label: Strings.focusPoints.openButton,
+      onPress: () => { trackEvent('focus_points_opened', { screen: 'retro_board' }); onOpenFocusPoints?.(); },
+    }] : []),
+    ...(canExportSummary ? [{
+      key: 'summary', icon: 'presentation' as const, label: Strings.sprintSummary.openButton,
+      onPress: () => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); },
+    }] : []),
+    // Any team member can open — no isAdmin/role gate, see product-backlog/08-memory-board.md §8.0 decision #7.
+    {
+      key: 'memory', icon: 'eye' as const, label: Strings.memoryBoard.openButton,
+      onPress: () => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); onOpenMemory(); },
+    },
+  ];
+  const manageItems: ActionMenuItem[] = canEditSprint ? [
+    { key: 'edit', icon: 'edit', label: Strings.retroBoard.editSprintButton, onPress: startEditingSprint },
+    { key: 'delete', icon: 'trash', label: Strings.sprintDeletion.deleteButton, tone: 'danger', disabled: deleteSprint.isConfirming, onPress: deleteSprint.ask },
+  ] : [];
+
   const handleSaveSprintEdit = async () => {
     setEditError(null);
     // BUG-12: same client-side check as the web board; any other rejection (e.g. unparseable date)
@@ -486,92 +509,34 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
             borderBottomColor: t.color.border,
           }}
         >
-          <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2] }}>
-            {/* Sprint-level actions (edit + summary) grouped together, visually distinct from navigation. */}
-            <View
-              style={{
-                flexDirection: 'row-reverse',
-                gap: t.space[1],
-                backgroundColor: t.color.surfaceSubtle,
-                borderRadius: t.radius.field,
-                padding: 2,
-              }}
-            >
-              {canEditSprint && (
-                <TouchableOpacity
-                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                  onPress={startEditingSprint}
-                >
-                  <Icon name="edit" size="sm" tone="muted" />
-                  <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-                    {Strings.retroBoard.editSprintButton}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {canEditSprint && (
-                <TouchableOpacity
-                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                  onPress={deleteSprint.ask}
-                  disabled={deleteSprint.isConfirming}
-                >
-                  <Icon name="trash" size="sm" tone="muted" />
-                  <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-                    {Strings.sprintDeletion.deleteButton}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {canHighlight && !!onOpenFocusPoints && (
-                <TouchableOpacity
-                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                  onPress={() => { trackEvent('focus_points_opened', { screen: 'retro_board' }); onOpenFocusPoints?.(); }}
-                >
-                  <Icon name="target" size="sm" tone="muted" />
-                  <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-                    {Strings.focusPoints.openButton}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {canExportSummary && (
-                <TouchableOpacity
-                  style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                  onPress={() => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); }}
-                >
-                  <Icon name="presentation" size="sm" tone="muted" />
-                  <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-                    {Strings.sprintSummary.openButton}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {/* Any team member can open — no isAdmin/role gate, see product-backlog/08-memory-board.md §8.0 decision #7. */}
-              <TouchableOpacity
-                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); onOpenMemory(); }}
-              >
-                <Icon name="eye" size="sm" tone="muted" />
-                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-                  {Strings.memoryBoard.openButton}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4, paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
-                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); }}
-                disabled={isLoading}
-              >
-                <Icon name="refresh" size="sm" tone="muted" />
-                <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-                  {Strings.common.refreshButton}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
+          {/* שורה עליונה: חזרה בקצה אחד, רענן + "⋯" (ניהול) בקצה השני. שאר היעדים — אריחים מתחת לכותרת. */}
+          <View style={{ width: '100%', flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
             <TouchableOpacity
-              style={{ flexDirection: 'row-reverse', alignItems: 'center', paddingHorizontal: t.space[2], paddingVertical: t.space[1] }}
+              style={{ minHeight: t.layout.minTouchTarget, justifyContent: 'center', paddingHorizontal: t.space[2] }}
               onPress={onBack}
             >
-              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
+              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.textSecondary }]}>
                 {Strings.retroBoard.backButton}
               </Text>
             </TouchableOpacity>
+            <View style={{ flexDirection: 'row-reverse', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={{ width: t.layout.minTouchTarget, height: t.layout.minTouchTarget, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); }}
+                disabled={isLoading}
+                accessibilityRole="button"
+                accessibilityLabel={Strings.common.refreshButton}
+              >
+                <Icon name="refresh" size="md" tone="muted" />
+              </TouchableOpacity>
+              {manageItems.length > 0 && (
+                <ActionMenu
+                  label={Strings.retroBoard.moreActionsLabel}
+                  items={manageItems}
+                  onOpen={() => trackEvent('sprint_actions_menu_opened', { screen: 'retro_board' })}
+                />
+              )}
+            </View>
           </View>
 
           {deleteSprint.isConfirming ? (
@@ -702,7 +667,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
               </View>
             </View>
           ) : (
-            <View style={{ alignItems: 'flex-end', gap: 4, flexShrink: 1 }}>
+            <View style={{ alignItems: 'flex-end', gap: 4, width: '100%' }}>
               <Text style={[rnText(t.type.sectionTitle), { color: t.color.text, textAlign: 'right' }]}>
                 {sprintData.name}
               </Text>
@@ -717,6 +682,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
             </View>
           )}
         </View>
+
+        <SprintNavActionsNative actions={navActions} />
 
         {canViewLengthHistory && (
           <SprintLengthHistoryPanelNative teamId={team.id} sprintId={sprintData.id} token={token} />

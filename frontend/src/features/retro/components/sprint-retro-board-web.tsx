@@ -4,11 +4,12 @@ import { Box, Typography, Alert } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
-import { Page, PageHeader, Grid, Card, Button, Field, Segmented, Icon } from '@/components/ui';
+import { Page, PageHeader, Grid, Card, Button, Field, Segmented, Icon, ActionMenu, type ActionMenuItem } from '@/components/ui';
 import { CommentCardWeb } from './comment-card-web';
 import { useDeleteSprint } from '../hooks/use-delete-sprint';
 import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
+import { SprintNavActionsWeb, type SprintNavAction } from './sprint-nav-actions-web';
 import { SprintLengthHistoryPanelWeb } from './sprint-length-history-panel-web';
 import { trackEvent } from '@/lib/analytics';
 import { SprintFocusPointsSection, useSprintFocusPoints } from '@/features/focus-points';
@@ -294,56 +295,56 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
     }
   };
 
+  // יעדי הספרינט: אריחים בשורה אחת מתחת לכותרת. פעולות ניהול (עריכה/מחיקה) מאחורי "⋯", לא בשורת הכפתורים.
+  const navActions: SprintNavAction[] = [
+    ...(canHighlight && onOpenFocusPoints ? [{
+      key: 'focus-points', icon: 'target' as const, label: Strings.focusPoints.openButton,
+      onPress: () => { trackEvent('focus_points_opened', { screen: 'retro_board' }); onOpenFocusPoints?.(); },
+    }] : []),
+    ...(canExportSummary ? [{
+      key: 'summary', icon: 'presentation' as const, label: Strings.sprintSummary.openButton,
+      onPress: () => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); },
+    }] : []),
+    // Any team member can open — no isAdmin/role gate, see product-backlog/08-memory-board.md §8.0 decision #7.
+    {
+      key: 'memory', icon: 'eye' as const, label: Strings.memoryBoard.openButton,
+      onPress: () => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); onOpenMemory(); },
+    },
+  ];
+  const manageItems: ActionMenuItem[] = canEditSprint ? [
+    { key: 'edit', icon: 'edit', label: Strings.retroBoard.editSprintButton, onPress: startEditingSprint },
+    { key: 'delete', icon: 'trash', label: Strings.sprintDeletion.deleteButton, tone: 'danger', disabled: deleteSprint.isConfirming, onPress: deleteSprint.ask },
+  ] : [];
+
   return (
     <Page>
-      <PageHeader
-        title={sprintData.name}
-        action={
-          // שורה אחת שנשברת לפי הצורך — לא קבוצות מקוננות, שבטלפון השאירו כל כפתור בשורה משלו עם רווח ריק לצדו.
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: { xs: `${t.space[1]}px`, sm: `${t.space[2]}px` } }}>
-            {canEditSprint ? (
-              <Button variant="ghost" size="sm" icon="edit" onPress={startEditingSprint}>
-                {Strings.retroBoard.editSprintButton}
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px` }}>
+        <Button variant="ghost" size="sm" onPress={onBack}>{Strings.retroBoard.backButton}</Button>
+        <PageHeader
+          title={sprintData.name}
+          action={
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px` }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="refresh"
+                iconOnlyOnMobile
+                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); }}
+                disabled={isLoading}
+              >
+                {Strings.common.refreshButton}
               </Button>
-            ) : null}
-            {canEditSprint ? (
-              <Button variant="ghost" size="sm" icon="trash" onPress={deleteSprint.ask} disabled={deleteSprint.isConfirming}>
-                {Strings.sprintDeletion.deleteButton}
-              </Button>
-            ) : null}
-            {canHighlight && onOpenFocusPoints ? (
-              <Button variant="ghost" size="sm" icon="target" onPress={() => { trackEvent('focus_points_opened', { screen: 'retro_board' }); onOpenFocusPoints?.(); }}>
-                {Strings.focusPoints.openButton}
-              </Button>
-            ) : null}
-            {canExportSummary ? (
-              <Button variant="ghost" size="sm" icon="presentation" onPress={() => { trackEvent('sprint_summary_opened', { sprintId: sprintData.id }); onOpenSummary(); }}>
-                {Strings.sprintSummary.openButton}
-              </Button>
-            ) : null}
-            {/* Any team member can open — no isAdmin/role gate, see product-backlog/08-memory-board.md §8.0 decision #7. */}
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="eye"
-              onPress={() => { trackEvent('memory_board_opened', { sprintId: sprintData.id }); onOpenMemory(); }}
-            >
-              {Strings.memoryBoard.openButton}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon="refresh"
-              iconOnlyOnMobile
-              onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); }}
-              disabled={isLoading}
-            >
-              {Strings.common.refreshButton}
-            </Button>
-            <Button variant="ghost" size="sm" onPress={onBack}>{Strings.retroBoard.backButton}</Button>
-          </Box>
-        }
-      />
+              {manageItems.length > 0 ? (
+                <ActionMenu
+                  label={Strings.retroBoard.moreActionsLabel}
+                  items={manageItems}
+                  onOpen={() => trackEvent('sprint_actions_menu_opened', { screen: 'retro_board' })}
+                />
+              ) : null}
+            </Box>
+          }
+        />
+      </Box>
 
       {deleteSprint.isConfirming ? (
         <Card>
@@ -415,6 +416,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
           )}
         </>
       )}
+
+      <SprintNavActionsWeb actions={navActions} />
 
       {canViewLengthHistory && (
         <SprintLengthHistoryPanelWeb teamId={team.id} sprintId={sprintData.id} token={token} refreshKey={historyRefreshKey} />

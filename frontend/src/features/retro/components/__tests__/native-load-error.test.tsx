@@ -80,6 +80,7 @@ describe('SprintRetroBoardNative', () => {
     const openEditor = async () => {
       mockGets(() => Promise.resolve({ data: [] }));
       const utils = await renderBoard();
+      await fireEvent.press(await utils.findByLabelText(Strings.retroBoard.moreActionsLabel));
       await fireEvent.press(await utils.findByText(Strings.retroBoard.editSprintButton));
       return utils;
     };

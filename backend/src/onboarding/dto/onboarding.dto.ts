@@ -11,6 +11,12 @@ export interface OnboardingStepDto {
   optional: boolean;
 }
 
+// Where the checklist's buttons can lead (the team the steps refer to + the sprint running today).
+export interface OnboardingHintsDto {
+  teamId: number | null;
+  activeSprintId: number | null;
+}
+
 export interface OnboardingStatusDto {
   track: OnboardingTrack;
   steps: OnboardingStepDto[];
@@ -18,4 +24,5 @@ export interface OnboardingStatusDto {
   checklistComplete: boolean;
   checklistDismissed: boolean;
   unseenFeatureKeys: string[];
+  hints: OnboardingHintsDto;
 }

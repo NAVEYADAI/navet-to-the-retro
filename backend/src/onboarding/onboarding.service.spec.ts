@@ -14,7 +14,7 @@ describe('OnboardingService', () => {
     comment: { count: jest.fn() },
     userMessagingLink: { count: jest.fn() },
     teamInvite: { count: jest.fn() },
-    sprint: { count: jest.fn() },
+    sprint: { count: jest.fn(), findFirst: jest.fn() },
     focusPoint: { count: jest.fn() },
   };
 
@@ -41,6 +41,7 @@ describe('OnboardingService', () => {
     sprints = 0,
     endedSprints = 0,
     focusPoints = 0,
+    activeSprintId = null as number | null,
   } = {}) {
     prisma.teamMember.findMany.mockResolvedValue(memberships);
     prisma.userOnboardingState.findUnique.mockResolvedValue(state);
@@ -51,6 +52,7 @@ describe('OnboardingService', () => {
     // open-sprint then close-sprint count (called in that order inside Promise.all)
     prisma.sprint.count.mockResolvedValueOnce(sprints).mockResolvedValueOnce(endedSprints);
     prisma.focusPoint.count.mockResolvedValue(focusPoints);
+    prisma.sprint.findFirst.mockResolvedValue(activeSprintId === null ? null : { id: activeSprintId });
   }
 
   const doneMap = (steps: { key: string; done: boolean }[]) =>
@@ -120,6 +122,33 @@ describe('OnboardingService', () => {
       expect(prisma.teamMember.findMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: 7, status: 'ACTIVE', team: { deletedAt: null } } })
       );
+    });
+  });
+
+  describe('getStatus - hints (targets for the checklist buttons)', () => {
+    it('no team: every hint is null and no sprint lookup happens', async () => {
+      setup();
+      const res = await service.getStatus(1, now);
+      expect(res.hints).toEqual({ teamId: null, activeSprintId: null });
+      expect(prisma.sprint.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('management: points at the first managed team and its running sprint', async () => {
+      setup({ memberships: [asMember(3), asAdmin(5)], activeSprintId: 40 });
+      const res = await service.getStatus(1, now);
+      expect(res.hints).toEqual({ teamId: 5, activeSprintId: 40 });
+      expect(prisma.sprint.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ teamId: 5, deletedAt: null, endDate: { gte: new Date('2026-10-20T00:00:00Z') } }),
+        })
+      );
+    });
+
+    it('member: points at the first active team; the running sprint may be missing', async () => {
+      setup({ memberships: [asMember(8), asMember(9)], activeSprintId: 77 });
+      const res = await service.getStatus(1, now);
+      expect(res.track).toBe('MEMBER');
+      expect(res.hints).toEqual({ teamId: 8, activeSprintId: 77 });
     });
   });
 

@@ -7,13 +7,20 @@ export interface OnboardingStep {
   optional: boolean;
 }
 
+/** Where the step buttons can lead; absent from an older server (buttons then just aren't offered). */
+export interface OnboardingHints {
+  teamId: number | null;
+  activeSprintId: number | null;
+}
+
 export interface OnboardingStatus {
   track: OnboardingTrack;
   steps: OnboardingStep[];
   checklistComplete: boolean;
   checklistDismissed: boolean;
   unseenFeatureKeys: string[];
+  hints?: OnboardingHints;
 }
 
 /** Where a CTA leads. `focus-points` needs a team the user manages (resolved by the dashboard). */
-export type CtaKind = 'settings' | 'focus-points' | 'none';
+export type CtaKind = 'settings' | 'focus-points' | 'sprint-board' | 'none';

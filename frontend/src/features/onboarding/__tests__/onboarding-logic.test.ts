@@ -72,7 +72,14 @@ describe('stepCta', () => {
     expect(stepCta('pick-focus-point', false)).toBe('none');
   });
   it('steps done inside the team cards have no button', () => {
-    for (const k of ['join-team', 'first-comment', 'invite-member', 'open-sprint', 'close-sprint']) expect(stepCta(k, true)).toBe('none');
+    const hints = { teamId: 1, activeSprintId: 2 };
+    for (const k of ['join-team', 'invite-member', 'open-sprint', 'close-sprint']) expect(stepCta(k, true, hints)).toBe('none');
+    expect(stepCta('first-comment', true)).toBe('none');
+  });
+  it('first-comment opens the running sprint, only when one exists', () => {
+    expect(stepCta('first-comment', false, { teamId: 1, activeSprintId: 2 })).toBe('sprint-board');
+    expect(stepCta('first-comment', false, { teamId: 1, activeSprintId: null })).toBe('none');
+    expect(stepCta('first-comment', false, { teamId: null, activeSprintId: 2 })).toBe('none');
   });
 });
 

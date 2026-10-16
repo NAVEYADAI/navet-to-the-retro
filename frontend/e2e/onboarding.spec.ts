@@ -180,6 +180,12 @@ test.describe('Onboarding — checklist and what\'s new', () => {
     await expect(page.getByRole('heading', { name: FP.title })).toHaveCount(0);
     await expect(page.getByText(S.managementOnlyBadge)).toHaveCount(0);
 
+    // The first-comment step opens the sprint that is running today (the status hints say which one).
+    await step(page, 'first-comment').getByRole('button', { name: S.steps['first-comment'].cta! }).click();
+    await expect(page).toHaveURL(new RegExp(`/team/${team.id}/sprint/${sprint.id}$`));
+    await loginAndGoto(page, member.token);
+    await expect(checklist(page)).toBeVisible();
+
     // The recommended Telegram step has a button that leads to the settings.
     await step(page, 'connect-telegram').getByRole('button', { name: S.steps['connect-telegram'].cta! }).click();
     await expect(page).toHaveURL(/\/settings$/);

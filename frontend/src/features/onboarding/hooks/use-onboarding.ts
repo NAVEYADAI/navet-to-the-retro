@@ -64,8 +64,8 @@ export function useOnboarding(token: string | null | undefined, refreshKey = 0, 
   const onStepPress = useCallback((step: OnboardingViewStep) => {
     if (step.cta === 'none') return;
     trackEvent('onboarding_step_clicked', { stepKey: step.key, track: track ?? 'unknown', done: step.done });
-    performCta(step.cta, managedTeamId);
-  }, [track, managedTeamId]);
+    performCta(step.cta, managedTeamId, status?.hints);
+  }, [track, managedTeamId, status]);
 
   const onHideChecklist = useCallback(() => {
     if (!token || !status) return;
@@ -98,7 +98,7 @@ export function useOnboarding(token: string | null | undefined, refreshKey = 0, 
   }, [feature, effectiveCta, track, managedTeamId, markSeen]);
 
   const steps: OnboardingViewStep[] = status
-    ? knownSteps(status).map((s) => ({ ...s, cta: stepCta(s.key, managedTeamId !== null) }))
+    ? knownSteps(status).map((s) => ({ ...s, cta: stepCta(s.key, managedTeamId !== null, status.hints) }))
     : [];
 
   return {

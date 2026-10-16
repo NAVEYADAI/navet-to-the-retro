@@ -1,6 +1,6 @@
 import { Strings } from '@/constants/strings';
 import { getFeature, type FeatureEntry } from './registry';
-import type { CtaKind, OnboardingStatus, OnboardingStep } from './types';
+import type { CtaKind, OnboardingHints, OnboardingStatus, OnboardingStep } from './types';
 
 // Pure helpers for feature 21 — no React, no network — so the rules are unit-testable.
 
@@ -42,13 +42,17 @@ export function pickWhatsNew(status: OnboardingStatus | null): FeatureEntry | nu
 }
 
 /** What pressing a step does. Steps without a button (they live inside the team cards) return 'none'. */
-export function stepCta(stepKey: string, canOpenFocusPoints: boolean): CtaKind {
+export function stepCta(stepKey: string, canOpenFocusPoints: boolean, hints?: OnboardingHints): CtaKind {
   switch (stepKey) {
     case 'create-team':
     case 'connect-telegram':
       return 'settings';
     case 'pick-focus-point':
       return canOpenFocusPoints ? 'focus-points' : 'none';
+    // Only offered when a sprint is running; the other steps happen inside the team card (and a finished
+    // "close sprint" collapses, so a button there would never show).
+    case 'first-comment':
+      return hints?.teamId != null && hints.activeSprintId != null ? 'sprint-board' : 'none';
     default:
       return 'none';
   }

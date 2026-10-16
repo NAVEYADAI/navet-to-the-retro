@@ -645,6 +645,7 @@ export const Strings = {
       'first-comment': {
         title: 'כתיבת הערה ראשונה',
         description: 'נכנסים לספרינט פעיל מכרטיס הצוות וכותבים מה כדאי לשמר ומה לשפר.',
+        cta: 'לספרינט הפעיל',
       },
       'connect-telegram': {
         title: 'חיבור טלגרם',

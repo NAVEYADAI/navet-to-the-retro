@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import {
+  OnboardingHintsDto,
   OnboardingStatusDto,
   OnboardingStepDto,
   OnboardingTrack,
@@ -70,10 +71,14 @@ export class OnboardingService {
     const track: OnboardingTrack =
       managementMemberships.length > 0 || activeTeamMemberships.length === 0 ? 'MANAGEMENT' : 'MEMBER';
 
-    const steps =
+    const hintTeamId =
+      track === 'MANAGEMENT' ? firstManagementTeamId : (activeTeamMemberships[0]?.teamId ?? null);
+    const [steps, hints] = await Promise.all([
       track === 'MANAGEMENT'
-        ? await this.managementSteps(userId, firstManagementTeamId, now)
-        : await this.memberSteps(userId, activeTeamMemberships.length > 0);
+        ? this.managementSteps(userId, firstManagementTeamId, now)
+        : this.memberSteps(userId, activeTeamMemberships.length > 0),
+      this.getHints(hintTeamId, now),
+    ]);
 
     const seen = new Set(state?.seenFeatureKeys ?? []);
     const canSeeManagementFeatures = managementMemberships.length > 0;
@@ -91,7 +96,22 @@ export class OnboardingService {
       checklistComplete: steps.every((s) => s.optional || s.done),
       checklistDismissed: !!state?.checklistDismissedAt,
       unseenFeatureKeys,
+      hints,
     };
+  }
+
+  // Targets for the checklist buttons: the team the steps refer to and its sprint running today.
+  // Deleted sprints never count. (`endDate` is a date: a sprint is still running
+  // through the whole of its last day, same reading as focus-point-access::sprintEndsAt.)
+  private async getHints(teamId: number | null, now: Date): Promise<OnboardingHintsDto> {
+    if (teamId === null) return { teamId: null, activeSprintId: null };
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const active = await this.prisma.sprint.findFirst({
+      where: { teamId, deletedAt: null, startDate: { lte: now }, endDate: { gte: startOfToday } },
+      orderBy: [{ startDate: 'desc' }, { id: 'desc' }],
+      select: { id: true },
+    });
+    return { teamId, activeSprintId: active?.id ?? null };
   }
 
   private async memberSteps(userId: number, joined: boolean): Promise<OnboardingStepDto[]> {

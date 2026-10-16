@@ -1,6 +1,6 @@
-# 21 — Onboarding (backend, שלב א')
+# 21 — Onboarding (שלב א')
 
-מקור: `backend/src/onboarding/` (`onboarding.controller.ts`, `onboarding.service.ts`, `onboarding-features.ts`, `dto/onboarding.dto.ts`), `backend/prisma/schema.prisma::UserOnboardingState`. החלטות מוצר: `product-backlog/21-onboarding-and-feature-discovery.md` §21.0. סעיף Frontend טרם מומש.
+מקור: `backend/src/onboarding/` (`onboarding.controller.ts`, `onboarding.service.ts`, `onboarding-features.ts`, `dto/onboarding.dto.ts`), `backend/prisma/schema.prisma::UserOnboardingState`. החלטות מוצר: `product-backlog/21-onboarding-and-feature-discovery.md` §21.0. Frontend: `frontend/src/features/onboarding/` (ר' §7).
 
 ## 1. Data Model
 
@@ -12,7 +12,7 @@
 
 | Endpoint | תשובה | הערות |
 |---|---|---|
-| `GET /onboarding/status` | `{ track, steps: [{key, done, optional}], checklistComplete, checklistDismissed, unseenFeatureKeys }` | 200 |
+| `GET /onboarding/status` | `{ track, steps: [{key, done, optional}], checklistComplete, checklistDismissed, unseenFeatureKeys, hints: { teamId, activeSprintId } }` | 200 |
 | `POST /onboarding/dismiss-checklist` | `{ checklistDismissed: true }` | 201, upsert |
 | `POST /onboarding/restore-checklist` | `{ checklistDismissed: false }` | 201, "הצג שוב" בהגדרות (החלטה #13); לא היה ברשימת §21.1 אבל נדרש ל-§21.2 |
 | `POST /onboarding/seen-features` body `{ keys: string[] }` | `{ seenFeatureKeys }` | 201; idempotent; מפתחות לא מוכרים מתעלמים מהם; גוף לא תקין (לא מערך מחרוזות / יותר מ-50) = 400 `'רשימת מפתחות לא תקינה'` |
@@ -39,6 +39,8 @@
 
 `checklistComplete` = כל הצעדים שאינם `optional` הושלמו. ללא צוות הנהלה כל צעד חוץ מ-`create-team` הוא `false` (ולא נשלחות שאילתות פר-צוות). מספר השאילתות קבוע: חברויות + מצב ממשק, ואז עד 5 `count` במקביל.
 
+`hints` הם יעדי הכפתורים: `teamId` = צוות ההנהלה הראשון (מסלול MANAGEMENT) או החברות הפעילה הראשונה (MEMBER), `null` בלי צוות; `activeSprintId` = ספרינט של אותו צוות שלא נמחק, ש-`startDate <= now` ו-`endDate >= תחילת היום (UTC)` (המאוחר ביותר), או `null`. שאילתה אחת נוספת, רק כשיש צוות.
+
 ## 5. "מה חדש" (`unseenFeatureKeys`)
 
 הרישום בצד שרת: `onboarding-features.ts` (`key`, `audience`, `since`; כותרות/טקסטים/CTA ב-frontend `registry.ts`). מוחזרים רק מפתחות עם `since >= 2026-10-15` (`WHATS_NEW_SINCE`, החלטה #12), שלא ב-`seenFeatureKeys`, ושה-audience שלהם מתאים: `MANAGEMENT` רק למי שיש לו חברות הנהלה פעילה; `MEMBER`/`ALL` לכולם. ממוינים לפי `since` יורד (הרישום שובר שוויון). כרגע רק `focus-points` (הנהלה) עונה על הסף.
@@ -49,3 +51,11 @@
 - שליחה חוזרת של אותו מפתח ב-`seen-features`: לא נכתב דבר, לא כפילות.
 - `seen-features` עם `{}` / ללא גוף: 400.
 - משתמש שנמחק: `UserOnboardingState` נמחק ב-cascade.
+
+## 7. Frontend
+
+- **מקור:** `frontend/src/features/onboarding/` — `use-onboarding.ts` (טוען בעליית הדשבורד וב"רענן" בלבד, לא על פוקוס), `onboarding-logic.ts` (פונקציות טהורות: צעדים, התקדמות, איזה כרטיס "מה חדש", יעד כפתור), `navigate.ts`, `registry.ts` (טקסטים/CTA/`since` לכל פיצ'ר; חייב להישאר זהה במפתחות ל-`backend/src/onboarding/onboarding-features.ts`), רכיבי `onboarding-checklist-{web,native}` ו-`whats-new-card-{web,native}`. משולב ב-`dashboard-{web,native}.tsx` מעל `MyFocusTasksCard`. כרטיס "התחלה מהירה" בהגדרות (`settings/components/quick-start-card*.tsx`) עם "הצג שוב".
+- **כפתורי צעדים:** `create-team` / `connect-telegram` → `/settings`; `pick-focus-point` → מסך נקודות לשיפור של צוות ההנהלה הראשון (נקבע מרשימת הצוותים של הדשבורד); `first-comment` → לוח הספרינט הפעיל (`hints`), רק כשיש כזה. שאר הצעדים נעשים בתוך כרטיס הצוות ואין להם route, ולכן אין כפתור (וצעד שהושלם מתכווץ לשורת כותרת, כך שכפתור ל-`close-sprint` לא היה מוצג לעולם).
+- **"נראה":** נרשם רק בסגירה או בלחיצה על ה-CTA, לא בטעינה; כרטיס אחד בכל כניסה; מפתח לא מוכר ללקוח מדולג.
+- **אנליטיקה:** `onboarding_step_clicked`, `onboarding_checklist_dismissed`, `whats_new_shown/dismissed/cta_clicked`, `onboarding_load_failed`.
+- **הוספת פיצ'ר חדש ל"מה חדש":** שורה ב-`onboarding-features.ts` (backend) **וגם** ב-`registry.ts` + מחרוזות ב-`Strings.onboarding.features` (frontend).

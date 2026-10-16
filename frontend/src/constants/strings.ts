@@ -110,7 +110,7 @@ export const Strings = {
     phantomBadge: 'לא רשום',
     addMemberExistingHint: 'מי שכבר רשום יופיע בצוות כ״ממתין לאישור״ עד שיאשר את ההצטרפות. מי שעוד לא רשום יקבל הזמנה במייל.',
     addMemberPhantomHint: 'חבר פנטום משתתף ברטרו בלי חשבון, ומסומן ״לא רשום״. אפשר להפוך אותו לחבר רשום בהמשך עם קישור הרשמה.',
-    addMemberLinkHint: 'כל מי שיקבל את הקישור יוכל להצטרף לצוות. אפשר להגביל לפי תאריך ומספר שימושים.',
+    addMemberLinkHint: 'כל מי שיקבל את הקישור יוכל להצטרף לצוות. אפשר (לא חובה) להגביל לפי תאריך ומספר שימושים.',
     addPhantomMemberToggle: 'הוסף חבר פנטום',
     addPhantomMemberHeader: 'הוספת חבר פנטום',
     phantomFirstNameLabel: 'שם פרטי',
@@ -143,8 +143,10 @@ export const Strings = {
     nameLabel: 'שם לקישור (אופציונלי)',
     namePlaceholder: 'למשל: לינק לצוות הפיתוח',
     unnamedLinkLabel: 'קישור ללא שם',
-    expiresAtLabel: 'תאריך תפוגה (אופציונלי)',
-    maxUsesLabel: 'מספר שימושים מקסימלי (אופציונלי)',
+    // Both labels are short on purpose: they sit side by side and must stay on one line each, so the
+    // two inputs line up. "Optional" is said once, in `addMemberLinkHint`.
+    expiresAtLabel: 'תאריך תפוגה',
+    maxUsesLabel: 'מקסימום שימושים',
     linkCreatedText: 'הקישור נוצר בהצלחה',
     linkCreatedSubtext: 'שתפו את הקישור הבא כדי להצטרף לצוות:',
     copyLinkButton: 'העתק קישור',
@@ -713,6 +715,14 @@ export const Strings = {
         description: 'בסיכום הספרינט אפשר להוריד את ההערות כמצגת PPTX.',
       },
     },
+    // --- "סיור במערכת": the on-demand tour (dashboard header) ---
+    tourButton: 'סיור במערכת',
+    tourTitle: 'סיור במערכת',
+    tourStepOf: (n: number, total: number) => `${n} מתוך ${total}`,
+    tourNext: 'הבא',
+    tourBack: 'הקודם',
+    tourFinish: 'סיום',
+    tourClose: 'סגירת הסיור',
     // --- settings: "quick start" card ---
     quickStartTitle: 'התחלה מהירה',
     quickStartSubtitle: 'הצ\'קליסט שמלווה בצעדים הראשונים בעמוד הראשי.',

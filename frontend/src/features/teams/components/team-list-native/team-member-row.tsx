@@ -195,10 +195,11 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
               onCancel={handleRemoveCancelled}
             />
           ) : (
-            <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', gap: t.space[2] }}>
-              {isTeamAdmin && <ActionButton label={Strings.teamList.saveButton} onPress={handleSaveEdit} kind="primary" disabled={editLoading} loading={editLoading} />}
-              {isPhantomManageable && <PhantomConversionButton state={conversion} />}
+            // Left edge (flex-end under row-reverse), "שמור" last so it is the leftmost.
+            <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: t.space[2] }}>
               {canRemove && <ActionButton label={Strings.teamList.removeMemberButton} onPress={handleRemoveClicked} kind="danger" disabled={isRemoving} />}
+              {isPhantomManageable && <PhantomConversionButton state={conversion} />}
+              {isTeamAdmin && <ActionButton label={Strings.teamList.saveButton} onPress={handleSaveEdit} kind="primary" disabled={editLoading} loading={editLoading} />}
             </View>
           )}
 

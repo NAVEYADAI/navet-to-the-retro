@@ -207,16 +207,17 @@ export function TeamMemberRow({ member, teamId, token, isTeamAdmin, isMe, onChan
               onCancel={handleRemoveCancelled}
             />
           ) : (
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[2]}px` }}>
-              {isTeamAdmin && (
-                <Button size="sm" variant="primary" onPress={handleSaveEdit} disabled={editLoading} loading={editLoading}>
-                  {Strings.teamList.saveButton}
-                </Button>
-              )}
-              {isPhantomManageable && <PhantomConversionButton state={conversion} />}
+            // The actions sit on the left edge (flex-end under dir=rtl), "שמור" last so it is the leftmost.
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', gap: `${t.space[2]}px` }}>
               {canRemove && (
                 <Button size="sm" variant="danger" icon="trash" onPress={handleRemoveClicked} disabled={isRemoving}>
                   {Strings.teamList.removeMemberButton}
+                </Button>
+              )}
+              {isPhantomManageable && <PhantomConversionButton state={conversion} />}
+              {isTeamAdmin && (
+                <Button size="sm" variant="primary" onPress={handleSaveEdit} disabled={editLoading} loading={editLoading}>
+                  {Strings.teamList.saveButton}
                 </Button>
               )}
             </Box>

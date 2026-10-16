@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreateTeamForm, TeamList } from '@/features/teams';
 import { MyFocusTasksCard } from '@/features/focus-points';
-import { OnboardingSection } from '@/features/onboarding';
+import { OnboardingSection, TourButton } from '@/features/onboarding';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
@@ -106,6 +106,7 @@ export function DashboardNative() {
                 )}
               </View>
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1], flexShrink: 0 }}>
+                <TourButton teams={teams} userId={user.id} />
                 {/* בטלפון רענון הוא אייקון בלבד — הטקסט נשאר כתווית נגישות. */}
                 <TouchableOpacity
                   accessibilityRole="button"

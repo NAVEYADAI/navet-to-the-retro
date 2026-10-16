@@ -74,3 +74,7 @@ If the feature's own notes name an existing component/pattern to reuse (e.g. "sa
    `מומש ✅`. Otherwise reflect what's still open (e.g. `Backend+Frontend מומש, בדיקות טרם הותחלו`).
 4. Report back concisely: which feature, what you implemented (web + native), verification results,
    and that the feature's "Tests" (e2e) subsection is still open — it's nobody's job here.
+
+## הטמעה
+
+אם בצ'קליסט `### N.2 Frontend` של הפיצ'ר יש פריט הטמעה (רמה א'/ב' לפי `### N.4`), הוא חלק מהמימוש: רשומה ב-`frontend/src/features/onboarding/registry.ts` **וגם** ב-`backend/src/onboarding/onboarding-features.ts` (אותו key/audience/since), מחרוזות ב-`Strings.onboarding.features`, ועדכון צעד/עוגן במדריך האינטראקטיבי אם הפיצ'ר משנה את המסלול הראשי. אל תסמן את הפיצ'ר סגור עד שהפריט הזה סגור.

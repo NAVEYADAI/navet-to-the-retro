@@ -219,6 +219,50 @@ test.describe('Onboarding — checklist and what\'s new', () => {
     expect(status.unseenFeatureKeys).toEqual([]);
   });
 
+  test('"סיור במערכת": any user can walk the tour from the dashboard header; management-only steps and the improvement-points button are the leader\'s only', async ({ page, request }) => {
+    test.setTimeout(240_000);
+    const suffix = `${Date.now()}_${test.info().project.name.replace(/\s+/g, '')}_tour`;
+    const leader = await register(request, `e2e_pw_ob_tl_${suffix}`);
+    const member = await register(request, `e2e_pw_ob_tm_${suffix}`);
+    const approver = await approverToken(request, `e2e_pw_ob_approver_${suffix}`);
+    const team = await approvedTeam(request, leader.token, `E2E OB Tour ${suffix}`, approver);
+    await joinViaInvite(request, team.id, leader.token, member.token);
+    const tourStep = page.getByTestId('tour-step');
+    const openTour = () => page.getByRole('button', { name: S.tourButton }).click();
+
+    // --- Member: no management-only step, walks forward and back, finishing closes it ---
+    await loginAndGoto(page, member.token);
+    await openTour();
+    await expect(tourStep).toBeVisible();
+    await expect(page.getByRole('dialog').getByText(/^1 מתוך \d+$/)).toBeVisible();
+    const first = await tourStep.getAttribute('data-step-key');
+    await page.getByRole('button', { name: S.tourNext }).click();
+    await expect(tourStep).not.toHaveAttribute('data-step-key', first!);
+    await page.getByRole('button', { name: S.tourBack }).click();
+    await expect(tourStep).toHaveAttribute('data-step-key', first!);
+    // Walk to the end: nothing marked "management only" shows up on the way.
+    while (await page.getByRole('button', { name: S.tourNext }).count()) {
+      await expect(page.getByText(S.managementOnlyBadge)).toHaveCount(0);
+      await page.getByRole('button', { name: S.tourNext }).click();
+    }
+    await expect(page.getByText(S.managementOnlyBadge)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: FP.cta })).toHaveCount(0);
+    await page.getByRole('button', { name: S.tourFinish }).click();
+    await expect(tourStep).toHaveCount(0);
+
+    // --- Leader: one more step (management only) at the end, its button opens the improvement points ---
+    await loginAndGoto(page, leader.token);
+    await openTour();
+    while (await page.getByRole('button', { name: S.tourNext }).count()) {
+      await page.getByRole('button', { name: S.tourNext }).click();
+    }
+    await expect(tourStep).toHaveAttribute('data-step-key', 'focus-points');
+    // (the dashboard's "what's new" card behind the dialog carries the same badge, so scope to the step)
+    await expect(tourStep.getByText(S.managementOnlyBadge)).toBeVisible();
+    await page.getByRole('button', { name: FP.cta }).click();
+    await expect(page).toHaveURL(new RegExp(`/team/${team.id}/focus-points$`));
+  });
+
   test('the leader\'s CTA opens the improvement points of the managed team and counts as seen', async ({ page, request }) => {
     test.setTimeout(180_000);
     const suffix = `${Date.now()}_${test.info().project.name.replace(/\s+/g, '')}_cta`;

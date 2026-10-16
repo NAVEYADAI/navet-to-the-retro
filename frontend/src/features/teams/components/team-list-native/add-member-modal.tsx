@@ -4,6 +4,7 @@ import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
 import { Modal } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
+import { animateNextLayout } from '@/lib/animate-layout';
 import { AddMemberForm } from './add-member-form';
 import { AddPhantomMemberForm } from './add-phantom-member-form';
 import { InviteLinksPanel } from './invite-links-panel';
@@ -69,6 +70,7 @@ export function AddMemberModal({ open, onClose, teamId, teamName, token, canInvi
                 key={o.value}
                 onPress={() => {
                   trackEvent('add_member_tab_changed', { tab: o.value });
+                  animateNextLayout();
                   setTab(o.value);
                 }}
                 style={{

@@ -62,7 +62,7 @@ test.describe('Team invites — email invites for unregistered users + shareable
     await openAddMemberModal(page, 'link');
     // The create form is open as soon as the link tab is (no "show form" click first).
     await page.getByPlaceholder(Strings.invites.namePlaceholder).waitFor();
-    await page.getByText(Strings.invites.createLinkButton).click();
+    await page.getByRole('button', { name: Strings.invites.createLinkButton }).click();
 
     await page.getByText(Strings.invites.linkCreatedText).waitFor();
     const linkText = await page.locator('text=/\\/invite\\//').first().textContent();
@@ -154,7 +154,7 @@ test.describe('Team invites — email invites for unregistered users + shareable
     // Invite links live in the add-member modal (members list -> "הוסף חבר" -> link tab).
     await openAddMemberModal(page, 'link');
     await page.getByPlaceholder(Strings.invites.namePlaceholder).waitFor();
-    await page.getByText(Strings.invites.createLinkButton).click();
+    await page.getByRole('button', { name: Strings.invites.createLinkButton }).click();
 
     await page.getByText(Strings.invites.linkCreatedText).waitFor();
     const linkText = await page.locator('text=/\\/invite\\//').first().textContent();

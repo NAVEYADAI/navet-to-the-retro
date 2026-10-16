@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform } from 'react-native';
 import { useOnboarding } from './hooks/use-onboarding';
+import { useTour } from './hooks/use-tour';
 import { findManagedTeamId } from './onboarding-logic';
 
 export { useQuickStart } from './hooks/use-quick-start';
@@ -32,4 +33,18 @@ export function OnboardingSection(props: { token: string | null | undefined; ref
       <WhatsNewCardNative onboarding={onboarding} />
     </>
   );
+}
+
+/**
+ * "סיור במערכת": the header button (+ its stepped window) that lets an existing user walk through
+ * what the system can do whenever they like. Nothing is stored on the server.
+ */
+export function TourButton(props: { teams: any[]; userId: number }) {
+  const tour = useTour(findManagedTeamId(props.teams, props.userId));
+  if (Platform.OS === 'web') {
+    const { TourWeb } = require('./components/tour-web');
+    return <TourWeb tour={tour} />;
+  }
+  const { TourNative } = require('./components/tour-native');
+  return <TourNative tour={tour} />;
 }

@@ -120,3 +120,7 @@ Never edit any other row in that table — that belongs to whichever agent last 
 Report back concisely: the feature number/name, whether it's fully specified or still a draft, and
 — if it's a draft — the exact open questions the user needs to answer before any builder agent can
 run against it.
+
+## הטמעה (חובה בכל אפיון)
+
+כל קובץ פיצ'ר חדש כולל סעיף `### N.4 הטמעה` — לפי "סטנדרט הטמעה" ב-`product-backlog/README.md`. הצע רמה (א' זרימה בסיסית / ב' גילוי / ג' בלי השפעה) ונמק בשורה; לרמה א'/ב' ציין: מפתח פיצ'ר (`key`), קהל (`MEMBER`/`MANAGEMENT`/`ALL`), תאריך (`since`), ואיזה צעד/עוגן במדריך (פיצ'ר 22) מושפע. לרמה ג' כתוב "אין השפעה על הטמעה" ונימוק. הרמה היא **הצעה** — נוה מאשר אותה כחלק מהשאלות הפתוחות. הוסף גם פריט לצ'קליסט `### N.2 Frontend` שמטפל בהטמעה.

@@ -180,7 +180,7 @@ export function InviteLinksPanel({ teamId, token }: InviteLinksPanelProps) {
             value={name}
             onChangeText={setName}
           />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: `${t.space[3]}px` }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, alignItems: 'end', gap: `${t.space[3]}px` }}>
             <Field
               label={Strings.invites.expiresAtLabel}
               type="date"

@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
 import { TeamList } from '@/features/teams';
 import { MyFocusTasksCard } from '@/features/focus-points';
-import { OnboardingSection } from '@/features/onboarding';
+import { OnboardingSection, TourButton } from '@/features/onboarding';
 import { Strings } from '@/constants/strings';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
@@ -45,6 +45,7 @@ export function DashboardWeb() {
         subtitle={subtitle}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px` }}>
+            <TourButton teams={teams} userId={user.id} />
             <Button
               variant="ghost"
               size="sm"

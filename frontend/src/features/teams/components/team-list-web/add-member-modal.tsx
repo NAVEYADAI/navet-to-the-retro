@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { Modal, Segmented } from '@/components/ui';
+import { AnimatedHeight, Modal, Segmented } from '@/components/ui';
 import { trackEvent } from '@/lib/analytics';
 import { AddMemberForm } from './add-member-form';
 import { AddPhantomMemberForm } from './add-phantom-member-form';
@@ -60,11 +60,14 @@ export function AddMemberModal({ open, onClose, teamId, teamName, token, canInvi
       subtitle={teamName}
       closeLabel={Strings.teamList.closeModalLabel}
     >
-      {options.length > 1 && <Segmented value={activeTab} onChange={handleTabChange} options={options} />}
-      {activeTab && <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>{TAB_HINTS[activeTab]}</Typography>}
-      {activeTab === 'existing' && <AddMemberForm teamId={teamId} token={token} onInviteSent={handleDone} />}
-      {activeTab === 'phantom' && <AddPhantomMemberForm teamId={teamId} token={token} onCreated={handleDone} />}
-      {activeTab === 'link' && <InviteLinksPanel teamId={teamId} token={token} />}
+      {/* Switching tabs (and the invite list loading) changes the height — it animates instead of jumping. */}
+      <AnimatedHeight>
+        {options.length > 1 && <Segmented value={activeTab} onChange={handleTabChange} options={options} />}
+        {activeTab && <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>{TAB_HINTS[activeTab]}</Typography>}
+        {activeTab === 'existing' && <AddMemberForm teamId={teamId} token={token} onInviteSent={handleDone} />}
+        {activeTab === 'phantom' && <AddPhantomMemberForm teamId={teamId} token={token} onCreated={handleDone} />}
+        {activeTab === 'link' && <InviteLinksPanel teamId={teamId} token={token} />}
+      </AnimatedHeight>
     </Modal>
   );
 }

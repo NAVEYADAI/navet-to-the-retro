@@ -59,3 +59,7 @@ feature.
    leave the row as whatever it already said.
 3. Report back: which feature, what was tested, pass/fail results, and any real bug found along the
    way (not just test-writing mechanics).
+
+## הטמעה
+
+אם לפיצ'ר יש `### N.4 הטמעה` ברמה א'/ב', ודא שיש בדיקה שהרשומה קיימת ברישום (frontend + backend זהים) ושכרטיס "מה חדש"/צעד במדריך מוצג לקהל הנכון בלבד. פיצ'ר ברמה ג' לא דורש בדיקה, אך ודא שהאפיון אכן מצהיר "אין השפעה על הטמעה".

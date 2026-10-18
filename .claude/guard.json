@@ -1,17 +1,17 @@
 {
-  "$comment": "Read by the dev-team plugin hooks (guard.mjs / watch.mjs). Patterns are case-insensitive regexes. deny = blocked, ask = the user must confirm. See TEAM.md → Hard rules.",
+  "$comment": "Read by the dev-team plugin hooks (guard.mjs / watch.mjs). Patterns are case-insensitive regexes. deny = blocked, ask = the user must confirm. Environments: test = postgres-test (localhost:5433) · development = Neon branch 'development' (backend/.env, APP_ENV=development) · production = Neon branch 'production' (Fly secrets / Infisical prod only). See TEAM.md → Hard rules.",
   "bash": [
     {
       "id": "real-db-http",
       "action": "deny",
       "match": "\\b(curl|wget|http|httpie|nc|telnet)\\b.*(localhost|127\\.0\\.0\\.1|\\[::1\\]|host\\.docker\\.internal):5005",
-      "message": "Port 5005 is the dev backend, which talks to the REAL Neon database. Never curl/seed against it. Use the isolated e2e backend on 5006 (frontend/e2e, postgres-test)."
+      "message": "Port 5005 is the dev backend. Until backend/.env has been switched to the development branch (npm run env:set-dev-db, run by Nave) it talks to the REAL production database. Use the isolated e2e backend on 5006. After the switch this rule can be relaxed to 'ask'."
     },
     {
-      "id": "neon-host",
-      "action": "deny",
-      "match": "neon\\.tech",
-      "message": "That is the real Neon database. Do not connect to it from here; ask Nave to run it himself."
+      "id": "neon-url",
+      "action": "ask",
+      "match": "postgres(ql)?://\\S*neon\\.tech|\\bpsql\\b.*neon\\.tech",
+      "message": "A Neon connection. Only the DEVELOPMENT branch may be used from here — never production. Confirm which database this command targets."
     },
     {
       "id": "raw-sql-client",
@@ -25,19 +25,25 @@
       "action": "deny",
       "match": "prisma\\s+(db\\s+(push|execute|seed)|migrate|studio)",
       "unless": "\\.env\\.test",
-      "message": "Prisma writes/Studio must target the test DB: use `npm run schema:test:push`, or `dotenv -e .env.test -- prisma …`. `db push` on Neon needs Nave's explicit go-ahead and is run by him."
+      "message": "Raw Prisma writes/Studio are blocked: they use whatever backend/.env points at. Use `npm run schema:test:push` (test DB) or `npm run schema:dev:push` (development DB — refuses unless APP_ENV=development). Production is never written from here."
     },
     {
       "id": "read-env-file",
       "action": "deny",
       "match": "\\b(cat|less|more|head|tail|bat|grep|rg|sed|awk|source|strings|cp|mv)\\b[^|;&]*\\.env(\\s|$|\"|')",
-      "message": "`.env` files hold real secrets (Neon URL, API keys). Do not read or copy them; `.env.example` / `.env.test.example` are fine."
+      "message": "`.env` files hold real secrets (DB URLs, API keys). Do not read or copy them; `.env.example` / `.env.test.example` are fine."
+    },
+    {
+      "id": "set-dev-db",
+      "action": "deny",
+      "match": "npm\\s+run\\s+env:set-dev-db|(^|[\\s;&|])(bash\\s+|sh\\s+|\\./)?\\S*scripts/set-dev-db\\.sh(\\s|$)",
+      "message": "This script moves a database password from the clipboard into backend/.env. Nave runs it himself, in his own terminal."
     },
     {
       "id": "prod-schema-check",
       "action": "ask",
-      "match": "schema:check:prod",
-      "message": "This reads the REAL Neon schema (read-only) using backend/.env. It is meant to be run by Nave himself (deploy.sh runs it); confirm before running it from here."
+      "match": "schema:check:prod|PROD_DATABASE_URL",
+      "message": "This reads the REAL production schema (read-only) and needs the production URL, which should never be on this machine's everyday environment. Meant to be run by Nave at deploy time; confirm before running it from here."
     },
     {
       "id": "deploy",
@@ -55,7 +61,7 @@
   "watch": [
     {
       "path": "(^|/)prisma/schema\\.prisma$",
-      "message": "Schema changed. Checklist: (1) the test DB is updated by `npm run schema:test:push` (also runs automatically before `npm run test:e2e`); (2) a new @default on an existing table silently reclassifies old rows under db push — plan a backfill; (3) Neon is NOT updated by deploy: `db push` there needs Nave's approval, and `npm run schema:check:prod` (run by Nave, read-only) will fail the deploy until it is done; (4) restart the backend container after a schema change."
+      "message": "Schema changed. Checklist: (1) test DB: `npm run schema:test:push` (runs automatically before `npm run test:e2e`); (2) development DB: `npm run schema:dev:push`, then restart the backend container; (3) a new @default on an existing table silently reclassifies old rows under db push — plan a backfill before production; (4) production is NOT updated by deploy: `db push` there needs Nave's explicit approval, and the schema gate in deploy.sh (`schema:check:prod`, needs PROD_DATABASE_URL) fails the deploy until it is done."
     },
     {
       "path": "(^|/)(deploy\\.sh|backend/Dockerfile|backend/fly\\.toml|frontend/fly\\.toml)$",

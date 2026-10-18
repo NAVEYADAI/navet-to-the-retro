@@ -43,14 +43,25 @@ monorepo עם npm workspaces. פריסה: Fly.io.
 | frontend unit | `npm test --prefix frontend` |
 | typecheck | `npx tsc --noEmit -p .` מתוך `frontend/` — ידועות כרגע 4 שגיאות שאינן קשורות לשינוי (`Colors` ב-`constants/theme`, טיפוסי `react-dom/client`); מה שחשוב: אפס שגיאות **חדשות** |
 | frontend e2e | `npx playwright test [spec...]` מתוך `frontend/` — מרים backend מבודד על 5006 ו-web על 8086 (`reuseExistingServer:false`) |
-| סכמה → DB בדיקות | `npm run schema:test:push --prefix backend` (רץ גם אוטומטית לפני `test:e2e`/`start:e2e`) |
-| בדיקת סנכרון סכמה | `npm run schema:check:test --prefix backend` (בדיקות) · `npm run schema:check:prod --prefix backend` (**נוה בלבד**, קריאה בלבד מול Neon) |
-| deploy | `npm run deploy` — **לא להריץ באופן אוטומטי**: מריץ הכל, ואז **שער סכמה מול production**, ורק אז `fly deploy` |
+| סכמה → בדיקות **ופיתוח** (פקודה אחת) | `npm run schema:sync --prefix backend` = `schema:test:push` + `schema:dev:push` (בדיקות גם רץ אוטומטית לפני `test:e2e`/`start:e2e`) |
+| סכמה → DB פיתוח בלבד | `npm run schema:dev:push --prefix backend` (מסרב אם `APP_ENV` אינו `development` או אם ה-host שווה ל-`PROD_DATABASE_URL`) |
+| בדיקת סנכרון סכמה | `schema:check:test` · `schema:check:dev` · `schema:check:prod` (**נוה בלבד**, קריאה בלבד, דורש `PROD_DATABASE_URL`) — כולם `--prefix backend` |
+| מעבר `backend/.env` ל-DB פיתוח | `npm run env:set-dev-db --prefix backend` — **נוה מריץ בעצמו** (מעביר את כתובת ה-DB מהלוח ל-`backend/.env` **ול-`.env` שבשורש** אם יש בו `DATABASE_URL` — docker-compose קורא משם; לא מדפיס אותה). אם `infisical run` מספק `DATABASE_URL`, הוא גובר על הקבצים — לעדכן גם שם. בעליית שרת הפיתוח השורה `Database` בלוג מציגה את ה-host ואזהרה אם `APP_ENV` אינו `development` |
+| deploy | `PROD_DATABASE_URL='…' npm run deploy` — **לא להריץ באופן אוטומטי**: מריץ הכל, ואז **שער סכמה מול production** (מסרב בלי `PROD_DATABASE_URL`), ורק אז `fly deploy` |
+
+## Environments (שלוש סביבות)
+| סביבה | DB | מקור הכתובת |
+|---|---|---|
+| בדיקות | Docker מקומי `postgres-test` (`localhost:5433/navet_test`) | `backend/.env.test` |
+| פיתוח | Neon branch `development` (סכמה בלבד, בלי נתונים אמיתיים; ללא auto-delete) | `backend/.env` עם `APP_ENV=development` (או Infisical) |
+| production | Neon branch `production` | **רק** Fly secrets / סביבת prod במנהל הסודות; נכנס ל-deploy כ-`PROD_DATABASE_URL`. לא נשמר ב-`backend/.env` |
 
 ## Hard rules (never)
-- **לא לגעת ב-DB האמיתי (Neon, פורט 5005):** לא curl, לא seed, לא סקריפטים. כל בדיקה ידנית/אוטומטית רצה רק על
-  backend e2e מבודד (5006) מול `postgres-test`, ומנקים אחרי עצמם.
-- **`npx prisma db push` מול Neon — רק באישור מפורש של נוה.** מול `postgres-test` (`.env.test`) מותר.
+- **לא לגעת ב-production:** לא curl, לא seed, לא סקריפטים, ולעולם לא לשמור/לבקש את כתובת ה-production בסביבה היומיומית. בדיקות רצות
+  רק מול `postgres-test` (backend e2e מבודד על 5006) ומנקים אחרי עצמם. **כתובת DB (עם סיסמה) שנדבקה בצ'אט נחשבת חשופה — מאפסים אותה ב-Neon;**
+  סוכן לא מעתיק/כותב סיסמאות לקבצים — `env:set-dev-db` עושה את זה בטרמינל של נוה.
+- **עדכון סכמה:** בדיקות ופיתוח — דרך `schema:sync` / `schema:dev:push` (חופשי). production — **רק באישור מפורש של נוה, והוא מריץ בעצמו**.
+  `prisma` גולמי (db push/migrate/studio) חסום ב-hook: הוא משתמש במה ש-`backend/.env` מצביע עליו.
 - שדה חדש עם `@default()` על טבלה קיימת מסווג שורות ישנות בשקט (מלכודת ה-backfill) — לתכנן backfill ולעצור.
 - לא `git push`, לא deploy, לא לקרוא קבצי `.env*`.
 - **הכללים האלה נאכפים ב-hook, לא רק כהוראה:** `.claude/guard.json` נקרא על ידי ה-hooks של plugin `dev-team` ומונע (deny) / מבקש אישור (ask)

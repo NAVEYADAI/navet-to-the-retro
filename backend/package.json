@@ -23,7 +23,11 @@
     "test:e2e": "npm run schema:test:push && dotenv -e .env.test -- jest --config ./test/jest-e2e.json",
     "schema:test:push": "dotenv -e .env.test -- node scripts/schema-sync.js push-test",
     "schema:check:test": "dotenv -e .env.test -- node scripts/schema-sync.js check-test",
-    "schema:check:prod": "dotenv -e .env -- node scripts/schema-sync.js check-prod"
+    "schema:dev:push": "dotenv -e .env -- node scripts/schema-sync.js push-dev",
+    "schema:check:dev": "dotenv -e .env -- node scripts/schema-sync.js check-dev",
+    "schema:sync": "npm run schema:test:push && npm run schema:dev:push",
+    "schema:check:prod": "node scripts/schema-sync.js check-prod",
+    "env:set-dev-db": "bash scripts/set-dev-db.sh"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

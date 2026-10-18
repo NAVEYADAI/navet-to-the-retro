@@ -72,22 +72,26 @@ lead" gated action instead of re-deriving the same check inline in a new service
   project. A schema change is applied directly; anything beyond an additive nullable/defaulted
   column needs a hand-planned backfill script (see `product-backlog/03-team-comment-categories.md`
   for a worked example of planning a risky backfill before running it against real data).
-- **Never run `prisma db push` against the shared dev/prod Neon database without the user's
-  explicit go-ahead first** — it's not an isolated per-agent database. Pushing against the
-  `postgres-test` service for e2e (`.env.test`) is safe to do directly.
+- **Never apply a schema change to production without the user's explicit go-ahead, and never from an agent session.**
+  Test DB (`postgres-test`) and the development DB are free to update — through the npm scripts below, not raw `prisma`.
 
 ### סנכרון סכמה בין סביבות (למה פריסה נכשלת מול ה-DB)
 
-ה-image של production **לא** מריץ `prisma db push` — הסכמה ב-Neon מתעדכנת ידנית, באישור נוה. לכן "הטסטים ירוקים" ו"הפריסה
-עובדת" יכולים להיפרד: הקוד החדש מצפה לטבלה/עמודה שעדיין לא קיימת ב-Neon. מה שמונע את זה:
+שלוש סביבות: **בדיקות** (Docker, `localhost:5433`) · **פיתוח** (Neon branch `development`, `backend/.env` עם `APP_ENV=development`) ·
+**production** (Neon branch `production`; הכתובת רק ב-Fly/מנהל הסודות, ונכנסת ל-deploy כ-`PROD_DATABASE_URL`). ה-image של production **לא**
+מריץ `db push` — הסכמה שם מתעדכנת ידנית, באישור נוה. לכן "הטסטים ירוקים" ו"הפריסה עובדת" יכולים להיפרד: הקוד החדש מצפה לטבלה/עמודה
+שעדיין לא קיימת ב-production. מה שמונע את זה:
 
-- `npm run schema:test:push` מיישם את `schema.prisma` על `postgres-test` (רק `localhost:5433`, מסרב לכל URL אחר). רץ אוטומטית לפני
-  `test:e2e` ו-`start:e2e`, כך שטסטים תמיד רצים על הסכמה שהקוד מצפה לה.
-- `npm run schema:check:test` — השוואה בקריאה בלבד של `postgres-test` מול הסכמה.
-- `npm run schema:check:prod` — השוואה בקריאה בלבד של ה-DB החי מול הסכמה. `deploy.sh` מריץ אותו **לפני** `fly deploy` ועוצר את הפריסה
-  אם ה-DB מפגר, ומדפיס את ה-SQL החסר. הוא משתמש ב-`PROD_DATABASE_URL`, ואם לא הוגדר — ב-`DATABASE_URL` של `backend/.env` (ההנחה: dev ו-prod
-  על אותו Neon; אם לא, להגדיר `PROD_DATABASE_URL`). את התיקון (`db push` מול Neon) מריץ נוה בעצמו.
-- `.claude/guard.json` + ה-hooks של `dev-team` חוסמים גישה מקרית ל-DB האמיתי מתוך סשן Claude (ר' `TEAM.md` → Hard rules).
+- **`npm run schema:sync`** — פקודה אחת שמעדכנת את בסיס הבדיקות **ואת בסיס הפיתוח** לפי `schema.prisma`. אחרי שינוי סכמה זו הפקודה היחידה
+  שצריך (ואז לאתחל את קונטיינר ה-backend).
+  - `schema:test:push` — `postgres-test` בלבד (מסרב לכל URL אחר). רץ גם אוטומטית לפני `test:e2e` ו-`start:e2e`.
+  - `schema:dev:push` — מסרב אם `APP_ENV` אינו `development`, או אם ה-host שווה ל-`PROD_DATABASE_URL`. הופך כתובת pooler של Neon ל-direct
+    עבור ה-CLI. נכשל (ולא מוחק) על שינוי הרסני.
+- `schema:check:test` / `schema:check:dev` — השוואה בקריאה בלבד מול הסכמה, ומדפיסה את ה-SQL החסר.
+- **`schema:check:prod`** — השוואה בקריאה בלבד של production מול הסכמה. `deploy.sh` מריץ אותו **לפני** `fly deploy`, ומסרב לרוץ בלי
+  `PROD_DATABASE_URL` (כתובת production **לא** נקראת מ-`backend/.env`). עוצר את הפריסה אם production מפגר. את התיקון מריץ נוה בעצמו.
+- `npm run env:set-dev-db` — נוה מריץ בטרמינל שלו; מעביר את כתובת ה-DB מהלוח ל-`backend/.env` (ומאפס את הלוח) בלי להדפיס אותה.
+- `.claude/guard.json` + ה-hooks של `dev-team` חוסמים גישה מקרית ל-production מתוך סשן Claude (ר' `TEAM.md` → Hard rules).
 
 ## Testing
 

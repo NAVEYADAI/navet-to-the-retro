@@ -43,7 +43,9 @@ monorepo עם npm workspaces. פריסה: Fly.io.
 | frontend unit | `npm test --prefix frontend` |
 | typecheck | `npx tsc --noEmit -p .` מתוך `frontend/` — ידועות כרגע 4 שגיאות שאינן קשורות לשינוי (`Colors` ב-`constants/theme`, טיפוסי `react-dom/client`); מה שחשוב: אפס שגיאות **חדשות** |
 | frontend e2e | `npx playwright test [spec...]` מתוך `frontend/` — מרים backend מבודד על 5006 ו-web על 8086 (`reuseExistingServer:false`) |
-| deploy | `npm run deploy` — **לא להריץ באופן אוטומטי** (מריץ הכל ואז `fly deploy`) |
+| סכמה → DB בדיקות | `npm run schema:test:push --prefix backend` (רץ גם אוטומטית לפני `test:e2e`/`start:e2e`) |
+| בדיקת סנכרון סכמה | `npm run schema:check:test --prefix backend` (בדיקות) · `npm run schema:check:prod --prefix backend` (**נוה בלבד**, קריאה בלבד מול Neon) |
+| deploy | `npm run deploy` — **לא להריץ באופן אוטומטי**: מריץ הכל, ואז **שער סכמה מול production**, ורק אז `fly deploy` |
 
 ## Hard rules (never)
 - **לא לגעת ב-DB האמיתי (Neon, פורט 5005):** לא curl, לא seed, לא סקריפטים. כל בדיקה ידנית/אוטומטית רצה רק על
@@ -51,6 +53,10 @@ monorepo עם npm workspaces. פריסה: Fly.io.
 - **`npx prisma db push` מול Neon — רק באישור מפורש של נוה.** מול `postgres-test` (`.env.test`) מותר.
 - שדה חדש עם `@default()` על טבלה קיימת מסווג שורות ישנות בשקט (מלכודת ה-backfill) — לתכנן backfill ולעצור.
 - לא `git push`, לא deploy, לא לקרוא קבצי `.env*`.
+- **הכללים האלה נאכפים ב-hook, לא רק כהוראה:** `.claude/guard.json` נקרא על ידי ה-hooks של plugin `dev-team` ומונע (deny) / מבקש אישור (ask)
+  לפני פקודת shell: curl אל 5005, כל חיבור ל-`neon.tech`, `prisma db push|migrate|studio` בלי `.env.test`, קריאת `.env`, `psql`
+  שאינו על 5433; ו-ask על `fly deploy`/`deploy.sh`, `schema:check:prod`, ומחיקת ה-volume של postgres-test. לעדכון כלל — לערוך את הקובץ.
+  ה-hook הוא רשת ביטחון נגד תקלות, לא sandbox.
 - לא להמיר מסך קיים למערכת העיצוב כתוספת אגבית למשימה אחרת — זו עבודה ממוקדת (`UI-MIGRATION-BACKLOG.md`).
 
 ## Backlog

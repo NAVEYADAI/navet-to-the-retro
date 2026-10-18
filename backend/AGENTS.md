@@ -76,6 +76,19 @@ lead" gated action instead of re-deriving the same check inline in a new service
   explicit go-ahead first** — it's not an isolated per-agent database. Pushing against the
   `postgres-test` service for e2e (`.env.test`) is safe to do directly.
 
+### סנכרון סכמה בין סביבות (למה פריסה נכשלת מול ה-DB)
+
+ה-image של production **לא** מריץ `prisma db push` — הסכמה ב-Neon מתעדכנת ידנית, באישור נוה. לכן "הטסטים ירוקים" ו"הפריסה
+עובדת" יכולים להיפרד: הקוד החדש מצפה לטבלה/עמודה שעדיין לא קיימת ב-Neon. מה שמונע את זה:
+
+- `npm run schema:test:push` מיישם את `schema.prisma` על `postgres-test` (רק `localhost:5433`, מסרב לכל URL אחר). רץ אוטומטית לפני
+  `test:e2e` ו-`start:e2e`, כך שטסטים תמיד רצים על הסכמה שהקוד מצפה לה.
+- `npm run schema:check:test` — השוואה בקריאה בלבד של `postgres-test` מול הסכמה.
+- `npm run schema:check:prod` — השוואה בקריאה בלבד של ה-DB החי מול הסכמה. `deploy.sh` מריץ אותו **לפני** `fly deploy` ועוצר את הפריסה
+  אם ה-DB מפגר, ומדפיס את ה-SQL החסר. הוא משתמש ב-`PROD_DATABASE_URL`, ואם לא הוגדר — ב-`DATABASE_URL` של `backend/.env` (ההנחה: dev ו-prod
+  על אותו Neon; אם לא, להגדיר `PROD_DATABASE_URL`). את התיקון (`db push` מול Neon) מריץ נוה בעצמו.
+- `.claude/guard.json` + ה-hooks של `dev-team` חוסמים גישה מקרית ל-DB האמיתי מתוך סשן Claude (ר' `TEAM.md` → Hard rules).
+
 ## Testing
 
 - Unit: `*.spec.ts` colocated next to the file under test — `npm test` (jest `rootDir: src`).

@@ -1,5 +1,5 @@
 {
-  "$comment": "Read by the dev-team plugin hooks (guard.mjs / watch.mjs). Patterns are case-insensitive regexes. deny = blocked, ask = the user must confirm. Environments: test = postgres-test (localhost:5433) · development = Neon branch 'development' (backend/.env, APP_ENV=development) · production = Neon branch 'production' (Fly secrets / Infisical prod only). See TEAM.md → Hard rules.",
+  "$comment": "Read by the dev-team plugin hooks (guard.mjs / watch.mjs). Patterns are case-insensitive regexes. deny = blocked, ask = the user must confirm. Environments: test = postgres-test (localhost:5433) · development = Neon branch 'development' (backend/.env, APP_ENV=development) · production = Neon branch 'production' (Fly secrets / secrets manager only). See TEAM.md → Hard rules.",
   "bash": [
     {
       "id": "real-db-http",
@@ -25,7 +25,7 @@
       "action": "deny",
       "match": "prisma\\s+(db\\s+(push|execute|seed)|migrate|studio)",
       "unless": "\\.env\\.test",
-      "message": "Raw Prisma writes/Studio are blocked: they use whatever backend/.env points at. Use `npm run schema:test:push` (test DB) or `npm run schema:dev:push` (development DB — refuses unless APP_ENV=development). Production is never written from here."
+      "message": "Raw Prisma writes/Studio are blocked: they use whatever backend/.env points at. Use `npm run schema:sync` (test + development DBs) or `schema:test:push` / `schema:dev:push`. Production is changed ONLY by the approved release step of a deploy."
     },
     {
       "id": "read-env-file",
@@ -40,16 +40,22 @@
       "message": "This script moves a database password from the clipboard into backend/.env. Nave runs it himself, in his own terminal."
     },
     {
+      "id": "approve-prod-schema",
+      "action": "deny",
+      "match": "schema:approve|schema-sync\\.js\\s+approve|SCHEMA_APPROVE_CONFIRM",
+      "message": "Approving a production schema change is yours alone: you review the plan and type its id yourself, in your own terminal. An agent never approves on your behalf."
+    },
+    {
       "id": "prod-schema-check",
       "action": "ask",
-      "match": "schema:check:prod|PROD_DATABASE_URL",
-      "message": "This reads the REAL production schema (read-only) and needs the production URL, which should never be on this machine's everyday environment. Meant to be run by Nave at deploy time; confirm before running it from here."
+      "match": "schema:(plan|gate|check):prod|PROD_DATABASE_URL",
+      "message": "This reads the REAL production schema (read-only) and needs the production URL, which should never be in this machine's everyday environment. Meant to be run by Nave at deploy time; confirm before running it from here."
     },
     {
       "id": "deploy",
       "action": "ask",
       "match": "(fly\\s+deploy|deploy\\.sh|npm\\s+run\\s+deploy)",
-      "message": "Deploy goes to production (and pre-checks the live DB schema). Only with Nave's explicit go-ahead in this session."
+      "message": "Deploy goes to production (the release step applies an APPROVED schema change, if any). Only with Nave's explicit go-ahead in this session."
     },
     {
       "id": "destroy-test-volume",
@@ -58,14 +64,27 @@
       "message": "This deletes the postgres-test data volume (test data only, but it also wipes the schema; it is rebuilt by `npm run schema:test:push`)."
     }
   ],
+  "files": [
+    {
+      "id": "schema-approvals",
+      "action": "deny",
+      "path": "(^|/)schema-approvals/[^/]+\\.json$",
+      "message": "Approval files are written only by `npm run schema:approve:prod`, run by Nave after he reviews the plan. An agent never creates, edits or deletes one."
+    }
+  ],
   "watch": [
     {
       "path": "(^|/)prisma/schema\\.prisma$",
-      "message": "Schema changed. Checklist: (1) test DB: `npm run schema:test:push` (runs automatically before `npm run test:e2e`); (2) development DB: `npm run schema:dev:push`, then restart the backend container; (3) a new @default on an existing table silently reclassifies old rows under db push — plan a backfill before production; (4) production is NOT updated by deploy: `db push` there needs Nave's explicit approval, and the schema gate in deploy.sh (`schema:check:prod`, needs PROD_DATABASE_URL) fails the deploy until it is done."
+      "message": "Schema changed. How it propagates: the development DB updates itself (container start / when this file changes, or `npm run schema:sync`); the test DB updates before every e2e run. PRODUCTION changes only at deploy, and ONLY if Nave approved this exact SQL: `PROD_DATABASE_URL=… npm run schema:plan:prod` (he runs it) → review → optional fix draft in backend/schema-fixes/<plan id>.pre.sql → `npm run schema:approve:prod` → commit the approval → deploy. Below is the plan against the DEVELOPMENT database. Advise Nave in Hebrew: explain what each 🟡/🔴 item means for production data, propose a concrete fix draft where one is suggested (you may write it to backend/schema-fixes/), and let him decide — never approve for him.",
+      "run": ["npm", "run", "-s", "schema:plan:dev", "--prefix", "backend"]
+    },
+    {
+      "path": "(^|/)schema-fixes/[^/]+\\.pre\\.sql$",
+      "message": "A fix draft changed. It runs FIRST, inside the same transaction as the planned SQL, and only after Nave approves the plan it belongs to. It must contain no <placeholders> (approve refuses otherwise), and it should be idempotent-safe and minimal."
     },
     {
       "path": "(^|/)(deploy\\.sh|backend/Dockerfile|backend/fly\\.toml|frontend/fly\\.toml)$",
-      "message": "Deploy configuration changed. Keep the schema gate (`schema:check:prod`) before any `fly deploy` in deploy.sh."
+      "message": "Deploy configuration changed. Keep: the schema gate (`schema:gate:prod`) before any `fly deploy` in deploy.sh, `release_command` in backend/fly.toml, and the prisma/, scripts/ and schema-approvals/ copies in backend/Dockerfile — together they are what stops an unapproved schema change."
     }
   ]
 }

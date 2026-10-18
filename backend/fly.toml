@@ -9,6 +9,12 @@ primary_region = 'cdg'
 [build]
   dockerfile = 'Dockerfile'
 
+# Runs in the NEW image before the new version serves traffic. It applies a schema change ONLY if an approval for that
+# exact SQL is baked into the image (backend/schema-approvals/); otherwise it fails and the deploy is aborted, leaving
+# the running version untouched. Nothing runs when the app starts, so a restart can never alter the database.
+[deploy]
+  release_command = 'node scripts/schema-sync.js release'
+
 [http_service]
   internal_port = 5005
   force_https = true

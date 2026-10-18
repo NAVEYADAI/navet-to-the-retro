@@ -19,6 +19,9 @@ services:
     environment:
       - BACKEND_PORT=5005
       - DATABASE_URL=${DATABASE_URL}
+      # Marks this container as the DEVELOPMENT server: the schema auto-sync on start (Dockerfile.dev) refuses to run
+      # without it. `npm run env:set-dev-db` writes it next to DATABASE_URL in the root .env that compose reads.
+      - APP_ENV=${APP_ENV:-}
       - EXPO_PUBLIC_BACKEND_URL_PROD=${EXPO_PUBLIC_BACKEND_URL_PROD}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8085}

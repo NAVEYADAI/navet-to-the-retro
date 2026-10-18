@@ -17,9 +17,11 @@ npm run test --prefix frontend
 echo "🧪 Running frontend E2E tests..."
 npm run test:e2e --prefix frontend
 
-echo "🗄️  Checking that the production DB schema matches schema.prisma (read-only)..."
-# Prod never runs `prisma db push` on its own. If the live DB is behind the schema this stops the deploy
-# BEFORE new code ships against tables/columns that don't exist. Fix = an approved push on production, then re-run.
+echo "🗄️  Production schema gate (read-only): is the live DB in sync with schema.prisma, or is the change approved?"
+# The backend image applies schema changes itself, but ONLY an approved plan, in Fly's release step before the new
+# version goes live (backend/fly.toml → release_command). This gate runs the same comparison up front so a deploy that
+# the release step would refuse never starts. Unapproved change => stop; review it with `npm run schema:plan:prod`,
+# approve with `npm run schema:approve:prod`, commit the approval, run this again.
 # backend/.env is the DEVELOPMENT database now, so the production URL is NOT read from it: supply it for this run only,
 #   PROD_DATABASE_URL='postgresql://…' ./deploy.sh      (or run this script under your secrets manager's prod environment)
 if [ -z "${PROD_DATABASE_URL:-}" ]; then
@@ -27,7 +29,7 @@ if [ -z "${PROD_DATABASE_URL:-}" ]; then
   echo "  Provide it for this run only, e.g.: PROD_DATABASE_URL='…' ./deploy.sh"
   exit 1
 fi
-npm run schema:check:prod --prefix backend
+npm run schema:gate:prod --prefix backend
 
 echo "🚀 Starting deployment of all services to Fly.io..."
 

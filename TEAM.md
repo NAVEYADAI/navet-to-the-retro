@@ -43,11 +43,14 @@ monorepo עם npm workspaces. פריסה: Fly.io.
 | frontend unit | `npm test --prefix frontend` |
 | typecheck | `npx tsc --noEmit -p .` מתוך `frontend/` — ידועות כרגע 4 שגיאות שאינן קשורות לשינוי (`Colors` ב-`constants/theme`, טיפוסי `react-dom/client`); מה שחשוב: אפס שגיאות **חדשות** |
 | frontend e2e | `npx playwright test [spec...]` מתוך `frontend/` — מרים backend מבודד על 5006 ו-web על 8086 (`reuseExistingServer:false`) |
-| סכמה → בדיקות **ופיתוח** (פקודה אחת) | `npm run schema:sync --prefix backend` = `schema:test:push` + `schema:dev:push` (בדיקות גם רץ אוטומטית לפני `test:e2e`/`start:e2e`) |
-| סכמה → DB פיתוח בלבד | `npm run schema:dev:push --prefix backend` (מסרב אם `APP_ENV` אינו `development` או אם ה-host שווה ל-`PROD_DATABASE_URL`) |
-| בדיקת סנכרון סכמה | `schema:check:test` · `schema:check:dev` · `schema:check:prod` (**נוה בלבד**, קריאה בלבד, דורש `PROD_DATABASE_URL`) — כולם `--prefix backend` |
+| סכמה → בדיקות **ופיתוח** (פקודה אחת) | `npm run schema:sync --prefix backend` = `schema:test:push` + `schema:dev:push`. **אוטומטי:** DB הבדיקות לפני כל `test:e2e`/`start:e2e`; DB הפיתוח בעליית קונטיינר ה-backend ובכל שינוי של `schema.prisma` (`Dockerfile.dev` → `scripts/dev-schema-sync.sh`; לא חוסם את עליית השרת אם מסרב) |
+| סכמה → DB פיתוח בלבד | `npm run schema:dev:push --prefix backend` (מסרב אם `APP_ENV` אינו `development` או אם ה-host שווה ל-`PROD_DATABASE_URL`; שינוי שעלול לאבד נתונים נכשל — `SCHEMA_ACCEPT_DATA_LOSS=1` רק לפיתוח, במודע) |
+| ניתוח שינוי סכמה (קריאה בלבד) | `schema:plan:dev` (רץ גם אוטומטית ב-hook אחרי עריכת `schema.prisma`) · `PROD_DATABASE_URL=… schema:plan:prod` (**נוה**): מסווג כל פעולה 🟢/🟡/🔴, מציג כמה שורות בטבלה, מציע תיקון, ונותן מזהה תוכנית |
+| **אישור שינוי ל-production** | `PROD_DATABASE_URL=… npm run schema:approve:prod --prefix backend` (**נוה בלבד, בטרמינל שלו**): מציג את התוכנית ואת התיקון (`backend/schema-fixes/<id>.pre.sql`), ודורש להקליד `APPLY <id>`. כותב `backend/schema-approvals/<id>.json` → עושים commit. האישור קשור ל-**SQL המדויק** |
+| בדיקות סנכרון / שער | `schema:check:test` · `schema:check:dev` · `schema:gate:prod` (deploy.sh, לפני הבנייה: מסונכרן או מאושר — אחרת עוצר) · `schema:check:prod` |
+| בדיקות של מנגנון הסכמה | `npm run test:scripts --prefix backend` (יחידה, 14) · `npm run test:release-flow --prefix backend` (אינטגרציה מול `postgres-test`: תוכנית→אישור→שער→release, 24 בדיקות) |
 | מעבר `backend/.env` ל-DB פיתוח | `npm run env:set-dev-db --prefix backend` — **נוה מריץ בעצמו** (מעביר את כתובת ה-DB מהלוח ל-`backend/.env` **ול-`.env` שבשורש** אם יש בו `DATABASE_URL` — docker-compose קורא משם; לא מדפיס אותה). אם `infisical run` מספק `DATABASE_URL`, הוא גובר על הקבצים — לעדכן גם שם. בעליית שרת הפיתוח השורה `Database` בלוג מציגה את ה-host ואזהרה אם `APP_ENV` אינו `development` |
-| deploy | `PROD_DATABASE_URL='…' npm run deploy` — **לא להריץ באופן אוטומטי**: מריץ הכל, ואז **שער סכמה מול production** (מסרב בלי `PROD_DATABASE_URL`), ורק אז `fly deploy` |
+| deploy | `PROD_DATABASE_URL='…' npm run deploy` — **לא להריץ באופן אוטומטי**: מריץ הכל, ואז **שער סכמה מול production** (מסרב בלי `PROD_DATABASE_URL`), ואז `fly deploy`. ב-Fly, `release_command` (`backend/fly.toml`) רץ **ב-image החדש לפני שהגרסה עולה** ומיישם את התוכנית **רק אם יש לה אישור** (אטומית, תיקון קודם); אחרת נכשל והפריסה מבוטלת וגרסה ישנה ממשיכה לרוץ. עליית האפליקציה עצמה לא נוגעת ב-DB |
 
 ## Environments (שלוש סביבות)
 | סביבה | DB | מקור הכתובת |
@@ -60,14 +63,18 @@ monorepo עם npm workspaces. פריסה: Fly.io.
 - **לא לגעת ב-production:** לא curl, לא seed, לא סקריפטים, ולעולם לא לשמור/לבקש את כתובת ה-production בסביבה היומיומית. בדיקות רצות
   רק מול `postgres-test` (backend e2e מבודד על 5006) ומנקים אחרי עצמם. **כתובת DB (עם סיסמה) שנדבקה בצ'אט נחשבת חשופה — מאפסים אותה ב-Neon;**
   סוכן לא מעתיק/כותב סיסמאות לקבצים — `env:set-dev-db` עושה את זה בטרמינל של נוה.
-- **עדכון סכמה:** בדיקות ופיתוח — דרך `schema:sync` / `schema:dev:push` (חופשי). production — **רק באישור מפורש של נוה, והוא מריץ בעצמו**.
-  `prisma` גולמי (db push/migrate/studio) חסום ב-hook: הוא משתמש במה ש-`backend/.env` מצביע עליו.
+- **עדכון סכמה:** בדיקות ופיתוח — אוטומטי / `schema:sync` (חופשי). **production — משתנה אך ורק בפריסה, ואך ורק אם נוה אישר את ה-SQL המדויק**
+  (`schema:approve:prod` שהוא מריץ בעצמו). סוכן **לא מאשר, לא יוצר ולא עורך** קובץ ב-`backend/schema-approvals/` (חסום ב-hook). מותר לו לנתח
+  (`schema:plan:dev`), להציע תיקון ולכתוב טיוטה ב-`backend/schema-fixes/<id>.pre.sql` — ההחלטה של נוה. שינוי שמסווג 🟡/🔴 מוסבר לו בעברית
+  (מה זה אומר לנתונים אמיתיים) לפני שהוא מאשר. `prisma` גולמי (db push/migrate/studio) חסום ב-hook: הוא משתמש במה ש-`backend/.env` מצביע עליו.
+  טבלאות גיבוי `_bak_*` שתיקון יוצר נשארות בכוונה; מוחקים אותן ידנית כשבטוחים (התוכנית מתעלמת מהן).
 - שדה חדש עם `@default()` על טבלה קיימת מסווג שורות ישנות בשקט (מלכודת ה-backfill) — לתכנן backfill ולעצור.
 - לא `git push`, לא deploy, לא לקרוא קבצי `.env*`.
 - **הכללים האלה נאכפים ב-hook, לא רק כהוראה:** `.claude/guard.json` נקרא על ידי ה-hooks של plugin `dev-team` ומונע (deny) / מבקש אישור (ask)
-  לפני פקודת shell: curl אל 5005, כל חיבור ל-`neon.tech`, `prisma db push|migrate|studio` בלי `.env.test`, קריאת `.env`, `psql`
-  שאינו על 5433; ו-ask על `fly deploy`/`deploy.sh`, `schema:check:prod`, ומחיקת ה-volume של postgres-test. לעדכון כלל — לערוך את הקובץ.
-  ה-hook הוא רשת ביטחון נגד תקלות, לא sandbox.
+  לפני פקודת shell: curl אל 5005, `prisma db push|migrate|studio` בלי `.env.test`, קריאת `.env`, `psql` שאינו על 5433, הרצת `set-dev-db`,
+  **`schema:approve`** (deny); ו-ask על חיבור ל-`neon.tech`, `fly deploy`/`deploy.sh`, `schema:plan|gate|check:prod`, ומחיקת ה-volume של
+  postgres-test. לפני כתיבת קובץ (Edit/Write): **deny על `backend/schema-approvals/*.json`**. אחרי עריכת `schema.prisma` ה-hook מריץ
+  `schema:plan:dev` ומחזיר את התוצאה ל-Claude כדי שיייעץ. לעדכון כלל — לערוך את הקובץ. ה-hook הוא רשת ביטחון נגד תקלות, לא sandbox.
 - לא להמיר מסך קיים למערכת העיצוב כתוספת אגבית למשימה אחרת — זו עבודה ממוקדת (`UI-MIGRATION-BACKLOG.md`).
 
 ## Backlog

@@ -26,15 +26,22 @@
 - `npm test` — כל הסוויטה: backend unit, backend e2e, frontend unit, frontend e2e
 - `npm run deploy` — `deploy.sh`: מריץ את כל הטסטים למעלה, ורק אז `fly deploy` ל-backend ואז ל-frontend
 
-## סוכנים זמינים (`.claude/agents/`)
+## הצוות (plugin `dev-team`) + `TEAM.md`
 
-- **`ui-migration`** — ממיר קובץ frontend אחד בכל הפעלה למערכת העיצוב שב-`frontend/UI-GUIDELINES.md`, לפי הסדר ב-`frontend/UI-MIGRATION-BACKLOG.md`. הבאקלוג הנוכחי **סגור (69/69)** — הפעל שוב רק אחרי שמוסיפים פריטים חדשים אליו. **לא קשור** ל-`product-backlog/`.
-- **`backend-feature`** — מממש את תת-הסעיף "Backend" של הפיצ'ר הבא ב-`product-backlog/` שעדיין לא סגור.
-- **`frontend-feature`** — מממש את תת-הסעיף "Frontend" של אותו פיצ'ר, רק אחרי שה-Backend שלו סגור.
-- **`feature-tests`** — כותב את תת-הסעיף "בדיקות" (Playwright e2e + Jest) של אותו פיצ'ר, רק אחרי ש-Backend+Frontend שלו סגורים.
-- **`feature-orchestrator`** — הסוכן הראשי: מוצא את הפיצ'ר הבא ב-`product-backlog/`, מפעיל `backend-feature` → `frontend-feature` → `feature-tests` בסדר הנכון (דרך `Task`), ומדווח אם הפיצ'ר סגור לגמרי או מה עוד נשאר. זו נקודת הכניסה הרגילה לקידום הבאקלוג — קרא `.claude/agents/feature-orchestrator.md` אם צריך לדעת בדיוק איך הוא מחליט.
-- **`product-manager`** — **לא חלק מהשרשרת האוטומטית של ה-orchestrator.** מופעל ישירות ע"י המשתמש עם רעיון לפיצ'ר בפרומפט; חוקר את הקוד וכותב קובץ פיצ'ר חדש תחת `product-backlog/` לפי התבנית הקיימת, אבל **לא ממציא החלטות מוצריות** — מסמן אותן כ"שאלות פתוחות" ומשאיר את הפיצ'ר מסומן כטיוטה עד שהמשתמש עונה עליהן.
-- **`feature-dependency-checker`** — **גם הוא לא חלק מהשרשרת האוטומטית.** מופעל ידנית לבדיקת תלויות של פיצ'ר (קיים או רעיון חדש) מול כל שאר הפיצ'רים ב-`product-backlog/` — סורק את סעיפי ה-touchpoints שלהם, ומדווח על חפיפות/סיכוני אינטראקציה בפועל (לא ממציא החלטות מוצריות, בדיוק כמו `product-manager`).
+הסוכנים הכלליים (מפתחי backend/frontend, QA, מנהל מוצר, UX/UI, סוקר קוד, אבטחה, בודק תלויות, tech-lead) מגיעים מה-plugin
+**`dev-team`** (ריפו נפרד, מותקן ברמת משתמש) ונקראים עם קידומת: `dev-team:backend-developer` וכו'. **`TEAM.md` בשורש** הוא
+ה-adapter: הסטאק, הקבצים שכל תפקיד קורא, הפקודות, הכללים הקשיחים (אף פעם לא 5005), מילות הבאקלוג, ה-definition of done
+(הטמעה, `trackEvent`, e2e), ושפת הדיווח. כל סוכן פותח בקריאתו — **מעדכנים כללים שם, לא בתוך סוכן.**
+
+- `dev-team:tech-lead` — נקודת הכניסה לקידום הבאקלוג: backend → frontend → QA, ואז סקירת קוד/אבטחה/UX. לא כותב קוד.
+- `dev-team:product-manager` — רעיון → קובץ פיצ'ר ב-`product-backlog/`; החלטות מוצריות נשארות "שאלות פתוחות". לא בשרשרת האוטומטית.
+- `dev-team:dependency-checker` — חפיפות בין פיצ'רים. לא בשרשרת האוטומטית.
+- `dev-team:backend-developer` / `frontend-developer` / `qa-engineer` — הפרוסות Backend / Frontend / בדיקות של הפיצ'ר הבא.
+- `dev-team:code-reviewer`, `dev-team:security-checker`, `dev-team:ux-ui-designer` — קריאה בלבד, מדווחים ממצאים לפי חומרה.
+- **`ui-migration`** (`.claude/agents/`, ספציפי לפרויקט) — ממיר קובץ frontend אחד בכל הפעלה למערכת העיצוב לפי
+  `frontend/UI-MIGRATION-BACKLOG.md`. הבאקלוג הנוכחי **סגור (69/69)**. **לא קשור** ל-`product-backlog/`.
+
+קוד ה-plugin: `~/Documents/GitHub/dev-team` (README שם). `/dev-team:team-init` מרענן את `TEAM.md` מהקוד.
 
 ## עיצוב/מוקאפים — הערת סנכרון
 

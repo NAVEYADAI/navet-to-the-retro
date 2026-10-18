@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "extraKnownMarketplaces": {
+    "nave-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "NAVEYADAI/dev-team"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "dev-team@nave-plugins": true
+  }
+}

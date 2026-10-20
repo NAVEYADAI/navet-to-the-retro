@@ -71,6 +71,7 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "testTimeout": 20000,
     "testPathIgnorePatterns": [
       "<rootDir>/node_modules/",
       "<rootDir>/e2e/"

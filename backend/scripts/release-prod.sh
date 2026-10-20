@@ -31,6 +31,10 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
   die "There are uncommitted changes (above). Commit or stash them: what is deployed must be what is in git."
 fi
 
+# Wait for the copy: whatever you copied last (even a terminal output) would otherwise be read as "the URL".
+if [[ -z "${CLIPBOARD_CMD:-}" && -t 0 ]]; then
+  read -r -p "Copy the PRODUCTION connection string from Neon (Connect → branch production → Show password), then press Enter: " _
+fi
 # Neon's Connect dialog can hand you the bare URL, a `psql '<url>'` line, or `DATABASE_URL="<url>"` — take the URL out of any of them.
 clip="$(bash -c "$CLIP_CMD")"
 url="$(printf %s "$clip" | grep -oE "postgres(ql)?://[^'\" [:space:]]+" | head -1 || true)"

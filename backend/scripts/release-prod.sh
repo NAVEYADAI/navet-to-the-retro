@@ -31,11 +31,15 @@ if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
   die "There are uncommitted changes (above). Commit or stash them: what is deployed must be what is in git."
 fi
 
-url="$(bash -c "$CLIP_CMD" | tr -d '[:space:]')"
+# Neon's Connect dialog can hand you the bare URL, a `psql '<url>'` line, or `DATABASE_URL="<url>"` — take the URL out of any of them.
+clip="$(bash -c "$CLIP_CMD")"
+url="$(printf %s "$clip" | grep -oE "postgres(ql)?://[^'\" [:space:]]+" | head -1 || true)"
+clip=""
 [[ "$CLIP_CMD" == "pbpaste" ]] && { pbcopy </dev/null || true; }   # the URL now lives only in this process
 re='^postgres(ql)?://([^:@/]+):([^@]+)@([^/:?]+)(:[0-9]+)?/([^?]+)(\?.*)?$'
-[[ "$url" =~ $re ]] || die "The clipboard does not hold a Postgres connection string (postgresql://user:pass@host/db). Copy the PRODUCTION one from Neon → Connect, then run again."
+[[ "$url" =~ $re ]] || die "The clipboard does not hold a Postgres connection string (postgresql://user:pass@host/db). In Neon → Connect: pick branch \"production\", turn on \"Show password\", and copy the connection string (a command line or DATABASE_URL=… line that contains it also works). Then run again."
 host="${BASH_REMATCH[4]}"; db="${BASH_REMATCH[6]}"
+[[ "${BASH_REMATCH[3]}" =~ ^[*•]+$ ]] && die "The password in the copied string is hidden (****). In Neon → Connect turn on \"Show password\" and copy again."
 [[ "$host" == *.neon.tech || "${ALLOW_NON_NEON:-0}" == "1" ]] || die "Host '$host' is not a Neon host. Copy the connection string from the Neon console."
 
 # If backend/.env is already the development DB, the clipboard must not be that same database.

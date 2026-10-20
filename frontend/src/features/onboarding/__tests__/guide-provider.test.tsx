@@ -55,7 +55,7 @@ function Starter() {
   );
 }
 const mountGuide = () => render(<GuideProvider><Starter /></GuideProvider>);
-const stepId = (utils: ReturnType<typeof render>) => utils.queryByTestId('guide-bubble');
+const stepId = (utils: Awaited<ReturnType<typeof render>>) => utils.queryByTestId('guide-bubble');
 
 beforeEach(() => {
   mockAnchorFound = true;
@@ -65,7 +65,7 @@ beforeEach(() => {
 });
 afterEach(() => { jest.clearAllMocks(); jest.useRealTimers(); });
 
-const startBasic = async (utils: ReturnType<typeof render>) => {
+const startBasic = async (utils: Awaited<ReturnType<typeof render>>) => {
   await fireEvent.press(utils.getByTestId('start-basic'));
   await waitFor(() => expect(utils.getByTestId('state').props.children).toBe('active'));
   await waitFor(() => expect(utils.getByText(G.steps.welcome.title)).toBeTruthy());

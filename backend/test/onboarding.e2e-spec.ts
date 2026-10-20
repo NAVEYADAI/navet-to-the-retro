@@ -181,6 +181,50 @@ describe('Onboarding (e2e)', () => {
     });
   });
 
+  describe('interactive guide hints and auto-start (feature 22)', () => {
+    const login = async (key: string) =>
+      (await api().post('/auth/login').send({ username: users[key as keyof typeof users].username, password: 'password123' }).expect(200)).body.accessToken as string;
+
+    it('hints.endedSprintId is the latest finished sprint and never a deleted one', async () => {
+      expect((await status('lead')).hints.endedSprintId).toBe(pastSprint);
+      // a later-ending finished sprint wins ...
+      const later = await sprint(teamA, 'lead', 'ob-past-later', '2026-02-01', '2026-02-14');
+      expect((await status('lead')).hints.endedSprintId).toBe(later);
+      // ... until it is soft-deleted: then the previous one is shown again
+      await prisma.sprint.update({ where: { id: later }, data: { deletedAt: new Date() } });
+      expect((await status('lead')).hints.endedSprintId).toBe(pastSprint);
+      await prisma.sprint.delete({ where: { id: later } });
+    });
+
+    it('a user with no team has no endedSprintId', async () => {
+      expect((await status('fresh')).hints).toEqual({ teamId: null, activeSprintId: null, endedSprintId: null });
+    });
+
+    it('a brand-new user gets guideAutoStart once; guide-started is idempotent and sticks across logins', async () => {
+      expect((await status('fresh')).guideAutoStart).toBe(true);
+      await api().post('/onboarding/guide-started').set(auth(tok.fresh)).expect(201);
+      expect((await status('fresh')).guideAutoStart).toBe(false);
+      const first = await prisma.userOnboardingState.findUnique({ where: { userId: id.fresh } });
+      expect(first?.guideAutoStartedAt).toBeTruthy();
+
+      await api().post('/onboarding/guide-started').set(auth(tok.fresh)).expect(201);
+      const second = await prisma.userOnboardingState.findUnique({ where: { userId: id.fresh } });
+      expect(second?.guideAutoStartedAt).toEqual(first?.guideAutoStartedAt);
+
+      tok.fresh = await login('fresh');
+      expect((await status('fresh')).guideAutoStart).toBe(false);
+    });
+
+    it('an existing user (team with sprints / a written comment) is never auto-started', async () => {
+      expect((await status('lead')).guideAutoStart).toBe(false);
+      expect((await status('member')).guideAutoStart).toBe(false);
+    });
+
+    it('guide-started requires a valid token', async () => {
+      await api().post('/onboarding/guide-started').expect(401);
+    });
+  });
+
   describe('seen-features and dismiss persist across sessions', () => {
     const login = async (key: string) => {
       const res = await api().post('/auth/login').send({ username: users[key as keyof typeof users].username, password: 'password123' }).expect(200); // a fresh login = a new session; state must come from the DB, not the token

@@ -11,6 +11,7 @@ import { ProposalsCardNative } from './proposals-card-native';
 import { TaskFormNative } from './task-form-native';
 import { ActionButtonNative, CardNative, LabeledInputNative, PillPickerNative, TextNative } from './native-parts';
 import type { FocusPoint, PointFormValues, Proposal } from '../types';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 const S = Strings.focusPoints;
 type FormState = { mode: 'create'; proposal: Proposal | null } | { mode: 'edit'; point: FocusPoint };
@@ -112,7 +113,9 @@ export function FocusPointsAdminNative({ team, token, onBack }: { team: { id: nu
 
             <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' }}>
               <TextNative kind="title">{S.poolTitle}</TextNative>
-              <ActionButtonNative variant="primary" label={S.newPointButton} onPress={() => { trackEvent('focus_point_form_opened'); setForm({ mode: 'create', proposal: null }); }} />
+              <GuideAnchor name="focus-new">
+                <ActionButtonNative variant="primary" label={S.newPointButton} onPress={() => { trackEvent('focus_point_form_opened'); setForm({ mode: 'create', proposal: null }); }} />
+              </GuideAnchor>
             </View>
             {livePoints.length === 0 ? <TextNative kind="caption">{S.poolEmpty}</TextNative> : null}
             {livePoints.map((point) => (

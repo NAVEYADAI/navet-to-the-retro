@@ -14,6 +14,7 @@ function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: numbe
 
 /** אותו API כמו modal.tsx — גיליון תחתון ב-native. */
 export function Modal({ open, onClose, title, subtitle, closeLabel, children }: ModalProps) {
+  // `guideAnchor` / `guideCloseAnchor` are web-only: the native sheet is a system modal above the guide's overlay.
   const t = useTheme();
   return (
     <RNModal visible={open} transparent animationType="fade" onRequestClose={onClose}>

@@ -21,3 +21,8 @@ export async function postRestoreChecklist(token: string): Promise<void> {
 export async function postSeenFeatures(token: string, keys: string[]): Promise<void> {
   await axios.post(`${getBackendUrl()}/onboarding/seen-features`, { keys }, authed(token));
 }
+
+// Feature 22: the interactive guide was auto-opened for this user — never open it automatically again.
+export async function postGuideStarted(token: string): Promise<void> {
+  await axios.post(`${getBackendUrl()}/onboarding/guide-started`, {}, authed(token));
+}

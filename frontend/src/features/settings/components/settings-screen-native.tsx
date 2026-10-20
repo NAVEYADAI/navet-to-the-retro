@@ -15,6 +15,7 @@ import { QuickStartCardNative } from './native/quick-start-card-native';
 import { AppearanceCardNative } from './native/appearance-card-native';
 import { GoogleCalendarCardNative, TelegramLinkCardNative } from './native/integration-cards-native';
 import { DeletedTeamsCardNative } from './native/deleted-teams-card-native';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 /**
  * Native settings screen (BUG-09). The web screen is built on MUI, which doesn't run in React
@@ -65,15 +66,17 @@ export function SettingsScreenNative() {
               onUpdateProfile={profile.handleUpdateProfile}
             />
             <QuickStartCardNative />
-            <AppearanceCardNative />
-            <GoogleCalendarCardNative />
-            <TelegramLinkCardNative />
+            <GuideAnchor name="settings-appearance"><AppearanceCardNative /></GuideAnchor>
+            <GuideAnchor name="settings-google"><GoogleCalendarCardNative /></GuideAnchor>
+            <GuideAnchor name="settings-telegram"><TelegramLinkCardNative /></GuideAnchor>
             <DeletedTeamsCardNative />
 
+            <GuideAnchor name="create-team-form">
             <CardNative title={Strings.settings.createTeamSectionTitle}>
               {teamMessage ? <MessageNative text={teamMessage.text} isError={teamMessage.isError} /> : null}
               <CreateTeamForm onSubmit={handleCreateTeamSubmit} isLoading={teamCreateLoading} isFirstTeam={false} />
             </CardNative>
+            </GuideAnchor>
 
             <CardNative title={Strings.settings.logoutSectionTitle} subtitle={Strings.settings.logoutDescription}>
               <ButtonNative

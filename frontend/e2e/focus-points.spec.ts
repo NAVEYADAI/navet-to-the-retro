@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
 import { Strings } from '../src/constants/strings';
+import { openSprintTools } from './sprint-actions-ui';
 
 // Feature 20 (product-backlog/20-issue-tracking.md §20.3): a member proposes a point, the team
 // leader turns it into a point and picks it for the sprint, members rate it anonymously, the leader
@@ -76,11 +77,13 @@ test.describe('Focus points', () => {
     await expect(page.getByText(comment)).toBeVisible();
     await page.getByRole('button', { name: S.proposeButton }).click();
     await expect(page.getByText(S.proposedBadge)).toBeVisible();
-    // a plain member has no entrance to the management space
+    // a plain member has no entrance to the management space (the tools row is open so the absence means something)
+    await openSprintTools(page);
     await expect(page.getByRole('button', { name: S.openButton })).toHaveCount(0);
 
     // --- Leader: opens the management space, sees the proposal as a count, creates the point ---
     await loginAndGoto(page, leader.token, `/team/${team.id}/sprint/${sprint}`);
+    await openSprintTools(page);
     await page.getByRole('button', { name: S.openButton }).click();
     await expect(page.getByText(S.pageTitle).first()).toBeVisible();
     const proposal = page.getByTestId('focus-point-proposal').filter({ hasText: comment });

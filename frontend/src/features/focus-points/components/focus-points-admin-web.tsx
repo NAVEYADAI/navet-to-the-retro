@@ -11,6 +11,7 @@ import { PointFormWeb } from './point-form-web';
 import { ProposalsCardWeb } from './proposals-card-web';
 import { TaskFormWeb } from './task-form-web';
 import type { FocusPoint, PointFormValues, Proposal } from '../types';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 const S = Strings.focusPoints;
 
@@ -143,7 +144,9 @@ export function FocusPointsAdminWeb({ team, token, onBack }: FocusPointsAdminWeb
 
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[2]}px` }}>
             <Typography component="h2" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>{S.poolTitle}</Typography>
-            <Button variant="primary" size="sm" icon="plus" onPress={() => { trackEvent('focus_point_form_opened'); setForm({ mode: 'create', proposal: null }); }}>{S.newPointButton}</Button>
+            <GuideAnchor name="focus-new">
+              <Button variant="primary" size="sm" icon="plus" onPress={() => { trackEvent('focus_point_form_opened'); setForm({ mode: 'create', proposal: null }); }}>{S.newPointButton}</Button>
+            </GuideAnchor>
           </Box>
           {livePoints.length === 0 ? <Typography sx={{ ...t.type.body, color: t.color.textSecondary }}>{S.poolEmpty}</Typography> : null}
           {livePoints.map((point) => (

@@ -14,6 +14,7 @@ import { useTeamsAdmin } from '../hooks/use-teams-admin';
 import { useTheme } from '@/design/theme-context';
 import { useAuth } from '@/context/auth-context';
 import { Strings } from '@/constants/strings';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 export function SettingsScreenWeb() {
   const t = useTheme();
@@ -58,12 +59,13 @@ export function SettingsScreenWeb() {
             onUpdateProfile={handleUpdateProfile}
           />
           <QuickStartCard />
-          <AppearanceCard />
-          <GoogleCalendarCard />
-          <TelegramLinkCard />
+          <GuideAnchor name="settings-appearance"><AppearanceCard /></GuideAnchor>
+          <GuideAnchor name="settings-google"><GoogleCalendarCard /></GuideAnchor>
+          <GuideAnchor name="settings-telegram"><TelegramLinkCard /></GuideAnchor>
           <DeletedTeamsCard />
         </Box>
 
+        <GuideAnchor name="create-team-form">
         <Card padding={5}>
           <Typography component="h2" sx={{ ...t.type.cardTitle, color: t.color.text, margin: 0 }}>
             {Strings.settings.createTeamSectionTitle}
@@ -81,6 +83,7 @@ export function SettingsScreenWeb() {
             isFirstTeam={false}
           />
         </Card>
+        </GuideAnchor>
       </Grid>
     </Page>
   );

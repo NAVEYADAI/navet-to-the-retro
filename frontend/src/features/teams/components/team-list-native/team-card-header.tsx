@@ -5,6 +5,7 @@ import { TeamAccentScope, useTheme } from '@/design/theme-context';
 import { Avatar, Icon, TeamLogo } from '@/components/ui';
 import { memberDisplayName } from '@/features/teams/member-display';
 import { rnText } from './team-settings-panel.styles';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 // הכפתור יושב לצד השם, אז מספיקים שני אווטרים — שיישאר לשם מקום.
 const MAX_STACKED_AVATARS = 2;
@@ -81,6 +82,7 @@ function TeamCardHeaderContent({
       </View>
 
       <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1], flexShrink: 0 }}>
+        <GuideAnchor name="team-members-toggle">
         <TouchableOpacity
           testID="toggle-team-members"
           accessibilityRole="button"
@@ -114,6 +116,7 @@ function TeamCardHeaderContent({
           </Text>
           <Icon name="chevron-down" size="sm" rotate={isMembersOpen ? 180 : 0} />
         </TouchableOpacity>
+        </GuideAnchor>
 
         {onToggleSettings && (
           <TouchableOpacity

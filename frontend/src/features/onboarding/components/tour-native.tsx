@@ -11,7 +11,6 @@ const S = Strings.onboarding;
 /** "סיור במערכת" (native): an icon button for the dashboard header + a stepped bottom sheet. */
 export function TourNative({ tour }: { tour: TourState }) {
   const t = useTheme();
-  const { step } = tour;
   return (
     <>
       <TouchableOpacity
@@ -23,6 +22,17 @@ export function TourNative({ tour }: { tour: TourState }) {
       >
         <Icon name="map-pin" size="sm" tone="muted" />
       </TouchableOpacity>
+      <TourDialogNative tour={tour} />
+    </>
+  );
+}
+
+/** The stepped sheet alone — feature 22's guide menu opens it from its own "סקירת הפיצ'רים" item. */
+export function TourDialogNative({ tour }: { tour: TourState }) {
+  const t = useTheme();
+  const { step } = tour;
+  return (
+    <>
       <Modal open={tour.open} onClose={tour.onClose} title={S.tourTitle} subtitle={S.tourStepOf(tour.index + 1, tour.steps.length)} closeLabel={S.tourClose}>
         <View testID="tour-step" style={{ gap: t.space[3] }}>
           <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'center', gap: t.space[2] }}>

@@ -31,6 +31,13 @@ export class OnboardingController {
     return this.onboardingService.restoreChecklist(user.id);
   }
 
+  // Feature 22: the interactive guide was auto-opened for this user — never open it automatically again.
+  @Post('guide-started')
+  async markGuideStarted(@Headers('authorization') authHeader: string) {
+    const user = await this.authService.validateToken(authHeader);
+    return this.onboardingService.markGuideStarted(user.id);
+  }
+
   @Post('seen-features')
   async markFeaturesSeen(
     @Headers('authorization') authHeader: string,

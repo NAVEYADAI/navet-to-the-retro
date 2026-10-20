@@ -15,6 +15,8 @@ export interface OnboardingStepDto {
 export interface OnboardingHintsDto {
   teamId: number | null;
   activeSprintId: number | null;
+  // The team's latest finished sprint — where the interactive guide's summary/PPTX step navigates (feature 22).
+  endedSprintId: number | null;
 }
 
 export interface OnboardingStatusDto {
@@ -25,4 +27,6 @@ export interface OnboardingStatusDto {
   checklistDismissed: boolean;
   unseenFeatureKeys: string[];
   hints: OnboardingHintsDto;
+  // Feature 22: a brand-new user (no comment, no sprint) whose interactive guide was never auto-opened.
+  guideAutoStart: boolean;
 }

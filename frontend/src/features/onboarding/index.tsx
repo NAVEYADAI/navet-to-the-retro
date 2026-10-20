@@ -35,6 +35,23 @@ export function OnboardingSection(props: { token: string | null | undefined; ref
   );
 }
 
+export { GuideProvider, useGuide } from './guide/guide-provider';
+export { GuideAnchor } from '@/components/ui/guide-anchor';
+export { emitGuideSignal } from './guide/guide-signals';
+
+/**
+ * Feature 22: the guide's entry button (three choices: basic guide, advanced guide, the textual
+ * overview). Web renders it in the top bar; native, whose tab bar has no room, in the dashboard header.
+ */
+export function GuideMenu() {
+  if (Platform.OS === 'web') {
+    const { GuideMenuWeb } = require('./guide/guide-menu-web');
+    return <GuideMenuWeb />;
+  }
+  const { GuideMenuNative } = require('./guide/guide-menu-native');
+  return <GuideMenuNative />;
+}
+
 /**
  * "סיור במערכת": the header button (+ its stepped window) that lets an existing user walk through
  * what the system can do whenever they like. Nothing is stored on the server.

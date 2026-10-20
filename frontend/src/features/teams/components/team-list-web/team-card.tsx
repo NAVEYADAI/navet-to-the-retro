@@ -16,6 +16,7 @@ import { getMemberRank } from './roles';
 import { LeaveTeamSection } from './leave-team-section';
 import { useLeaveTeam } from '@/features/teams/hooks/use-leave-team';
 import { canRemoveMember, getSuccessorOptions, isActiveMember, isLastActiveLeader } from '@/features/teams/membership-rules';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 interface TeamCardProps {
   team: any;
@@ -115,16 +116,18 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[3]}px`, marginBlockEnd: `${t.space[1]}px`, minHeight: t.layout.minTouchTarget }}>
             <Typography sx={panelTitleSx}>{Strings.teamList.membersHeader}</Typography>
             {canAddMembers && (
-              <Button
-                variant="primary"
-                icon="user-plus"
-                onPress={() => {
-                  trackEvent('add_member_modal_opened');
-                  setIsAddMemberOpen(true);
-                }}
-              >
-                {Strings.teamList.addMemberToggle}
-              </Button>
+              <GuideAnchor name="team-add-member">
+                <Button
+                  variant="primary"
+                  icon="user-plus"
+                  onPress={() => {
+                    trackEvent('add_member_modal_opened');
+                    setIsAddMemberOpen(true);
+                  }}
+                >
+                  {Strings.teamList.addMemberToggle}
+                </Button>
+              </GuideAnchor>
             )}
           </Box>
           <Box component="ul" sx={{ margin: 0, padding: 0 }}>

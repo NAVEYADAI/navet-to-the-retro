@@ -228,7 +228,11 @@ test.describe('Onboarding — checklist and what\'s new', () => {
     const team = await approvedTeam(request, leader.token, `E2E OB Tour ${suffix}`, approver);
     await joinViaInvite(request, team.id, leader.token, member.token);
     const tourStep = page.getByTestId('tour-step');
-    const openTour = () => page.getByRole('button', { name: S.tourButton }).click();
+    // Feature 22: the textual overview now sits in the guide menu (top bar), next to the two interactive guides.
+    const openTour = async () => {
+      await page.getByTestId('guide-menu-trigger').getByRole('button').click();
+      await page.getByTestId('guide-menu-tour').click();
+    };
 
     // --- Member: no management-only step, walks forward and back, finishing closes it ---
     await loginAndGoto(page, member.token);

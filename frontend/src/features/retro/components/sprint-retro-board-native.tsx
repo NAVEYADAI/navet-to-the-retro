@@ -29,6 +29,8 @@ import { formatDate, formatTime, formatDateRange } from '@/lib/format-date';
 import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
 import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
 import { useDeleteSprint } from '../hooks/use-delete-sprint';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
+import { emitGuideSignal } from '@/features/onboarding/guide/guide-signals';
 
 interface SprintRetroBoardProps {
   sprint: any;
@@ -206,6 +208,8 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
       }
       setOnBehalfOfUserId('');
       await fetchComments();
+      // Feature 22: lets the interactive guide know the user really wrote a note.
+      emitGuideSignal('comment-posted');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'שגיאה בשליחת ההערה.');
     } finally {
@@ -692,6 +696,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
         <SprintFocusPointsSection focus={focus} />
 
         {/* Main form for posting (RTL formatted) */}
+        <GuideAnchor name="board-compose">
         <View
           style={{
             backgroundColor: isAnonymous ? t.color.surfaceSubtle : t.color.surface,
@@ -807,6 +812,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
               </TouchableOpacity>
             )}
 
+            <GuideAnchor name="board-category">
             <TouchableOpacity
               onPress={() => setIsCategoryPickerOpen(true)}
               activeOpacity={0.8}
@@ -822,6 +828,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
                 {categoryId ? selectedCategoryLabel : Strings.retroBoard.categoryLabel}
               </Text>
             </TouchableOpacity>
+            </GuideAnchor>
           </View>
 
           <Modal
@@ -969,6 +976,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
             </TouchableOpacity>
           </View>
         </View>
+        </GuideAnchor>
 
         {/* Filters */}
         {!isLoading && !loadError && comments.length > 0 && (
@@ -997,6 +1005,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
         ) : loadError ? (
           <LoadErrorNative message={loadError} onRetry={fetchComments} screen="retro_board" />
         ) : (
+          <GuideAnchor name="board-comments">
           <View style={{ flexDirection: isDesktop ? 'row-reverse' : 'column', gap: t.space[4], marginTop: t.space[2] }}>
             {/* Column 1: KEEP */}
             <View style={{ flex: 1, gap: t.space[3] }}>
@@ -1050,6 +1059,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
               )}
             </View>
           </View>
+          </GuideAnchor>
         )}
       </View>
     </ScrollView>

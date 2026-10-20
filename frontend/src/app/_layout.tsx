@@ -18,6 +18,7 @@ import { injectGlobalWebStyles } from '@/constants/global-web-styles';
 import { AppProviders } from '@/design/app-providers';
 import { useTheme } from '@/design/theme-context';
 import { getAnalyticsClient, trackEvent } from '@/lib/analytics';
+import { GuideProvider } from '@/features/onboarding';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -68,7 +69,12 @@ function LayoutContent() {
   }
 
   // Render main tab layout when logged in
-  return <AppTabs />;
+  // Feature 22: the interactive guide lives above the tabs so it survives navigation between screens.
+  return (
+    <GuideProvider>
+      <AppTabs />
+    </GuideProvider>
+  );
 }
 
 export default function TabLayout() {

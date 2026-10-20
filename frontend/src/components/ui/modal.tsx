@@ -2,6 +2,12 @@ import React from 'react';
 import { Box, Dialog, Typography } from '@mui/material';
 import { useTheme } from '@/design/theme-context';
 import { Icon } from './icon';
+import { GuideAnchor } from './guide-anchor';
+
+// Wraps `children` in a guide anchor only when a key was given, so ordinary dialogs render exactly as before.
+function MaybeAnchor({ name, children }: { name?: string; children: React.ReactNode }) {
+  return name ? <GuideAnchor name={name}>{children}</GuideAnchor> : <>{children}</>;
+}
 
 export interface ModalProps {
   open: boolean;
@@ -10,6 +16,9 @@ export interface ModalProps {
   subtitle?: string;
   /** תווית נגישות לכפתור הסגירה */
   closeLabel: string;
+  /** Feature 22: `data-tour` keys the interactive guide can highlight — the dialog body and its close button. */
+  guideAnchor?: string;
+  guideCloseAnchor?: string;
   children: React.ReactNode;
 }
 
@@ -17,7 +26,7 @@ export interface ModalProps {
  * חלון מעל הכל: כותרת + סגירה + תוכן. הדיאלוג היחיד באפליקציה (web).
  * בטלפון הוא גיליון תחתון (כמו modal.native.tsx) — צמוד לתחתית, ברוחב מלא, עם ידית.
  */
-export function Modal({ open, onClose, title, subtitle, closeLabel, children }: ModalProps) {
+export function Modal({ open, onClose, title, subtitle, closeLabel, guideAnchor, guideCloseAnchor, children }: ModalProps) {
   const t = useTheme();
   return (
     <Dialog
@@ -45,6 +54,7 @@ export function Modal({ open, onClose, title, subtitle, closeLabel, children }: 
         },
       }}
     >
+      <MaybeAnchor name={guideAnchor}>
       <Box
         sx={{
           display: 'flex',
@@ -64,6 +74,7 @@ export function Modal({ open, onClose, title, subtitle, closeLabel, children }: 
               <Typography sx={{ ...t.type.caption, color: t.color.textSecondary }}>{subtitle}</Typography>
             )}
           </Box>
+          <MaybeAnchor name={guideCloseAnchor}>
           <Box
             component="button"
             type="button"
@@ -88,9 +99,11 @@ export function Modal({ open, onClose, title, subtitle, closeLabel, children }: 
           >
             <Icon name="x" size="md" tone="muted" />
           </Box>
+          </MaybeAnchor>
         </Box>
         {children}
       </Box>
+      </MaybeAnchor>
     </Dialog>
   );
 }

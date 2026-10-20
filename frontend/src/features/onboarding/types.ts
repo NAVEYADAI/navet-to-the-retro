@@ -11,6 +11,8 @@ export interface OnboardingStep {
 export interface OnboardingHints {
   teamId: number | null;
   activeSprintId: number | null;
+  /** Feature 22: the team's latest finished sprint (the guide's summary step opens it). */
+  endedSprintId?: number | null;
 }
 
 export interface OnboardingStatus {
@@ -20,6 +22,8 @@ export interface OnboardingStatus {
   checklistDismissed: boolean;
   unseenFeatureKeys: string[];
   hints?: OnboardingHints;
+  /** Feature 22: a brand-new user whose interactive guide was never auto-opened. */
+  guideAutoStart?: boolean;
 }
 
 /** Where a CTA leads. `focus-points` needs a team the user manages (resolved by the dashboard). */

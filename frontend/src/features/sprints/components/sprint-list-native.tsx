@@ -11,6 +11,7 @@ import { getSprintBucket } from '../sprint-lifecycle';
 import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup, NoActiveSprintRow } from './sprint-rows-native';
 import { openSprint } from '@/lib/sprint-routes';
 import { DeletedSprintsSectionNative } from './deleted-sprints-section-native';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -126,6 +127,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint,
       <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[2] }}>
         <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[2] }}>
           {isAdmin && (
+            <GuideAnchor name="sprint-new">
             <TouchableOpacity
               style={{
                 borderWidth: 1,
@@ -143,6 +145,7 @@ export function TeamSprintsManagerNative({ team, token, isAdmin, onSelectSprint,
                 {showCreateForm ? Strings.sprints.cancelButton : Strings.sprints.newSprintButton}
               </Text>
             </TouchableOpacity>
+            </GuideAnchor>
           )}
           {/* בטלפון רענון הוא אייקון בלבד — הטקסט נשאר כתווית נגישות. */}
           <TouchableOpacity

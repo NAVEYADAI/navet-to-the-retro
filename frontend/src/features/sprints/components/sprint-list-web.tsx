@@ -11,6 +11,7 @@ import { getSprintBucket } from '../sprint-lifecycle';
 import { OpenSprintRow, RecentSprintsGroup, ExpiredSprintsGroup, NoActiveSprintRow } from './sprint-rows-web';
 import { openSprint } from '@/lib/sprint-routes';
 import { DeletedSprintsSectionWeb } from './deleted-sprints-section-web';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 interface TeamSprintsManagerProps {
   team: any;
@@ -197,13 +198,15 @@ export function TeamSprintsManagerWeb({ team, token, isAdmin, onSelectSprint, on
             {Strings.common.refreshButton}
           </Button>
           {isAdmin ? (
-            <Button
-              variant={showCreateForm ? 'ghost' : 'primary'}
-              size="sm"
-              onPress={() => { trackEvent('sprint_create_form_toggled', { open: !showCreateForm }); setShowCreateForm(!showCreateForm); }}
-            >
-              {showCreateForm ? Strings.sprints.cancelButton : Strings.sprints.newSprintButton}
-            </Button>
+            <GuideAnchor name="sprint-new">
+              <Button
+                variant={showCreateForm ? 'ghost' : 'primary'}
+                size="sm"
+                onPress={() => { trackEvent('sprint_create_form_toggled', { open: !showCreateForm }); setShowCreateForm(!showCreateForm); }}
+              >
+                {showCreateForm ? Strings.sprints.cancelButton : Strings.sprints.newSprintButton}
+              </Button>
+            </GuideAnchor>
           ) : null}
         </Box>
       </Box>

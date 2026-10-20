@@ -12,6 +12,8 @@ import { CommentFilterBarWeb } from './comment-filter-bar-web';
 import { SprintNavActionsWeb, type SprintNavAction } from './sprint-nav-actions-web';
 import { SprintLengthHistoryPanelWeb } from './sprint-length-history-panel-web';
 import { trackEvent } from '@/lib/analytics';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
+import { emitGuideSignal } from '@/features/onboarding/guide/guide-signals';
 import { SprintFocusPointsSection, useSprintFocusPoints } from '@/features/focus-points';
 import { formatDateRange } from '@/lib/format-date';
 import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
@@ -164,6 +166,8 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
       }
       setOnBehalfOfUserId('');
       await fetchComments();
+      // Feature 22: lets the interactive guide know the user really wrote a note.
+      emitGuideSignal('comment-posted');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'שגיאה בשליחת ההערה.');
     } finally {
@@ -426,6 +430,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
       <SprintFocusPointsSection focus={focus} />
 
       {/* Compose form */}
+      <GuideAnchor name="board-compose">
       <Card>
         <Typography sx={{ ...t.type.cardTitle, color: t.color.text }}>
           {Strings.retroBoard.writeNoteHeader}
@@ -449,15 +454,17 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
         />
 
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: `${t.space[4]}px`, alignItems: { xs: 'stretch', sm: 'flex-end' }, flexWrap: 'wrap' }}>
-          <Box sx={{ minWidth: 200 }}>
-            <Field
-              type="select"
-              label={Strings.retroBoard.categoryLabel}
-              value={categoryId}
-              onChangeText={setCategoryId}
-              options={categoryOptions}
-            />
-          </Box>
+          <GuideAnchor name="board-category">
+            <Box sx={{ minWidth: 200 }}>
+              <Field
+                type="select"
+                label={Strings.retroBoard.categoryLabel}
+                value={categoryId}
+                onChangeText={setCategoryId}
+                options={categoryOptions}
+              />
+            </Box>
+          </GuideAnchor>
 
           {/* Feature 9 §9.0 decision #2: "on behalf of" comments can never be anonymous — a
               single 3-way control instead of a plain dropdown next to a separate toggle, so the
@@ -550,6 +557,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
           </Button>
         </Box>
       </Card>
+      </GuideAnchor>
 
       {/* Filters */}
       {!isLoading && !loadError && comments.length > 0 && (
@@ -577,6 +585,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
       ) : loadError ? (
         <Alert severity="error" sx={{ ...t.type.body }}>{loadError}</Alert>
       ) : (
+        <GuideAnchor name="board-comments">
         <Grid columns={2}>
           {/* Column 1: KEEP */}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
@@ -658,6 +667,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
             )}
           </Box>
         </Grid>
+        </GuideAnchor>
       )}
     </Page>
   );

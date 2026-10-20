@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { Box, CircularProgress, Alert, Typography } from '@mui/material';
 import { TeamList } from '@/features/teams';
 import { MyFocusTasksCard } from '@/features/focus-points';
-import { OnboardingSection, TourButton } from '@/features/onboarding';
+import { OnboardingSection } from '@/features/onboarding';
 import { Strings } from '@/constants/strings';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/design/theme-context';
@@ -12,6 +12,7 @@ import { useTeamsData } from '../hooks/use-teams-data';
 import { subscribeGoHome } from '../home-signal';
 import { openSprint } from '@/lib/sprint-routes';
 import { trackEvent } from '@/lib/analytics';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 export function DashboardWeb() {
   const t = useTheme();
@@ -45,7 +46,6 @@ export function DashboardWeb() {
         subtitle={subtitle}
         action={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px` }}>
-            <TourButton teams={teams} userId={user.id} />
             <Button
               variant="ghost"
               size="sm"
@@ -57,14 +57,16 @@ export function DashboardWeb() {
               {Strings.common.refreshButton}
             </Button>
             {/* יצירת צוות גרה בהגדרות — הכפתור כאן רק מוביל אליה. */}
-            <Button
-              variant="secondary"
-              size="sm"
-              icon="plus"
-              onPress={() => { trackEvent('new_team_clicked', { screen: 'dashboard' }); router.push('/settings'); }}
-            >
-              {Strings.dashboard.newTeamButton}
-            </Button>
+            <GuideAnchor name="dash-new-team">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="plus"
+                onPress={() => { trackEvent('new_team_clicked', { screen: 'dashboard' }); router.push('/settings'); }}
+              >
+                {Strings.dashboard.newTeamButton}
+              </Button>
+            </GuideAnchor>
           </Box>
         }
       />

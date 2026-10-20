@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CreateTeamForm, TeamList } from '@/features/teams';
 import { MyFocusTasksCard } from '@/features/focus-points';
-import { OnboardingSection, TourButton } from '@/features/onboarding';
+import { GuideMenu, OnboardingSection } from '@/features/onboarding';
 import { BottomTabInset, MaxContentWidth } from '@/constants/theme';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
@@ -23,6 +23,7 @@ import { Icon } from '@/components/ui';
 import { useTeamsData } from '../hooks/use-teams-data';
 import { openSprint } from '@/lib/sprint-routes';
 import { trackEvent } from '@/lib/analytics';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 /** RN doesn't support the web font stack / unitless line-height from tokens.ts — adapt numerically. */
 function rnText(entry: { fontSize: number; fontWeight: number; lineHeight: number }): TextStyle {
@@ -106,7 +107,7 @@ export function DashboardNative() {
                 )}
               </View>
               <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1], flexShrink: 0 }}>
-                <TourButton teams={teams} userId={user.id} />
+                <GuideMenu />
                 {/* בטלפון רענון הוא אייקון בלבד — הטקסט נשאר כתווית נגישות. */}
                 <TouchableOpacity
                   accessibilityRole="button"
@@ -181,11 +182,13 @@ export function DashboardNative() {
                   borderColor: t.color.border,
                 }}
               >
-                <CreateTeamForm
-                  onSubmit={handleCreateTeamSubmit}
-                  isLoading={teamCreateLoading}
-                  isFirstTeam={true}
-                />
+                <GuideAnchor name="create-team-form">
+                  <CreateTeamForm
+                    onSubmit={handleCreateTeamSubmit}
+                    isLoading={teamCreateLoading}
+                    isFirstTeam={true}
+                  />
+                </GuideAnchor>
               </View>
             ) : (
               <View style={{ width: '100%', gap: t.space[4] }}>

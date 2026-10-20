@@ -4,6 +4,7 @@ import { Strings } from '@/constants/strings';
 import { TeamAccentScope, useTheme } from '@/design/theme-context';
 import { Avatar, Badge, Icon, TeamLogo } from '@/components/ui';
 import { memberDisplayName } from '@/features/teams/member-display';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 const MAX_STACKED_AVATARS = 4;
 /** בטלפון הכפתור יושב לצד השם, אז מציגים פחות אווטרים כדי שיישאר לשם מקום. */
@@ -92,6 +93,7 @@ function TeamCardHeaderContent({
       </Box>
 
       <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: { xs: `${t.space[1]}px`, sm: `${t.space[2]}px` }, flexShrink: 0 }}>
+        <GuideAnchor name="team-members-toggle">
         <Box
           component="button"
           type="button"
@@ -130,6 +132,7 @@ function TeamCardHeaderContent({
           </Box>
           <Icon name="chevron-down" size="sm" rotate={isMembersOpen ? 180 : 0} />
         </Box>
+        </GuideAnchor>
 
         {onToggleSettings && (
           <Box

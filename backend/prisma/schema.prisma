@@ -72,6 +72,8 @@ model UserOnboardingState {
   userId               Int       @unique
   checklistDismissedAt DateTime?
   seenFeatureKeys      String[]  @default([])
+  // Feature 22: when the interactive guide was auto-opened for a brand-new user (once, across devices).
+  guideAutoStartedAt   DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

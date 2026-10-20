@@ -1,4 +1,4 @@
-## פיצ'ר 22: מדריך אינטראקטיבי "כפתור כפתור" — מאופיין, מוכן למימוש (2026-10-16)
+## פיצ'ר 22: מדריך אינטראקטיבי "כפתור כפתור" — מומש ב-web (2026-10-19); native כתוב ונבדק ב-Jest בלבד, לא בסימולטור/מכשיר — ענף `feature/22-interactive-guide` (לא נדחף)
 
 ### נקודות מרכזיות (touchpoints)
 
@@ -26,6 +26,7 @@
 7. **כפתור בסרגל העליון (navbar)** פותח את המדריכים — הבסיסי, המתקדם והסקירה הטקסטואלית. **משתמש חדש מקבל את הבסיסי אוטומטית** בכניסה הראשונה.
 8. **יציאה באמצע = מתחילים מחדש** בפעם הבאה (אין שמירת צעד).
 9. **ניסוח הטקסטים:** אני כותבת; נוה סוקר על המסך אחרי.
+10. **(2026-10-19, לבקשת נוה: "מדריך שמאלץ אותי לכתוב ולהתחכך עם המערכת")** הצעד "כתיבת הערה" הוא פעיל: אין "הבא", והמדריך ממשיך רק אחרי שהמשתמש **שולח הערה**. בספרינט פעיל זו הערה אמיתית (וזה מבטל את הניסוח הקודם של "המדריך לא יוצר נתונים" לגבי הערה בלבד; ספרינט/צוות/חבר עדיין לא נוצרים על ידו); בלוח הדמו זו הערה מקומית. תמיד יש "דלג על השלב" ו"יציאה", כדי שמי שתקוע לא ייתקע.
 
 **ברירות מחדל טכניות (נקבעו כאן, לא לשאול עליהן):**
 
@@ -40,7 +41,7 @@
 9. **פתיחה אוטומטית:** `GET /onboarding/status` מחזיר `guideAutoStart = true` למשתמש שאין לו `guideAutoStartedAt` **וגם** נחשב חדש (אין לו עדיין שום הערה ושום ספרינט — כדי שמשתמש קיים לא יקבל הדרכה פתאום ביום הפריסה). בפתיחה נקרא `POST /onboarding/guide-started`.
 10. **תנועה:** מעבר ההדגשה בין צעדים ב-`0.2s ease` ומכבד "הפחתת תנועה"; מעדכנים את חריג התנועה ב-`UI-GUIDELINES.md` §6.
 11. **נגישות ו-RTL:** הבועה היא `role="dialog"` עם `aria-live`, פוקוס על "הבא", `Esc` יוצא (web), אזורי מגע 44px, `row` ולא `row-reverse` ב-web, בלי גלילה אופקית ב-375px.
-12. **ספרינט דמו = נתונים בצד הלקוח בלבד.** כשחסר ספרינט (או הערות), הצעד מציג את אותם רכיבי לוח/סיכום עם `demoSprint`/`demoComments` קבועים מ-`guide/demo-data.ts`, עם תווית "דוגמה" גלויה. שום דבר לא נשלח ל-API ולא נכתב ל-DB, ולכן אין סיכון שיופיע בסיכומים, במצגות, בסטטיסטיקות, או אצל שאר חברי הצוות. הכפתורים בלוח הדמו לא פעילים.
+12. **ספרינט דמו = נתונים בצד הלקוח בלבד.** כשאין ספרינט פעיל, הצעדים מציגים **לוח דמו עצמאי** (`guide/guide-demo-board-{web,native}.tsx`, לא הרכיב האמיתי של הלוח — הוא מחובר לשרת ב-axios לכל הערה ולא ניתן להזריק לו נתונים בלי רפקטור של 660 שורות) עם הערות קבועות, תווית "דוגמה" גלויה, וטופס כתיבה פעיל שמוסיף הערה **מקומית בלבד**. שום דבר לא נשלח ל-API ולא נכתב ל-DB, ולכן אין סיכון שיופיע בסיכומים, במצגות, בסטטיסטיקות, או אצל שאר חברי הצוות. אין תצוגת סיכום דמו: בלי ספרינט שהסתיים יש הערה ממורכזת (`summary-info`).
 13. **כל לחיצה עם `trackEvent`** (כלל הפרויקט): `guide_started {guide, auto}`, `guide_step_shown {id, track}`, `guide_step_done {id, via: click|next}`, `guide_back`, `guide_skipped`, `guide_exited {atStep}`, `guide_completed`, `guide_anchor_missing {id}`.
 14. **בדיקות e2e ב-Playwright (Desktop+Mobile)** על DB מבודד; ובלי נגיעה ב-DB האמיתי (פורט 5005).
 
@@ -59,34 +60,41 @@
 
 ### 22.1 Backend
 
-- [ ] `backend/prisma/schema.prisma`: `UserOnboardingState.guideAutoStartedAt DateTime?`. `db push` על `postgres-test` בלבד; מול Neon רק באישור מפורש. שדה nullable בלי backfill.
-- [ ] `onboarding.service.ts::getHints`: להחזיר גם `endedSprintId` (ספרינט של אותו צוות, שלא נמחק, ש-`endDate < תחילת היום UTC`, המאוחר ביותר). `dto/onboarding.dto.ts::OnboardingHintsDto`.
-- [ ] `getStatus`: `guideAutoStart` (אין `guideAutoStartedAt`, ואין למשתמש הערה וספרינט — החלטה #9) + `POST /onboarding/guide-started` (upsert, idempotent).
-- [ ] `onboarding.service.spec.ts` + `backend/test/onboarding.e2e-spec.ts`: `endedSprintId` (יש / אין / ספרינט שנמחק / אין צוות), `guideAutoStart` (משתמש חדש כן; עם הערה/ספרינט לא; אחרי `guide-started` לא), idempotency.
-- [ ] `specs/21-onboarding.md` (§2, §4) מתעדכן.
+- [x] `backend/prisma/schema.prisma`: `UserOnboardingState.guideAutoStartedAt DateTime?`. `db push` על `postgres-test` בלבד; מול Neon רק באישור מפורש. שדה nullable בלי backfill. — נעשה על `postgres-test`. **`db push` מול Neon (development ו-production) טרם הורץ** — שדה nullable בלבד; ה-`backend/.env` עדיין לא מצביע על development (`env:set-dev-db`, בטרמינל של נוה).
+- [x] `onboarding.service.ts::getHints`: להחזיר גם `endedSprintId` (ספרינט של אותו צוות, שלא נמחק, ש-`endDate < תחילת היום UTC`, המאוחר ביותר). `dto/onboarding.dto.ts::OnboardingHintsDto`.
+- [x] `getStatus`: `guideAutoStart` (אין `guideAutoStartedAt`, ואין למשתמש הערה וספרינט — החלטה #9) + `POST /onboarding/guide-started` (upsert, idempotent).
+- [x] `onboarding.service.spec.ts` + `backend/test/onboarding.e2e-spec.ts`: `endedSprintId` (יש / אין / ספרינט שנמחק / אין צוות), `guideAutoStart` (משתמש חדש כן; עם הערה/ספרינט לא; אחרי `guide-started` לא), idempotency.
+- [x] `specs/21-onboarding.md` (§2, §4) מתעדכן.
 
 ### 22.2 Frontend
 
-- [ ] **תשתית עוגנים:** `guide/guide-anchors.ts` — `useGuideAnchor(key)` (web: `data-tour`; native: `ref` שנרשם) + `getAnchorRect(key)` (אסינכרוני, עם המתנה ו-timeout לפי ברירת מחדל #6).
-- [ ] **מכונת מצבים:** `guide/use-guide.ts` + `guide-provider.tsx` ב-`app/_layout.tsx`: `start(guide, auto)`, `next`, `back`, `skip`, `exit`; סינון צעדים לפי `track` ו-`requires`; ניווט ל-`route` לפני כל צעד; התקדמות ב-`advanceOn: 'click'` כשהפעולה קרתה (ברירת מחדל #5); מעבר לספרינט דמו כשחסר מצב.
-- [ ] **שכבת הדגשה web:** `guide-overlay-web.tsx` — חיתוך שמעביר לחיצה לאלמנט, מעל כל התוכן (מעל דיאלוג MUI), עדכון ב-`ResizeObserver`/`scroll`/`resize`, גלילה לעוגן, בועה עם כותרת/טקסט/הקודם/דלג/יציאה/"n מתוך N", פוקוס ו-`Esc`.
-- [ ] **שכבת הדגשה native:** `guide-overlay-native.tsx` (`measureInWindow`, מלבני הצללה, safe-area, מקלדת), עם אותו חוזה כמו ב-web.
-- [ ] **שני תסריטים וטקסטים:** `guide/guide-script-basic.ts` ו-`guide-script-advanced.ts` (מתקדם: טלגרם, יומן, קטגוריות, לוגו וצבע, פנטום, ועוד לפי הרישום), טקסטים ב-`Strings.onboarding.guide` (נוה סוקר על המסך).
-- [ ] **ספרינט דמו:** `guide/demo-data.ts` + תווית "דוגמה" גלויה, כפתורים לא פעילים, בלי קריאות API (ברירת מחדל #12).
-- [ ] **עוגנים על הרכיבים** שברשימת ה-touchpoints, web **וגם** native, בלי לשנות עיצוב או התנהגות.
-- [ ] **נקודת כניסה:** כפתור בסרגל העליון (`app-tabs.web.tsx` + `app-tabs.tsx`) שפותח בורר קטן (בסיסי / מתקדם / סקירה טקסטואלית); הכפתור שבכותרת הדשבורד מוסר; פתיחה אוטומטית של הבסיסי כש-`guideAutoStart`.
-- [ ] **תנועה:** מעבר ההדגשה `0.2s ease`, מכבד "הפחתת תנועה"; עדכון §6 ב-`UI-GUIDELINES.md`.
-- [ ] **`trackEvent`** לכל האירועים שבברירת מחדל #13.
-- [ ] **RTL וגלילה אופקית:** בדיקה ידנית ב-375px וב-desktop (ובסימולטור/מכשיר ב-native), בלי `row-reverse` ב-web; הבועה לא חורגת מהמסך.
+- [x] **תשתית עוגנים:** `guide/guide-anchors.ts` — `useGuideAnchor(key)` (web: `data-tour`; native: `ref` שנרשם) + `getAnchorRect(key)` (אסינכרוני, עם המתנה ו-timeout לפי ברירת מחדל #6). — נעשה כרכיב עוטף `<GuideAnchor name>` ב-`components/ui/guide-anchor.tsx` (כך ש-`Modal` ב-ui יכול להשתמש בו בלי תלות ב-features), עם `measureAnchor` / `waitForAnchor` / `subscribeAnchorPress`.
+- [x] **מכונת מצבים:** `guide/use-guide.ts` + `guide-provider.tsx` ב-`app/_layout.tsx`: `start(guide, auto)`, `next`, `back`, `skip`, `exit`; סינון צעדים לפי `track` ו-`requires`; ניווט ל-`route` לפני כל צעד; התקדמות ב-`advanceOn: 'click'` כשהפעולה קרתה (ברירת מחדל #5); מעבר לספרינט דמו כשחסר מצב.
+- [x] **שכבת הדגשה web:** `guide-overlay-web.tsx` — חיתוך שמעביר לחיצה לאלמנט, מעל כל התוכן (מעל דיאלוג MUI), עדכון ב-`ResizeObserver`/`scroll`/`resize`, גלילה לעוגן, בועה עם כותרת/טקסט/הקודם/דלג/יציאה/"n מתוך N", פוקוס ו-`Esc`.
+- [x] **שכבת הדגשה native:** `guide-overlay-native.tsx` (`measureInWindow`, מלבני הצללה, safe-area, מקלדת), עם אותו חוזה כמו ב-web.
+- [x] **שני תסריטים וטקסטים:** `guide/guide-script-basic.ts` ו-`guide-script-advanced.ts` (מתקדם: טלגרם, יומן, קטגוריות, לוגו וצבע, פנטום, ועוד לפי הרישום), טקסטים ב-`Strings.onboarding.guide` (נוה סוקר על המסך).
+- [x] **ספרינט דמו:** `guide/demo-data.ts` + תווית "דוגמה" גלויה, כפתורים לא פעילים, בלי קריאות API (ברירת מחדל #12).
+- [x] **עוגנים על הרכיבים** שברשימת ה-touchpoints, web **וגם** native, בלי לשנות עיצוב או התנהגות.
+- [x] **נקודת כניסה:** כפתור בסרגל העליון (`app-tabs.web.tsx` + `app-tabs.tsx`) שפותח בורר קטן (בסיסי / מתקדם / סקירה טקסטואלית); הכפתור שבכותרת הדשבורד מוסר; פתיחה אוטומטית של הבסיסי כש-`guideAutoStart`. — web: בסרגל העליון. **native: בכותרת הדשבורד** (ל-`NativeTabs` אין מקום לכפתור מותאם), באותו תפריט.
+- [x] **תנועה:** מעבר ההדגשה `0.2s ease`, מכבד "הפחתת תנועה"; עדכון §6 ב-`UI-GUIDELINES.md`.
+- [x] **`trackEvent`** לכל האירועים שבברירת מחדל #13.
+- [ ] **RTL וגלילה אופקית:** (web נבדק ב-Playwright וב-375px — בלי גלילה אופקית והבועה בתוך המסך; **native לא נבדק בסימולטור/מכשיר**) בדיקה ידנית ב-375px וב-desktop (ובסימולטור/מכשיר ב-native), בלי `row-reverse` ב-web; הבועה לא חורגת מהמסך.
 
 ### 22.3 בדיקות
 
-- [ ] Jest: סינון צעדים לפי `track` ו-`requires`, `getAnchorRect` עם timeout, מכונת המצבים (לחיצה/הבא/הקודם/דלג/יציאה/סיום), מעבר לספרינט דמו, ואירועי `trackEvent`.
-- [ ] Jest (תקן הטמעה): הרישום ב-frontend (`registry.ts`) וב-backend (`onboarding-features.ts`) זהה במפתחות ובקהל, ולכל רשומה יש טקסטים ב-`Strings.onboarding.features`.
-- [ ] Playwright (Desktop+Mobile Chrome) על DB מבודד, `frontend/e2e/interactive-guide.spec.ts`: משתמש חדש מקבל את הבסיסי אוטומטית (ולא שוב אחרי רענון); ראש צוות עובר את כל התסריט הבסיסי בלחיצות אמיתיות (כולל ניווט בין מסכים); המלבן המודגש מתלכד עם האלמנט (`boundingBox`); חבר רגיל לא רואה צעדי הנהלה; צוות בלי ספרינט מקבל לוח דמו עם תווית "דוגמה" ו**אין כתיבה ל-DB** (ספירת ספרינטים/הערות לפני ואחרי); עוגן חסר מציג בועה ממורכזת ולא תוקע; `Esc`/יציאה; המדריך המתקדם; בלי גלילה אופקית ב-375px; חלון "הוספת חבר" מעדכן את ההדגשה אחרי החלפת לשונית.
-- [ ] backend e2e מול `postgres-test`: `hints.endedSprintId`, `guideAutoStart` ו-`guide-started`, ולא נחשף ספרינט שנמחק.
+- [x] Jest: סינון צעדים לפי `track` ו-`requires`, `getAnchorRect` עם timeout, מכונת המצבים (לחיצה/הבא/הקודם/דלג/יציאה/סיום), מעבר לספרינט דמו, ואירועי `trackEvent`.
+- [x] Jest (תקן הטמעה): הרישום ב-frontend (`registry.ts`) וב-backend (`onboarding-features.ts`) זהה במפתחות ובקהל, ולכל רשומה יש טקסטים ב-`Strings.onboarding.features`.
+- [x] Playwright (Desktop+Mobile Chrome) על DB מבודד, `frontend/e2e/interactive-guide.spec.ts`: משתמש חדש מקבל את הבסיסי אוטומטית (ולא שוב אחרי רענון); ראש צוות עובר את כל התסריט הבסיסי בלחיצות אמיתיות (כולל ניווט בין מסכים); המלבן המודגש מתלכד עם האלמנט (`boundingBox`); חבר רגיל לא רואה צעדי הנהלה; צוות בלי ספרינט מקבל לוח דמו עם תווית "דוגמה" ו**אין כתיבה ל-DB** (ספירת ספרינטים/הערות לפני ואחרי); עוגן חסר מציג בועה ממורכזת ולא תוקע; `Esc`/יציאה; המדריך המתקדם; בלי גלילה אופקית ב-375px; חלון "הוספת חבר" מעדכן את ההדגשה אחרי החלפת לשונית.
+- [x] backend e2e מול `postgres-test`: `hints.endedSprintId`, `guideAutoStart` ו-`guide-started`, ולא נחשף ספרינט שנמחק.
 - [ ] Jest/ידני ב-native (סימולטור): הדגשה בנקודות מרכזיות, מקלדת, safe-area.
-- [ ] לא נוגעים ב-DB האמיתי (פורט 5005) לשום seed או בדיקה.
+- [x] לא נוגעים ב-DB האמיתי (פורט 5005) לשום seed או בדיקה.
+
+### 22.4 הטמעה
+
+- **רמה: א' (זרימה בסיסית)** — המדריך הוא עצמו מנגנון ההטמעה, והוא משנה את הסרגל העליון (כפתור חדש) ומעביר את "סיור במערכת" מכותרת הדשבורד.
+- [x] הסרגל העליון + הפתיחה האוטומטית למשתמש חדש = הגילוי של הפיצ'ר עצמו.
+- [ ] כרטיס "מה חדש" שמודיע על המדריך (רשומה ב-`registry.ts` + `onboarding-features.ts`) — **לא נעשה, מחכה להחלטה של נוה**: הוא יציג כרטיס לכל המשתמשים (גם לחדשים שהמדריך נפתח להם אוטומטית), וידרוש עדכון של בדיקות פיצ'ר 21 שמניחות ש"נקודות לשיפור" הוא הכרטיס היחיד. פיצ'ר רמה א' לא נחשב סגור בלי זה.
+- [ ] כשימומשו פיצ'רים 13/15 וכו': כל מסך חדש = שורה בתסריט + עוגן (`guide-script-basic.ts`).
 
 ### לא בשלב א' (מועמד ל-`IDEAS.md`)
 

@@ -57,6 +57,7 @@ Rubik לכותרות ולאלמנטי UI, Heebo לטקסט גוף. אקסנט א
 **אין** `Grow`, `Fade`, `Collapse` על טעינת מסך, ואין `animation: pulse`.
 חריג: פתיחה/סגירה של אזור שהמשתמש מחליף בלחיצה (כמו "ספרינטים שהסתיימו") מונפשת — web: `Collapse` מ-`components/ui`; native: `animateNextLayout()` מ-`lib/animate-layout` לפני ה-`setState`. שניהם מכבדים "הפחתת תנועה".
 גם שינוי גובה שהמשתמש גרם לו (החלפת לשונית בחלון, רשימה שנטענת) מונפש: web — `AnimatedHeight` מ-`components/ui`; native — `animateNextLayout()`.
+חריג (פיצ'ר 22): ההדגשה של המדריך האינטראקטיבי עוברת בין צעדים וכשהאלמנט המודגש זז ב-`0.2s ease` (`features/onboarding/guide/guide-overlay-web.tsx`), ומבוטלת ב-`prefers-reduced-motion`. זה אפקט של שכבת הדרכה, לא של טעינת מסך.
 
 ## 7. מה אסור — checklist לפני כל commit של UI
 

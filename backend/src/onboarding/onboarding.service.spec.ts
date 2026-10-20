@@ -42,6 +42,7 @@ describe('OnboardingService', () => {
     endedSprints = 0,
     focusPoints = 0,
     activeSprintId = null as number | null,
+    endedSprintId = null as number | null,
   } = {}) {
     prisma.teamMember.findMany.mockResolvedValue(memberships);
     prisma.userOnboardingState.findUnique.mockResolvedValue(state);
@@ -50,9 +51,14 @@ describe('OnboardingService', () => {
     prisma.teamInvite.count.mockResolvedValue(invites);
     prisma.teamMember.count.mockResolvedValue(otherMembers);
     // open-sprint then close-sprint count (called in that order inside Promise.all)
+    prisma.sprint.count.mockResolvedValue(sprints); // any further count (the guide check) sees the same total
     prisma.sprint.count.mockResolvedValueOnce(sprints).mockResolvedValueOnce(endedSprints);
     prisma.focusPoint.count.mockResolvedValue(focusPoints);
-    prisma.sprint.findFirst.mockResolvedValue(activeSprintId === null ? null : { id: activeSprintId });
+    // hints: the running sprint (endDate gte) and the latest finished one (endDate lt) are separate lookups
+    prisma.sprint.findFirst.mockImplementation(async ({ where }: { where: { endDate: { lt?: Date } } }) => {
+      const id = where.endDate.lt ? endedSprintId : activeSprintId;
+      return id === null ? null : { id };
+    });
   }
 
   const doneMap = (steps: { key: string; done: boolean }[]) =>
@@ -129,14 +135,14 @@ describe('OnboardingService', () => {
     it('no team: every hint is null and no sprint lookup happens', async () => {
       setup();
       const res = await service.getStatus(1, now);
-      expect(res.hints).toEqual({ teamId: null, activeSprintId: null });
+      expect(res.hints).toEqual({ teamId: null, activeSprintId: null, endedSprintId: null });
       expect(prisma.sprint.findFirst).not.toHaveBeenCalled();
     });
 
     it('management: points at the first managed team and its running sprint', async () => {
-      setup({ memberships: [asMember(3), asAdmin(5)], activeSprintId: 40 });
+      setup({ memberships: [asMember(3), asAdmin(5)], activeSprintId: 40, endedSprintId: 31 });
       const res = await service.getStatus(1, now);
-      expect(res.hints).toEqual({ teamId: 5, activeSprintId: 40 });
+      expect(res.hints).toEqual({ teamId: 5, activeSprintId: 40, endedSprintId: 31 });
       expect(prisma.sprint.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ teamId: 5, deletedAt: null, endDate: { gte: new Date('2026-10-20T00:00:00Z') } }),
@@ -148,7 +154,51 @@ describe('OnboardingService', () => {
       setup({ memberships: [asMember(8), asMember(9)], activeSprintId: 77 });
       const res = await service.getStatus(1, now);
       expect(res.track).toBe('MEMBER');
-      expect(res.hints).toEqual({ teamId: 8, activeSprintId: 77 });
+      expect(res.hints).toEqual({ teamId: 8, activeSprintId: 77, endedSprintId: null });
+    });
+  });
+
+  describe('getStatus - guideAutoStart (feature 22)', () => {
+    it('a brand-new user (no team, no comment, never shown) gets the guide', async () => {
+      setup();
+      expect((await service.getStatus(1, now)).guideAutoStart).toBe(true);
+    });
+
+    it('a user who already wrote a comment does not', async () => {
+      setup({ memberships: [asMember(3)], comments: 2 });
+      expect((await service.getStatus(1, now)).guideAutoStart).toBe(false);
+    });
+
+    it('a member of a team that already has a sprint does not (existing users are not surprised on deploy day)', async () => {
+      setup({ memberships: [asAdmin(5)], sprints: 1 });
+      expect((await service.getStatus(1, now)).guideAutoStart).toBe(false);
+    });
+
+    it('a team with no sprint yet still counts as new', async () => {
+      setup({ memberships: [asAdmin(5)] });
+      expect((await service.getStatus(1, now)).guideAutoStart).toBe(true);
+    });
+
+    it('once guideAutoStartedAt is set it never fires again, and no extra queries run', async () => {
+      setup({ state: { guideAutoStartedAt: new Date() } });
+      expect((await service.getStatus(1, now)).guideAutoStart).toBe(false);
+    });
+  });
+
+  describe('markGuideStarted (feature 22)', () => {
+    it('stamps the time the first time', async () => {
+      prisma.userOnboardingState.findUnique.mockResolvedValue(null);
+      prisma.userOnboardingState.upsert.mockResolvedValue({});
+      await service.markGuideStarted(1);
+      expect(prisma.userOnboardingState.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { userId: 1 }, create: { userId: 1, guideAutoStartedAt: expect.any(Date) } })
+      );
+    });
+
+    it('is idempotent: a second call does not rewrite the stamp', async () => {
+      prisma.userOnboardingState.findUnique.mockResolvedValue({ guideAutoStartedAt: new Date() });
+      await service.markGuideStarted(1);
+      expect(prisma.userOnboardingState.upsert).not.toHaveBeenCalled();
     });
   });
 

@@ -14,6 +14,13 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:8086',
     trace: 'retain-on-failure',
+    // Feature 22: a brand-new user gets the interactive guide opened automatically. Every spec that
+    // registers a fresh user would then be blocked by its overlay, so auto-start is switched off for
+    // the suite; interactive-guide.spec.ts clears this to test the real first-run behaviour.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: 'http://localhost:8086', localStorage: [{ name: 'guide-auto-start-off', value: '1' }] }],
+    },
   },
   webServer: [
     {

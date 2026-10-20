@@ -17,6 +17,7 @@ import { rnText } from './team-settings-panel.styles';
 import { TeamMemberRow } from './team-member-row';
 import { AddMemberModal } from './add-member-modal';
 import { TeamSettingsPanelNative } from './team-settings-panel';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 interface TeamCardProps {
   team: any;
@@ -112,6 +113,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
               {Strings.teamList.membersHeader}
             </Text>
             {canAddMembers && (
+              <GuideAnchor name="team-add-member">
               <TouchableOpacity
                 onPress={() => {
                   trackEvent('add_member_modal_opened');
@@ -132,6 +134,7 @@ export function TeamCard({ team, token, userId, onAddMemberSuccess, onSelectSpri
                   {Strings.teamList.addMemberToggle}
                 </Text>
               </TouchableOpacity>
+              </GuideAnchor>
             )}
           </View>
           {sortedMembers.map((member: any) => (

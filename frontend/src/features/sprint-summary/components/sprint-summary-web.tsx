@@ -9,6 +9,7 @@ import { computeSprintSummaryStats } from '../stats';
 import { SPRINT_SUMMARY_TEMPLATES, type SprintSummaryTemplateId } from '../templates';
 import { trackEvent } from '@/lib/analytics';
 import { formatDateRange } from '@/lib/format-date';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 // Prefers the RFC 5987 `filename*=UTF-8''...` form the backend sends (carries the real Hebrew
 // name) over the plain ASCII-only `filename="..."` fallback.
@@ -216,9 +217,11 @@ export function SprintSummaryWeb({ sprint, team, token, onBack }: SprintSummaryW
               </Box>
 
               <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Button variant="primary" icon="download" onPress={handleDownload} disabled={isDownloading} loading={isDownloading}>
-                  {isDownloading ? Strings.sprintSummary.downloadingButton : Strings.sprintSummary.downloadButton}
-                </Button>
+                <GuideAnchor name="summary-download">
+                  <Button variant="primary" icon="download" onPress={handleDownload} disabled={isDownloading} loading={isDownloading}>
+                    {isDownloading ? Strings.sprintSummary.downloadingButton : Strings.sprintSummary.downloadButton}
+                  </Button>
+                </GuideAnchor>
               </Box>
             </>
           )}

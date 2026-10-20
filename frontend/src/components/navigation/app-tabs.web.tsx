@@ -15,6 +15,7 @@ import { Icon, type IconName } from '@/components/ui';
 import { Strings } from '@/constants/strings';
 import { triggerGoHome } from '@/features/dashboard/home-signal';
 import { trackEvent } from '@/lib/analytics';
+import { GuideMenu } from '@/features/onboarding';
 import { NavUserMenu, type NavUserMenuItem } from './nav-user-menu.web';
 import { getNavStyles, NAV_CLEARANCE } from './app-tabs.styles';
 
@@ -107,6 +108,9 @@ export function CustomTabList(props: TabListProps) {
         </View>
 
         <div style={{ flexGrow: 1 }} />
+
+        {/* Feature 22: the interactive guides (basic / advanced / feature overview). */}
+        <GuideMenu />
 
         {!!user && <NavUserMenu displayName={displayName} items={menuItems} />}
       </View>

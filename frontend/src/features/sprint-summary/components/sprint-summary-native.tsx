@@ -12,6 +12,7 @@ import { computeSprintSummaryStats } from '../stats';
 import { SPRINT_SUMMARY_TEMPLATES, type SprintSummaryTemplateId } from '../templates';
 import { trackEvent } from '@/lib/analytics';
 import { formatDateRange } from '@/lib/format-date';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
 
 interface SprintSummaryNativeProps {
   sprint: any;
@@ -252,6 +253,7 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
                   </View>
                 </View>
 
+                <GuideAnchor name="summary-download" style={{ alignSelf: 'flex-end' }}>
                 <TouchableOpacity
                   onPress={handleDownload}
                   disabled={isDownloading}
@@ -268,6 +270,7 @@ export function SprintSummaryNative({ sprint, team, token, onBack }: SprintSumma
                     {isDownloading ? Strings.sprintSummary.downloadingButton : Strings.sprintSummary.downloadButton}
                   </Text>
                 </TouchableOpacity>
+                </GuideAnchor>
               </>
             )}
           </View>

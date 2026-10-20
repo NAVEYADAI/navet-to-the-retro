@@ -59,6 +59,8 @@ export function AddMemberModal({ open, onClose, teamId, teamName, token, canInvi
       title={Strings.teamList.addMemberModalTitle}
       subtitle={teamName}
       closeLabel={Strings.teamList.closeModalLabel}
+      guideAnchor="add-member-modal"
+      guideCloseAnchor="add-member-close"
     >
       {/* Switching tabs (and the invite list loading) changes the height — it animates instead of jumping. */}
       <AnimatedHeight>

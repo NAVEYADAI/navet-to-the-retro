@@ -9,11 +9,20 @@ const S = Strings.onboarding;
 
 /** "סיור במערכת" (web): a ghost button for the dashboard header + a stepped modal. */
 export function TourWeb({ tour }: { tour: TourState }) {
+  return (
+    <>
+      <Button variant="ghost" size="sm" icon="map-pin" iconOnlyOnMobile onPress={tour.onOpen}>{S.tourButton}</Button>
+      <TourDialogWeb tour={tour} />
+    </>
+  );
+}
+
+/** The stepped window alone — feature 22's guide menu opens it from its own "סקירת הפיצ'רים" item. */
+export function TourDialogWeb({ tour }: { tour: TourState }) {
   const t = useTheme();
   const { step } = tour;
   return (
     <>
-      <Button variant="ghost" size="sm" icon="map-pin" iconOnlyOnMobile onPress={tour.onOpen}>{S.tourButton}</Button>
       <Modal open={tour.open} onClose={tour.onClose} title={S.tourTitle} subtitle={S.tourStepOf(tour.index + 1, tour.steps.length)} closeLabel={S.tourClose}>
         <Box data-testid="tour-step" data-step-key={step.key} sx={{ display: 'flex', flexDirection: 'column', gap: `${t.space[3]}px` }}>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${t.space[2]}px` }}>

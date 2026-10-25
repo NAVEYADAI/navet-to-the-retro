@@ -54,7 +54,7 @@ monorepo עם npm workspaces. פריסה: Fly.io.
 ## Environments (שלוש סביבות)
 | סביבה | DB | מקור הכתובת |
 |---|---|---|
-| בדיקות | Docker מקומי `postgres-test` (`localhost:5433/navet_test`) | `backend/.env.test` |
+| בדיקות | Docker מקומי `postgres-test` (`localhost:5433/navet_test`). **שם מסד משלו לכל worktree/סשן** (`navet_test_<שם>` ב-`backend/.env.test` של אותו worktree; `npm run migrate:test` יוצר אותו): הסוויטות משתמשות באימיילים/שמות קבועים ומוחקות אותם בתחילת ריצה, ושתי ריצות במקביל על אותו מסד מפילות זו את זו (401/400 לסירוגין, jest תקוע) | `backend/.env.test` |
 | פיתוח | Neon branch `development` (סכמה בלבד, בלי נתונים אמיתיים; ללא auto-delete) | `backend/.env` עם `APP_ENV=development` (או Infisical) |
 | production | Neon branch `production` | **רק** Fly secrets / סביבת prod במנהל הסודות; נכנס ל-deploy כ-`PROD_DATABASE_URL`. לא נשמר ב-`backend/.env` |
 

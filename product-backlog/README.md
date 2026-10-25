@@ -1,5 +1,8 @@
 # באק לוג מוצרי
 
+> **מה עושים עכשיו / מה הבא?** → [`TASKS.md`](./TASKS.md) (`npm run tasks`). הוא מקור האמת לסדר ולסטטוס של כל העבודה הפתוחה;
+> הקובץ הזה והקבצים הממוספרים הם הפירוט והאפיון.
+
 מקום אחד ומתמשך לאיפיון תכולות עתידיות לאפליקציה — כל פיצ'ר הוא קובץ עצמאי בתיקייה הזו, בסדר
 שנוח לאפיין אותו (לא לפי סדר מימוש). אפשר לאפיין כמה פיצ'רים מבלי לממש אף אחד מהם, ולחזור
 בהמשך להריץ מימוש של קובץ ספציפי מתי שנוח.
@@ -89,7 +92,7 @@ Backend-Frontend-בדיקות / "לא בטיפול".
 | 19 | [לוגו לצוות](./19-team-logo.md) | מומש (2026-10-13) — Backend+Frontend+בדיקות (Jest backend/frontend, backend e2e, Playwright Desktop+Mobile) ירוקים; נשארו: `db push` מול Neon (הורץ ב-2026-10-13), ובדיקות ידניות (PPTX בתוכנה אמיתית + נייטיב). חסימת `deletedAt` נסגרה עם פיצ'ר 14 |
 | 20 | [נקודות לשיפור — מעקב בין ספרינטים](./20-issue-tracking.md) | **שלב א' מומש (2026-10-15)** — Backend+Frontend+בדיקות (§20.1/20.2/20.3) סגורים בענף `feature/20-focus-points` (לא נדחף); Jest + backend e2e + Playwright (Desktop+Mobile) ירוקים; `db push` רץ מול `postgres-test` ומול Neon (2026-10-15, באישור); הקנבס לא עודכן. מחוץ לשלב א': אקסל, מגמות גרפיות, חיבור ל-17, התראות |
 | 21 | [הטמעה וגילוי פיצ'רים (Onboarding)](./21-onboarding-and-feature-discovery.md) | **מומש (2026-10-16) — שלב א'**: צ'קליסט + "מה חדש" בשני מסלולים (חבר / הנהלה), כרטיס "התחלה מהירה" בהגדרות, 5 endpoints (כולל `hints` לכפתור "לספרינט הפעיל"), Jest backend (31) + frontend, backend e2e (13), Playwright Desktop+Mobile; נבדק ידנית ב-375px/RTL (web). `prisma db push` מול Neon רץ (2026-10-16, טבלת `UserOnboardingState`); **נשאר: פריסה, ובדיקת native בפועל.** מסך "גלה את המערכת" נדחה לשלב ב'. |
-| 22 | [מדריך אינטראקטיבי "כפתור כפתור"](./22-interactive-guide.md) | **מומש ב-web (2026-10-19)** בענף `feature/22-interactive-guide` (לא נדחף) — Backend (`guideAutoStart`, `hints.endedSprintId`, `POST /onboarding/guide-started`, שדה `guideAutoStartedAt`) + Frontend (עוגנים, שכבת הדגשה, שני מדריכים, לוח דמו, תפריט בסרגל העליון); Jest + backend e2e + Playwright (Desktop+Mobile) ירוקים. **נשארו:** `db push` מול Neon; native נכתב ונבדק ב-Jest בלבד — לא בסימולטור/מכשיר; כרטיס "מה חדש" למדריך (ממתין להחלטה, ר' §22.4) |
+| 22 | [מדריך אינטראקטיבי "כפתור כפתור"](./22-interactive-guide.md) | **מומש ב-web (2026-10-19)** — פרוס לפרודקשן (2026-10-25) — Backend (`guideAutoStart`, `hints.endedSprintId`, `POST /onboarding/guide-started`, שדה `guideAutoStartedAt`) + Frontend (עוגנים, שכבת הדגשה, שני מדריכים, לוח דמו, תפריט בסרגל העליון); Jest + backend e2e + Playwright (Desktop+Mobile) ירוקים. **נשארו:** `db push` מול Neon; native נכתב ונבדק ב-Jest בלבד — לא בסימולטור/מכשיר; כרטיס "מה חדש" למדריך (ממתין להחלטה, ר' §22.4) |
 | 23 | [חלון ניהול תוכן ההדרכה (למנהלי המערכת)](./23-guide-content-admin.md) | **מאופיין, מוכן למימוש (2026-10-16)** — נוה ולירון (שני האימיילים הקיימים, כקבוע משותף) מחליטים בחלון web מה מוצג ב"מה חדש" ובסיור: הצגה/הסתרה, סדר ותאריך סיום בלבד; טקסטים וליבה נשארים בקוד; Prisma: מודל `GuideItemSetting`; לא הותחל |
 
 ---

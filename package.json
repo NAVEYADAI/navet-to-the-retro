@@ -12,7 +12,11 @@
     "test:back": "npm run test --prefix backend",
     "test:back:e2e": "npm run test:e2e --prefix backend",
     "test:front": "npm run test --prefix frontend",
-    "test:front:e2e": "npm run test:e2e --prefix frontend"
+    "test:front:e2e": "npm run test:e2e --prefix frontend",
+    "tasks": "node scripts/tasks.mjs",
+    "tasks:check": "node scripts/tasks.mjs check",
+    "tasks:ui": "node scripts/tasks-ui.mjs",
+    "tasks:test": "node --test scripts/tasks-lib.test.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

@@ -78,6 +78,8 @@ monorepo עם npm workspaces. פריסה: Fly.io.
 
 ## Backlog
 - dir: `product-backlog/` · ideas: `IDEAS.md` · bugs: `BUGS.md`
+- **`TASKS.md`** = סדר העדיפויות והסטטוס של כל העבודה הפתוחה (Now/Next/Later/Done; אינדקס בלבד, הפרטים בקבצים האחרים).
+  סוכן שמתחיל פיצ'ר/משימה → מעביר ל-`Now`; שסיים → `Done`; שחשף פריט המשך → מוסיף שורה. בסוף: `npm run tasks:check`.
 - priority marker: `עדיפות מיידית`
 - draft marker: `— טיוטה, ממתין להחלטות` (בכותרת: `## פיצ'ר N: <name> — טיוטה, ממתין להחלטות`)
 - headings: Backend=`### N.1 Backend` · Frontend=`### N.2 Frontend` · Tests=`### N.3 בדיקות` ·

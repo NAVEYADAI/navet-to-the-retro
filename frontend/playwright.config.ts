@@ -8,6 +8,9 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   workers: 1,
+  // Several flows (invites, sprint summary export) legitimately take ~30s on a loaded machine; the default 30s made
+  // deploy.sh abort on timing alone.
+  timeout: 60_000,
   reporter: 'list',
   globalSetup: './e2e/global-setup.ts',
   globalTeardown: './e2e/global-teardown.ts',

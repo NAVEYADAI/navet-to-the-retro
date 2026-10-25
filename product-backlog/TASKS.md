@@ -56,7 +56,6 @@
 
 - [ ] F-22 · feature · M · מדריך אינטראקטיבי — פרוס (web, 25.10.2026); נשאר: כרטיס "מה חדש" ובדיקת native → [spec](./22-interactive-guide.md) ⛔ החלטה של נוה על הכרטיס + T-01
 - [ ] T-08 · chore · S · כשל לסירוגין לא מוסבר ב-e2e של `team-logo` ("400 for an SVG…", פעם אחת בכ-16 ריצות; הודעת השגיאה לא נשמרה) — לתפוס ולבדוק אם זו שגיאת חיבור בדחיית העלאה מוקדמת
-- [ ] T-09 · chore · S · ניקוי אחרי המעבר למיגרציות: למחוק את ה-worktree `navet-migrate` ואת הענפים הממוזגים `chore/prisma-migrate` ו-`feature/22-interactive-guide`
 - [ ] F-12 · feature · M · שכחתי סיסמה + החלפת סיסמה → [spec](./12-password-reset-and-change.md) ⛔ BUG-59 (אין שליחת מייל)
 - [ ] F-17 · feature · L · רטרו בלייב — סשן מונחה בשלבים → [spec](./17-live-retro-session.md) ⛔ 11 שאלות פתוחות
 - [ ] F-18 · feature · M · אינדיקציה לדברים שממתינים לי → [spec](./18-pending-indicators.md) ⛔ 4 שאלות פתוחות
@@ -89,4 +88,5 @@
 - [x] F-20 · feature · L · נקודות לשיפור — מעקב בין ספרינטים (שלב א') → [spec](./20-issue-tracking.md)
 - [x] F-21 · feature · L · הטמעה וגילוי פיצ'רים (שלב א') → [spec](./21-onboarding-and-feature-discovery.md)
 - [x] T-03 · chore · S · ענפי 20/21/22 מוזגו ל-`main`, נדחפו ופרוסים (backend v51, frontend v35, 25.10.2026)
+- [x] T-09 · chore · S · ניקוי אחרי המעבר למיגרציות: ה-worktrees `navet-deploy-main` ו-`navet-migrate` והענפים הממוזגים `chore/prisma-migrate` ו-`feature/22-interactive-guide` נמחקו; נשאר checkout אחד על `main` (25.10.2026)
 - [x] T-04 · chore · M · מעבר לקבצי מיגרציה (`backend/prisma/migrations`) במקום מנגנון האישורים; ה-release של Fly מחיל אותם, ו-baseline אוטומטי בפריסה הראשונה (25.10.2026)

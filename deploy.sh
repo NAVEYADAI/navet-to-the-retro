@@ -5,6 +5,9 @@ set -e
 # Prepend Fly CLI to PATH
 export PATH="$HOME/.fly/bin:$PATH"
 
+echo "🗄️  Checking migrations (no destructive statement without an explicit acknowledgement)..."
+npm run migrate:check --prefix backend
+
 echo "🧪 Running backend unit tests..."
 npm run test --prefix backend
 
@@ -17,19 +20,9 @@ npm run test --prefix frontend
 echo "🧪 Running frontend E2E tests..."
 npm run test:e2e --prefix frontend
 
-echo "🗄️  Production schema gate (read-only): is the live DB in sync with schema.prisma, or is the change approved?"
-# The backend image applies schema changes itself, but ONLY an approved plan, in Fly's release step before the new
-# version goes live (backend/fly.toml → release_command). This gate runs the same comparison up front so a deploy that
-# the release step would refuse never starts. Unapproved change => stop; review it with `npm run schema:plan:prod`,
-# approve with `npm run schema:approve:prod`, commit the approval, run this again.
-# backend/.env is the DEVELOPMENT database now, so the production URL is NOT read from it: supply it for this run only,
-#   PROD_DATABASE_URL='postgresql://…' ./deploy.sh      (or run this script under your secrets manager's prod environment)
-if [ -z "${PROD_DATABASE_URL:-}" ]; then
-  echo "✖ PROD_DATABASE_URL is not set — refusing to deploy without checking the production schema."
-  echo "  Provide it for this run only, e.g.: PROD_DATABASE_URL='…' ./deploy.sh"
-  exit 1
-fi
-npm run schema:gate:prod --prefix backend
+# No production URL is needed here. Database changes ship as migrations (backend/prisma/migrations) that were created and
+# tried in development; Fly's release_command (backend/fly.toml) applies the ones production has not run yet, in the NEW
+# image before the new version goes live. A failing migration aborts the deploy and the running version is untouched.
 
 echo "🚀 Starting deployment of all services to Fly.io..."
 

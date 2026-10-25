@@ -12,12 +12,10 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
-# Needed by Fly's release_command (fly.toml): `node scripts/schema-sync.js release` compares the live database with
-# prisma/schema.prisma and applies ONLY a plan that has an approval in schema-approvals/ (the Prisma CLI is a
-# production dependency for this reason). Nothing here runs when the app itself starts.
+# Needed by Fly's release_command (fly.toml): `node scripts/db-migrate.js release` applies the migrations in
+# prisma/migrations (the Prisma CLI is a production dependency for this reason). Nothing here runs when the app itself starts.
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
-COPY --from=builder /app/schema-approvals ./schema-approvals
 
 ENV NODE_ENV=production
 EXPOSE 5005

@@ -68,39 +68,41 @@ lead" gated action instead of re-deriving the same check inline in a new service
 
 ## Database
 
-- Workflow is `npx prisma db push`, **not** `prisma migrate` — there are no migration files in this
-  project. A schema change is applied directly; anything beyond an additive nullable/defaulted
-  column needs a hand-planned backfill script (see `product-backlog/03-team-comment-categories.md`
-  for a worked example of planning a risky backfill before running it against real data).
-- **Never apply a schema change to production without the user's explicit go-ahead, and never from an agent session.**
-  Test DB (`postgres-test`) and the development DB are free to update — through the npm scripts below, not raw `prisma`.
+- שינויי סכמה נעשים עם **Prisma Migrate**: כל שינוי הוא קובץ מיגרציה ב-`backend/prisma/migrations/<ts>_<name>/migration.sql` שנכנס ל-git.
+  **לא** `db push`. שינוי שהוא יותר מעמודה אופציונלית/ברירת מחדל (הרסני, NOT NULL, שינוי טיפוס) דורש תכנון נתונים בתוך אותו קובץ
+  (ר' `product-backlog/03-team-comment-categories.md` כדוגמה לתכנון backfill מסוכן לפני הרצה על נתונים אמיתיים).
+- **שום סוכן לא מחיל שינוי על production.** הוא עולה אך ורק בפריסה (release step של Fly) כקובץ שכבר נבדק בפיתוח. DB הבדיקות והפיתוח מתעדכנים
+  דרך סקריפטי ה-npm שלמטה, לא דרך `prisma` גולמי.
 
-### סנכרון סכמה בין סביבות (למה פריסה נכשלת מול ה-DB)
+### מיגרציות בין סביבות
 
 שלוש סביבות: **בדיקות** (Docker, `localhost:5433`) · **פיתוח** (Neon branch `development`, `backend/.env` עם `APP_ENV=development`) ·
-**production** (Neon branch `production`; הכתובת רק ב-Fly/מנהל הסודות, ונכנסת לפקודות כ-`PROD_DATABASE_URL`). כלל הברזל:
-**בפיתוח ובבדיקות הסכמה מתעדכנת מעצמה; ב-production היא משתנה אך ורק בפריסה, ואך ורק אם נוה אישר את ה-SQL המדויק.**
+**production** (Neon branch `production`; הכתובת רק ב-Fly/מנהל הסודות). המנגנון כולו ב-`scripts/db-migrate.js`.
 
-**פיתוח ובדיקות (אוטומטי):**
-- `npm run schema:sync` — מעדכן את בסיס הבדיקות **ואת בסיס הפיתוח** לפי `schema.prisma`.
-- קונטיינר ה-backend (`Dockerfile.dev` → `scripts/dev-schema-sync.sh`) מעדכן את DB הפיתוח בעלייה ובכל שינוי של `schema.prisma`; לא חוסם את
-  עליית השרת אם מסרב. נדרש `APP_ENV=development` (compose מעביר אותו מה-`.env` שבשורש).
-- `schema:test:push` רץ אוטומטית לפני `test:e2e` ו-`start:e2e` (`postgres-test` בלבד; מסרב לכל URL אחר).
-- `schema:dev:push` מסרב אם `APP_ENV` אינו `development` או אם ה-host שווה ל-`PROD_DATABASE_URL`; מנקז pooler של Neon ל-direct; **נכשל ולא מוחק**
-  על שינוי שעלול לאבד נתונים (`SCHEMA_ACCEPT_DATA_LOSS=1` — רק לפיתוח, במודע).
+**יוצרים שינוי:**
+1. עורכים `schema.prisma`.
+2. `npm run migrate:new -- <snake_case_name>` (מתוך `backend/`): מחיל את המיגרציות הקיימות על DB הבדיקות, משווה אותו לסכמה, כותב את ה-SQL החסר לתיקייה
+   חדשה, ומאמת שהיא משחזרת את הסכמה במדויק. אין צורך ב-shadow database.
+3. קוראים את ה-`migration.sql` שנוצר. מוסיפים עמודה אופציונלית / טבלה חדשה — בטוח. `DROP`, `SET NOT NULL`, שינוי טיפוס, `DELETE` — עוצרים:
+   מתכננים גיבוי/backfill **באותו קובץ**, ורק אז מוסיפים בראשו שורה `-- destructive-ok: <למה זה בטוח>`. בלי השורה הבדיקה הסטטית נכשלת
+   (`migrate:check`, ב-`deploy.sh` ובשלב ה-release של Fly).
+4. `npm run migrate:sync` מחיל על בדיקות ופיתוח. commit לתיקיית המיגרציה יחד עם `schema.prisma`.
 
-**production (באישור בלבד):** ה-image **לא** מריץ `db push` כשהאפליקציה עולה. במקום זה:
-1. **ניתוח:** `PROD_DATABASE_URL=… npm run schema:plan:prod` — מסווג כל פעולה 🟢 בטוח / 🟡 דורש בדיקה / 🔴 הרסני, מציג כמה שורות יש בטבלאות,
-   מציע תיקונים (גיבוי לפני מחיקה, שינוי שם במקום drop+add, backfill לפני NOT NULL, בדיקת כפילויות לפני unique…) ונותן **מזהה תוכנית**.
-   אותו ניתוח רץ אוטומטית מול DB הפיתוח כשעורכים את `schema.prisma` (hook), ו-Claude מסביר מה זה אומר ומציע טיוטת תיקון.
-2. **תיקון (אם צריך):** טיוטה ב-`backend/schema-fixes/<מזהה>.pre.sql`. היא רצה **ראשונה, באותה טרנזקציה** כמו התוכנית; אסור שיישארו בה `<placeholders>`.
-3. **אישור:** `PROD_DATABASE_URL=… npm run schema:approve:prod` (נוה בטרמינל שלו) — מציג הכול, ודורש להקליד `APPLY <מזהה>`. כותב
-   `backend/schema-approvals/<מזהה>.json` (נכנס ל-git ול-image). **האישור קשור ל-SQL המדויק**: שינוי אחר, או production שהשתנה מאז, יוצר
-   מזהה אחר ולכן לא מאושר. עריכת קובץ האישור משביתה אותו.
-4. **פריסה:** `deploy.sh` מריץ `schema:gate:prod` לפני הבנייה (מסונכרן או מאושר — אחרת עוצר), ואז ב-Fly `release_command`
-   (`node scripts/schema-sync.js release`) רץ **ב-image החדש לפני שהגרסה עולה**: מחשב מחדש את התוכנית מול ה-DB החי, ומיישם אותה **רק אם יש אישור**,
-   אטומית (`BEGIN … COMMIT`, תיקון קודם), ואז מאמת שה-DB תואם. כל כשל = הפריסה מבוטלת וגרסה ישנה ממשיכה לרוץ.
-- טבלאות גיבוי `_bak_*` שתיקון יוצר נשארות בכוונה (התוכנית מתעלמת מהן); מוחקים אותן ידנית כשבטוחים. עד אז `db push` ב-dev/test יסרב אם הן קיימות שם.
+**אוטומטי:**
+- `migrate:test` רץ לפני `test:e2e` ו-`start:e2e` (`postgres-test` בלבד; מסרב לכל URL אחר). הוא גם **נכשל אם יש שינוי ב-`schema.prisma` בלי מיגרציה**.
+  DB בדיקות במצב ישן (מ-`db push`) נבנה מחדש מהמיגרציות — הוא חד-פעמי לגמרי.
+- קונטיינר ה-backend (`Dockerfile.dev` → `scripts/dev-schema-sync.sh`) מחיל מיגרציות על DB הפיתוח בעלייה ובכל שינוי של `schema.prisma`/מיגרציה;
+  לא חוסם את עליית השרת אם מסרב. נדרש `APP_ENV=development`. מסרב אם ה-host שווה ל-`PROD_DATABASE_URL`; מנקז pooler של Neon ל-direct.
+  DB פיתוח שנוצר ב-`db push` ותואם את הסכמה מאומץ אוטומטית (מסמן את כל המיגרציות כרצות).
+
+**production:** ה-image **לא** מחיל כלום כשהאפליקציה עולה. ב-`npm run deploy`: `migrate:check` → כל הטסטים → `fly deploy`. ב-Fly,
+`release_command` (`node scripts/db-migrate.js release`) רץ **ב-image החדש לפני שהגרסה עולה**: בודק שוב שאין מיגרציה הרסנית בלי סימון, ומריץ
+`migrate deploy` — רק מיגרציות שעוד לא רצו, כל אחת בטרנזקציה. כל כשל = הפריסה מבוטלת וגרסה ישנה ממשיכה לרוץ. אין צורך ב-`PROD_DATABASE_URL`.
+- **baseline (חד-פעמי, אוטומטי):** ה-production נוצר ב-`db push`, לפני שהיו מיגרציות, ולכן אין בו היסטוריית מיגרציות. בפריסה הראשונה ה-release step
+  מזהה את זה (`P3005`) ומאמץ את ה-DB **רק אם הוא בדיוק "המיגרציה הראשונה (`…_init`) + המיגרציות המאוחרות"**: ה-SQL שחסר ל-DB מול הסכמה חייב להיות זהה
+  ל-SQL של המיגרציות המאוחרות. אז הוא מסמן את `…_init` כ"כבר רצה" (בלי להריץ אותה) ומחיל את השאר. כל הבדל אחר = הפריסה נעצרת ושום דבר לא נכתב; אז מסמנים ידנית:
+  `PROD_DATABASE_URL=… npm run migrate:baseline-prod` (נוה, בטרמינל שלו) ומדפיס מה עוד חסר.
+- לא עורכים מיגרציה שכבר רצה בפיתוח או ב-production (ה-checksum נשבר והריצה הבאה נעצרת) — מוסיפים מיגרציה חדשה.
 - `npm run env:set-dev-db` — נוה מריץ בטרמינל שלו; מעביר את כתובת ה-DB מהלוח ל-`backend/.env` (ול-`.env` שבשורש אם הוא מגדיר `DATABASE_URL`)
   בלי להדפיס אותה.
 - בדיקות המנגנון: `npm run test:scripts` (יחידה) ו-`npm run test:release-flow` (אינטגרציה מול `postgres-test`). `.claude/guard.json` + ה-hooks של

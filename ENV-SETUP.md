@@ -61,12 +61,12 @@ docker compose up -d --build backend
 אחר כך:
 ```bash
 docker compose up -d postgres-test
-npm run schema:sync --prefix backend
+npm run migrate:sync --prefix backend
 ```
 
 ## 8. כללי עבודה (כתובים גם ב-`TEAM.md`)
-- לא לקרוא ולא להדפיס קבצי `.env`, ולא להריץ `prisma` גולמי (`db push`, `migrate`, `studio`). סכמה — רק `npm run schema:sync --prefix backend`.
-- שינוי סכמה ב-**production**: מנתחים (`schema:plan:prod`), ורק **נוה** מאשר (`schema:approve:prod`, בטרמינל שלו). קלוד לא מאשר ולא כותב קבצי אישור.
+- לא לקרוא ולא להדפיס קבצי `.env`, ולא להריץ `prisma` גולמי (`db push`, `migrate`, `studio`). סכמה — רק דרך `npm run migrate:*` (`migrate:new` יוצר מיגרציה, `migrate:sync` מחיל על בדיקות+פיתוח).
+- שינוי סכמה ב-**production** עולה אוטומטית עם `npm run deploy` כקובץ מיגרציה שנוצר ונבדק בפיתוח. מיגרציה הרסנית נעצרת עד שמסמנים `-- destructive-ok: <סיבה>` בקובץ.
 - לא `git push` ולא `deploy` בלי אישור מפורש.
 
 ## 9. אחרי ההקמה

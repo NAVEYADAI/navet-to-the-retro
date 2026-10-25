@@ -21,7 +21,7 @@ argument-hint: "[BUG-NN | תיאור הבאג]"
 
 ## 2. תקן
 - שינוי מינימלי שסוגר את הבאג. לא "משפרים בדרך" דברים אחרים.
-- סביבות: טסטים רק מול `postgres-test`; לעולם לא production, ולא `localhost:5005`. שינוי סכמה → `npm run schema:sync --prefix backend`
+- סביבות: טסטים רק מול `postgres-test`; לעולם לא production, ולא `localhost:5005`. שינוי סכמה → `npm run migrate:new --prefix backend -- <name>` ואז `npm run migrate:sync --prefix backend`
   (פיתוח+בדיקות); ל-production — **רק נוה, באישור מפורש** (עצור ודווח).
 - כללי הפרויקט חלים על הקוד שנוגעים בו (`TEAM.md` → Definition of done): מחרוזות ב-`Strings`, `trackEvent` על כל לחיץ חדש, web+native
   מסונכרנים, וכו'.

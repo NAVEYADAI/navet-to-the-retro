@@ -92,4 +92,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+server.on('error', (e) => {
+  if (e.code !== 'EADDRINUSE') throw e;
+  console.log(`כבר רץ: http://${HOST}:${PORT} — פשוט פתח את הכתובת.\nלעצירה: pkill -f scripts/tasks-ui.mjs   ·   פורט אחר: TASKS_UI_PORT=4778 npm run tasks:ui`);
+  process.exit(0);
+});
+
 server.listen(PORT, HOST, () => console.log(`משימות: http://${HOST}:${PORT}   (קובץ: ${path.relative(process.cwd(), TASKS_FILE)})`));

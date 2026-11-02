@@ -27,6 +27,11 @@ export interface OnboardingStatusDto {
   checklistDismissed: boolean;
   unseenFeatureKeys: string[];
   hints: OnboardingHintsDto;
+  // Feature 13/22: whether the user is a team ADMIN (`TeamMember.isAdmin`, not merely a team leader) in
+  // the team the guide navigates to (`hints.teamId`) — the same definition the board uses for
+  // `myMembership.isAdmin`. The guide hides the admin-only panel steps (write extensions, deleted
+  // comments) from everyone else.
+  isAdmin: boolean;
   // Feature 22: a brand-new user (no comment, no sprint) whose interactive guide was never auto-opened.
   guideAutoStart: boolean;
 }

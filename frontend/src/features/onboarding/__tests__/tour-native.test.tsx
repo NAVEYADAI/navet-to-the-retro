@@ -39,7 +39,7 @@ describe('tour (native)', () => {
     const steps = getTourSteps(true);
     const { getByTestId, getByText } = await render(<Harness managedTeamId={4} />);
     await fireEvent.press(getByTestId('tour-open'));
-    for (let i = 1; i < steps.length; i++) await fireEvent.press(getByTestId('tour-next'));
+    for (let i = 0; i < steps.findIndex((s) => s.key === 'focus-points'); i++) await fireEvent.press(getByTestId('tour-next'));
     expect(getByText(S.managementOnlyBadge)).toBeTruthy();
     await fireEvent.press(getByTestId('tour-cta'));
     expect(mockOpenFocusPoints).toHaveBeenCalledWith(4);

@@ -38,7 +38,7 @@
 
 ## ⏭ Next
 
-- [ ] F-13 · feature · M · עריכה ומחיקה של הערה + נעילת לוח → [spec](./13-comment-edit-delete.md)
+- [ ] T-10 · chore · S · לאפס את סיסמת ה-role `neondb_owner` ב-Neon (הכתובות של production ו-development הודבקו בצ'אט ב-27.10.2026 והסיסמה משותפת לשני הענפים), ואז לעדכן את סוד `DATABASE_URL` ב-Fly (`navet-to-retro-backend`) ואת ה-`DATABASE_URL` ב-`.env` ובשורש
 - [ ] T-06 · chore · S · להריץ `npm run deploy` מלא (עם כל הטסטים) ולוודא שהשער ירוק אחרי תיקוני התזמון (Playwright 60s) — העלייה האחרונה לפרודקשן נעשתה בלי שער הטסטים
 - [ ] T-05 · chore · S · מסד בדיקות משלו לכל worktree/סשן (`navet_test_<שם>` ב-`backend/.env.test`) — ריצות מקבילות על `navet_test` מפילות זו את זו; `navet-deploy-main` כבר עבר
 - [ ] F-23 · feature · M · חלון ניהול תוכן ההדרכה (למנהלי המערכת) → [spec](./23-guide-content-admin.md)
@@ -75,6 +75,8 @@
 
 ## ✅ Done
 
+- [x] T-11 · chore · S · ה-guard מחמיר אחרי `env:check`: `migrate:dev` מריץ `env:check --gate` ונעצר בשגיאה, `db-migrate.js dev` מסרב ל-production לפי `env-policy.json`, כלל 5005 עבר מ-deny ל-ask, ו-watch מריץ `env:check` אחרי עריכת הגדרות סביבה (27.10.2026)
+- [x] F-13 · feature · M · עריכה ומחיקה של הערה + נעילת לוח → [spec](./13-comment-edit-delete.md)
 - [x] F-02 · feature · M · הדגשת הערות → [spec](./02-comment-highlighting.md)
 - [x] F-03 · feature · L · קטגוריות מותאמות לצוות → [spec](./03-team-comment-categories.md)
 - [x] F-04 · feature · M · עריכת ספרינט לאחר יצירה → [spec](./04-sprint-editing.md)

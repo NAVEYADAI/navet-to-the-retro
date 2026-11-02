@@ -118,7 +118,8 @@ test.describe('Google Calendar integration — settings card (product-backlog/06
     const connectButton = card.getByRole('button', { name: Strings.settings.googleCalendarConnectButton });
     await expect(connectButton).toBeVisible();
 
-    // GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI are unset in backend/.env.test, so this is a real
+    // GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI are forced empty by backend's `start:e2e` script (merely omitting
+    // them from .env.test is not enough — they get filled in from backend/.env), so this is a real
     // (unmocked) 500 from the running e2e backend, not a simulated one.
     await connectButton.click();
     await expect(card.getByText(Strings.settings.googleCalendarConnectError)).toBeVisible();

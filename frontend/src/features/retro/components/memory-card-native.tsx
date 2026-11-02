@@ -4,7 +4,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
 import { TeamLogo } from '@/components/ui';
-import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment, isCommentEdited } from '../comment-display';
 import { useMemoryCardFlip, type MemoryCardComment } from '../memory-card-flip';
 
 /**
@@ -167,6 +167,7 @@ export function MemoryCardNative({ comment, teamLogo }: MemoryCardNativeProps) {
           )}
           <Text style={{ color: t.color.textMuted, fontSize: 9, textAlign: 'right' }}>
             {`${new Date(comment.createdAt).toLocaleDateString('he-IL')} · ${new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`}
+            {isCommentEdited(comment) && ` · ${Strings.retroBoard.editedLabel}`}
           </Text>
         </Animated.View>
       </View>

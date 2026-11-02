@@ -3,6 +3,8 @@ import { CommentType, UserMessagingLink, MessagingChannel } from '@prisma/client
 import { PrismaService } from '../prisma.service';
 import { TelegramApiService } from './telegram-api.service';
 import { CommentsService } from '../comments/comments.service';
+import { SprintLockedException } from '../sprints/sprint-write-window.util';
+import { israelDayAnchor } from '../common/israel-day';
 import { TeamCategoriesService } from '../team-categories/team-categories.service';
 import {
   SWITCH_TEAM_COMMAND,
@@ -17,6 +19,7 @@ import {
   ASK_KEEP_OR_IMPROVE_MESSAGE,
   ASK_KEEP_OR_IMPROVE_RETRY_MESSAGE,
   CREATE_FAILED_MESSAGE,
+  SPRINT_LOCKED_MESSAGE,
   CANCELLED_MESSAGE,
   NOTHING_TO_CANCEL_MESSAGE,
   BACK_TO_CONTENT_MESSAGE,
@@ -34,25 +37,8 @@ import {
   confirmationMessage
 } from './telegram-messages';
 
-const SPRINT_TIME_ZONE = 'Asia/Jerusalem';
-
-/**
- * BUG-24: sprint `startDate`/`endDate` are stored as midnight UTC of the calendar day the user
- * picked (the frontend shows a sprint as active for that whole local day). Comparing the raw
- * instants against `now` made the last day "closed" from 00:00 UTC (03:00 Israel time). Instead,
- * resolve "today" as a calendar date in Asia/Jerusalem and return it as midnight UTC of that date,
- * so `startDate <= anchor <= endDate` treats the whole first and last Israeli day as open.
- */
-export function getSprintDayAnchor(now: Date = new Date()): Date {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: SPRINT_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(now);
-  const get = (type: string) => parts.find((p) => p.type === type)!.value;
-  return new Date(`${get('year')}-${get('month')}-${get('day')}T00:00:00.000Z`);
-}
+/** Kept under its original name for the bot and its tests; the implementation is shared (BUG-24). */
+export const getSprintDayAnchor = israelDayAnchor;
 
 /** True when the given sprint's date range includes "today" (Asia/Jerusalem calendar day). */
 export function isSprintOpenNow(sprint: { startDate: Date; endDate: Date }, now: Date = new Date()): boolean {
@@ -564,6 +550,13 @@ export class TelegramConversationService {
         link.userId
       );
     } catch (err) {
+      // Feature 13: the write window closed (e.g. the sprint dates were edited mid-flow). Unlike a
+      // transient failure there is nothing to retry — tell the user why and drop the draft + context.
+      if (err instanceof SprintLockedException) {
+        await this.clearContext(link.id);
+        await this.telegramApi.sendMessage(link.externalId, SPRINT_LOCKED_MESSAGE);
+        return;
+      }
       this.logger.warn(`Failed to create comment from Telegram link ${link.id}`, err instanceof Error ? err.stack : err);
       await this.telegramApi.sendMessage(link.externalId, CREATE_FAILED_MESSAGE);
       return;

@@ -40,7 +40,7 @@ const press = (name: string) => mockPressListeners.forEach((l) => l(name));
 
 const G = Strings.onboarding.guide;
 const status = (over: Partial<OnboardingStatus> = {}, hints: object = {}): OnboardingStatus => ({
-  track: 'MANAGEMENT', steps: [], checklistComplete: false, checklistDismissed: false, unseenFeatureKeys: [],
+  track: 'MANAGEMENT', isAdmin: true, steps: [], checklistComplete: false, checklistDismissed: false, unseenFeatureKeys: [],
   hints: { teamId: 7, activeSprintId: 40, endedSprintId: 31, ...hints }, ...over,
 });
 
@@ -76,9 +76,16 @@ describe('GuideProvider (feature 22)', () => {
     const utils = await mountGuide();
     await startBasic(utils);
     expect(mockFetch).toHaveBeenCalledWith('tok');
-    expect(utils.getByText(G.stepOf(1, 9))).toBeTruthy();
+    expect(utils.getByText(G.stepOf(1, 12))).toBeTruthy();
     expect(trackEvent).toHaveBeenCalledWith('guide_started', { guide: 'basic', auto: false });
     expect(trackEvent).toHaveBeenCalledWith('guide_step_shown', { id: 'welcome', guide: 'basic' });
+  });
+
+  it('a team head who is not a team admin gets a shorter guide: the two admin-panel steps are skipped', async () => {
+    mockFetch.mockResolvedValue(status({ isAdmin: false }));
+    const utils = await mountGuide();
+    await startBasic(utils);
+    expect(utils.getByText(G.stepOf(1, 10))).toBeTruthy();
   });
 
   it('opens by itself for a brand-new user, tells the server once, and never for others', async () => {

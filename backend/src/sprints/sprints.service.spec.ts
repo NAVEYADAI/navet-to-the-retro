@@ -738,6 +738,20 @@ describe('SprintsService', () => {
       expect(buildSprintSummaryPptx).not.toHaveBeenCalled();
     });
 
+    // Feature 13: soft-deleted comments never appear in the summary.
+    it('reads only comments that are not soft-deleted', async () => {
+      mockPrismaService.team.findUnique.mockResolvedValue(team);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprint.findFirst.mockResolvedValue(sprint);
+      mockPrismaService.comment.findMany.mockResolvedValue(comments);
+
+      await service.exportSummaryPptx(team.id, sprint.id, team.creatorId);
+
+      expect(mockPrismaService.comment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sprintId: sprint.id, deletedAt: null } })
+      );
+    });
+
     it('passes the resolved template id and comment data through to the pptx builder', async () => {
       mockPrismaService.team.findUnique.mockResolvedValue(team);
       mockPrismaService.sprint.findFirst.mockResolvedValue(sprint);

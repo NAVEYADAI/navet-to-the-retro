@@ -17,7 +17,7 @@ import { Strings } from '@/constants/strings';
 import axios from 'axios';
 import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
-import { Icon, TeamLogo, ActionMenu, type ActionMenuItem } from '@/components/ui';
+import { Icon, ActionMenu, type ActionMenuItem } from '@/components/ui';
 import { LoadErrorNative } from '@/components/load-error-native';
 import { CommentFilterBarNative } from './comment-filter-bar-native';
 import { SprintNavActionsNative } from './sprint-nav-actions-native';
@@ -25,9 +25,15 @@ import type { SprintNavAction } from './sprint-nav-actions-web';
 import { SprintLengthHistoryPanelNative } from './sprint-length-history-panel-native';
 import { trackEvent } from '@/lib/analytics';
 import { SprintFocusPointsSection, useSprintFocusPoints } from '@/features/focus-points';
-import { formatDate, formatTime, formatDateRange } from '@/lib/format-date';
+import { formatDateRange } from '@/lib/format-date';
 import { validateSprintDateRange } from '@/features/sprints/sprint-validation';
-import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
+import { editCategoryOptions } from '../comment-display';
+import { CommentCardNative } from './comment-card-native';
+import { WriteAccessNoticeNative } from './write-access-notice-native';
+import { AdminCommentToolsNative } from './admin-comment-tools-native';
+import { useCommentActions } from '../hooks/use-comment-actions';
+import { useWriteAccess } from '../hooks/use-write-access';
+import { COMMENT_MAX_LENGTH } from '../comment-types';
 import { useDeleteSprint } from '../hooks/use-delete-sprint';
 import { GuideAnchor } from '@/components/ui/guide-anchor';
 import { emitGuideSignal } from '@/features/onboarding/guide/guide-signals';
@@ -92,6 +98,17 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
   const [loadError, setLoadError] = useState<string | null>(null);
   // Feature 20: this sprint's improvement points + my ratings/proposals.
   const focus = useSprintFocusPoints(sprint.id, token);
+  // Feature 13: may I write here right now (write window / admin extension)? + edit/delete of one comment.
+  const writeAccess = useWriteAccess(sprint.id, token);
+  const [deletedRefreshKey, setDeletedRefreshKey] = useState(0);
+  const commentActions = useCommentActions({
+    token,
+    onUpdated: (updated) => setComments((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))),
+    onDeleted: (id) => {
+      setComments((prev) => prev.filter((c) => c.id !== id));
+      setDeletedRefreshKey((k) => k + 1);
+    },
+  });
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -130,6 +147,12 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
   const [isPostAsPickerOpen, setIsPostAsPickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A locked board kept open only by an extension refuses anonymous notes (the timestamps would identify the
+  // writer): the toggle is replaced by an explanation and a pending "anonymous" choice is dropped.
+  const anonymousAllowed = writeAccess.anonymousAllowed;
+  useEffect(() => {
+    if (!anonymousAllowed) setIsAnonymous(false);
+  }, [anonymousAllowed]);
 
   // Comment list filters (distinct from the compose-form state above)
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
@@ -191,7 +214,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
         content: content.trim(),
         type,
         categoryId: categoryId ? Number(categoryId) : undefined,
-        isAnonymous: onBehalfOfUserId ? false : isAnonymous,
+        isAnonymous: onBehalfOfUserId || !anonymousAllowed ? false : isAnonymous,
         onBehalfOfUserId: onBehalfOfUserId ? Number(onBehalfOfUserId) : undefined
       }, {
         headers: {
@@ -302,131 +325,30 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
   const isKeep = type === 'KEEP';
   const wheelTone = isKeep ? t.color.status.success : t.color.status.danger;
 
-  const renderCommentCard = (comment: any, accent: { fg: string; bg: string; border: string }) => {
-    const categoryLabel = getCommentCategoryLabel(comment);
-    const isHighlighted = !!comment.isHighlighted;
-    const authorName = getCommentAuthorName(comment);
-    const postedByAdminLabel = getPostedByAdminLabel(comment);
-
-    return (
-      <View
-        key={comment.id}
-        style={{
-          // הדגשה = סימון סמנטי, נשאר בצבע האפליקציה בתוך אזור הצוות (פיצ'ר 19, החלטה #11).
-          backgroundColor: isHighlighted ? t.color.appAccent.subtle : t.color.surface,
-          borderWidth: isHighlighted ? 1 : 0,
-          borderColor: t.color.appAccent.border,
-          borderRightWidth: 3,
-          borderRightColor: accent.fg,
-          borderRadius: t.radius.card,
-          padding: t.space[3],
-          gap: t.space[2],
-        }}
-      >
-        {(!!categoryLabel || canHighlight || isHighlighted) && (
-          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: t.space[2] }}>
-            {!!categoryLabel ? (
-              <View
-                style={{
-                  backgroundColor: accent.bg,
-                  borderRadius: t.radius.pill,
-                  borderTopRightRadius: t.radius.badge,
-                  paddingHorizontal: t.space[2],
-                  paddingVertical: 3,
-                }}
-              >
-                <Text style={[rnText(t.type.overline), { color: accent.fg }]}>{categoryLabel}</Text>
-              </View>
-            ) : (
-              <View />
-            )}
-
-            {canHighlight ? (
-              <TouchableOpacity
-                onPress={() => handleToggleHighlight(comment.id, !isHighlighted)}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              >
-                <Icon name="star" size="sm" tone={isHighlighted ? 'appAccent' : 'muted'} />
-              </TouchableOpacity>
-            ) : isHighlighted ? (
-              <Icon name="star" size="sm" tone="appAccent" />
-            ) : null}
-          </View>
-        )}
-        {!!postedByAdminLabel && (
-          <View
-            style={{
-              flexDirection: 'row-reverse',
-              alignSelf: 'flex-end',
-              alignItems: 'center',
-              gap: 6,
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-              borderRadius: t.radius.pill,
-              backgroundColor: t.color.appAccent.subtle,
-              borderWidth: 1,
-              borderColor: t.color.appAccent.border,
-            }}
-          >
-            <Icon name="ghost" size="sm" tone="appAccent" />
-            <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.appAccent.base, textAlign: 'right' }]}>
-              {postedByAdminLabel}
-            </Text>
-          </View>
-        )}
-        <Text style={[rnText(t.type.body), { color: t.color.text, textAlign: 'right' }]}>
-          {comment.content}
-        </Text>
-        <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: t.space[1] }}>
-          <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1], flexShrink: 1 }}>
-            {comment.isAnonymous && <TeamLogo teamId={team.id} name={team.name} logoUpdatedAt={team.logoUpdatedAt} marker />}
-            <Text style={[rnText({ ...t.type.caption, fontWeight: comment.isAnonymous ? 400 : 700 }), { color: t.color.textSecondary, flexShrink: 1 }]}>
-              {authorName}
-            </Text>
-            {isFormerMemberComment(comment) && (
-              <View style={{ backgroundColor: t.color.status.neutral.bg, borderWidth: 1, borderColor: t.color.status.neutral.border, borderRadius: t.radius.badge, paddingHorizontal: t.space[1] }}>
-                <Text style={[rnText(t.type.caption), { color: t.color.status.neutral.fg }]}>{Strings.retroBoard.formerMemberBadge}</Text>
-              </View>
-            )}
-          </View>
-          <Text style={[rnText(t.type.caption), { color: t.color.textMuted }]}>
-            {`${formatDate(comment.createdAt)} · ${formatTime(comment.createdAt)}`}
-          </Text>
-        </View>
-        {/* פיצ'ר 20: שורת פעולה נפרדת מתחת לפרטי ההערה, עם תווית שמסבירה מה הכפתור עושה. */}
-        <View style={{ borderTopWidth: 1, borderTopColor: t.color.border, paddingTop: t.space[2], gap: t.space[1] }}>
-          {focus.proposedIds.includes(comment.id) ? (
-            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1] }}>
-              <Icon name="check" size="sm" tone="success" />
-              <Text style={[rnText({ ...t.type.caption, fontWeight: 700 }), { color: t.color.status.success.fg }]}>{Strings.focusPoints.proposedBadge}</Text>
-            </View>
-          ) : (
-            <TouchableOpacity
-              accessibilityRole="button"
-              onPress={() => handlePropose(comment.id)}
-              style={{
-                alignSelf: 'flex-end', flexDirection: 'row-reverse', alignItems: 'center', gap: t.space[1], minHeight: t.layout.minTouchTarget,
-                paddingHorizontal: t.space[3], borderRadius: t.radius.field, borderWidth: 1, borderColor: t.color.borderStrong, backgroundColor: t.color.surface,
-              }}
-            >
-              <Icon name="target" size="sm" tone="default" />
-              <Text style={[rnText({ ...t.type.label, fontWeight: 700 }), { color: t.color.text }]}>
-                {comment.type === 'KEEP' ? Strings.focusPoints.proposeKeepButton : Strings.focusPoints.proposeButton}
-              </Text>
-            </TouchableOpacity>
-          )}
-          <Text style={[rnText(t.type.caption), { color: t.color.textMuted, textAlign: 'right' }]}>
-            {focus.proposedIds.includes(comment.id) ? Strings.focusPoints.proposedHint : Strings.focusPoints.proposeHint}
-          </Text>
-        </View>
-      </View>
-    );
-  };
+  const renderCommentCard = (comment: any, accent: { fg: string; bg: string; border: string }) => (
+    <CommentCardNative
+      key={comment.id}
+      comment={comment}
+      accent={accent}
+      team={team}
+      canHighlight={canHighlight}
+      onToggleHighlight={handleToggleHighlight}
+      isProposed={focus.proposedIds.includes(comment.id)}
+      onPropose={handlePropose}
+      actions={commentActions}
+      categoryOptions={editCategoryOptions(teamCategories, comment.category)}
+      guideAnchor={comment.id === firstActionableId}
+    />
+  );
 
   // The team's creator OR any team admin can export a sprint summary — see product-backlog/01-sprint-summary-export.md §1.0.
   const canExportSummary = team.creatorId === user.id || !!myMembership?.isAdmin;
   // Only team admins may edit a sprint's own settings — same guard as sprint creation.
   const canEditSprint = !!myMembership?.isAdmin;
+  // Feature 13 §13.0 decision #5: deleted-comments / write-extension panels are for team admins only.
+  const isTeamAdmin = !!myMembership?.isAdmin;
+  // The guide's "edit/delete" anchor sits on the first comment this viewer may edit or delete.
+  const firstActionableId = comments.find((c) => c.canEdit || c.canDelete)?.id;
   // Feature 14: deleting a sprint is admin-only, like editing it; the confirmation names how many comments go with it.
   const deleteSprint = useDeleteSprint({ teamId: team.id, sprintId: sprintData.id, token, commentCount: comments.length, onDeleted: onBack });
 
@@ -526,7 +448,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
             <View style={{ flexDirection: 'row-reverse', alignItems: 'center' }}>
               <TouchableOpacity
                 style={{ width: t.layout.minTouchTarget, height: t.layout.minTouchTarget, alignItems: 'center', justifyContent: 'center' }}
-                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); }}
+                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); writeAccess.refresh(); }}
                 disabled={isLoading}
                 accessibilityRole="button"
                 accessibilityLabel={Strings.common.refreshButton}
@@ -693,9 +615,23 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
           <SprintLengthHistoryPanelNative teamId={team.id} sprintId={sprintData.id} token={token} />
         )}
 
+        {isTeamAdmin && (
+          <AdminCommentToolsNative
+            sprintId={sprintData.id}
+            token={token}
+            members={team.members}
+            deletedRefreshKey={deletedRefreshKey}
+            onExtensionsChanged={writeAccess.refresh}
+          />
+        )}
+
         <SprintFocusPointsSection focus={focus} />
 
+        {/* Feature 13: locked board / "open until" notice */}
+        <WriteAccessNoticeNative access={writeAccess.access} />
+
         {/* Main form for posting (RTL formatted) */}
+        {!writeAccess.isLoading && writeAccess.canWrite && (
         <GuideAnchor name="board-compose">
         <View
           style={{
@@ -785,6 +721,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
             onChangeText={setContent}
             multiline
             numberOfLines={3}
+            maxLength={COMMENT_MAX_LENGTH}
           />
 
           <View style={{ flexDirection: 'row-reverse', flexWrap: 'wrap', gap: t.space[2], alignSelf: 'flex-end' }}>
@@ -925,7 +862,11 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
             {/* Feature 9 §9.0 decision #2: "on behalf of" comments can never be anonymous — the
                 UI doesn't even offer the choice once a target other than "me" is selected, on
                 top of the server-side enforcement. */}
-            {!onBehalfOfUserId ? (
+            {!onBehalfOfUserId && !anonymousAllowed ? (
+              <Text testID="anonymous-locked-hint" style={[rnText(t.type.caption), { color: t.color.textMuted, textAlign: 'right', flexShrink: 1, flexBasis: '60%' }]}>
+                {Strings.retroBoard.anonymousLockedHint}
+              </Text>
+            ) : !onBehalfOfUserId ? (
               <TouchableOpacity
                 onPress={() => setIsAnonymous(prev => !prev)}
                 activeOpacity={0.8}
@@ -977,6 +918,7 @@ export function SprintRetroBoardNative({ sprint, team, token, user, onBack, onOp
           </View>
         </View>
         </GuideAnchor>
+        )}
 
         {/* Filters */}
         {!isLoading && !loadError && comments.length > 0 && (

@@ -21,6 +21,8 @@ export interface FeatureEntry {
 const F = Strings.onboarding.features;
 
 export const FEATURE_REGISTRY: FeatureEntry[] = [
+  { key: 'comment-edit-delete', audience: 'ALL', since: '2026-10-26', title: F['comment-edit-delete'].title, description: F['comment-edit-delete'].description, cta: 'none' },
+  { key: 'comment-moderation', audience: 'MANAGEMENT', since: '2026-10-26', title: F['comment-moderation'].title, description: F['comment-moderation'].description, cta: 'none' },
   { key: 'focus-points', audience: 'MANAGEMENT', since: '2026-10-15', title: F['focus-points'].title, description: F['focus-points'].description, cta: 'focus-points', ctaLabel: F['focus-points'].cta },
   { key: 'team-logo', audience: 'ALL', since: '2026-10-13', title: F['team-logo'].title, description: F['team-logo'].description, cta: 'none' },
   { key: 'telegram', audience: 'ALL', since: '2026-09-28', title: F.telegram.title, description: F.telegram.description, cta: 'settings', ctaLabel: F.telegram.cta },

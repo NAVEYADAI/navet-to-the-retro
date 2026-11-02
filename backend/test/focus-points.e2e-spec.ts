@@ -41,8 +41,12 @@ describe('Focus points (e2e)', () => {
   const sprint = async (name: string, startDate: string, endDate: string) =>
     (await api().post(`/teams/${teamId}/sprints`).set(auth(tok.lead)).send({ name, startDate, endDate }).expect(201)).body.id as number;
 
-  const comment = async (sprintId: number, key: string, content: string) =>
-    (await api().post(`/sprints/${sprintId}/comments`).set(auth(tok[key])).send({ content, type: 'IMPROVE' }).expect(201)).body.id as number;
+  // Feature 13: a sprint that ended long ago is locked for writing through the API (3-day window), but these
+  // tests need comments on an old sprint — so the row is inserted directly (what's under test is the focus-point flow).
+  const comment = async (sprintId: number, key: string, content: string) => {
+    const author = await prisma.user.findFirstOrThrow({ where: { username: users[key as keyof typeof users].username } });
+    return (await prisma.comment.create({ data: { content, type: 'IMPROVE', authorId: author.id, teamId, sprintId } })).id;
+  };
 
   const createPoint = async (body: object) =>
     (await api().post(`/teams/${teamId}/focus-points`).set(auth(tok.lead)).send(body).expect(201)).body;

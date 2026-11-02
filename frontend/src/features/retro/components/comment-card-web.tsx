@@ -1,9 +1,17 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Box, Typography } from '@mui/material';
 import { Strings } from '@/constants/strings';
 import { useTheme } from '@/design/theme-context';
-import { Icon, Badge, Button, TeamLogo } from '@/components/ui';
-import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment } from '../comment-display';
+import { Icon, Badge, Button, TeamLogo, ActionMenu, type ActionMenuItem } from '@/components/ui';
+import { GuideAnchor } from '@/components/ui/guide-anchor';
+import { getCommentCategoryLabel, getCommentAuthorName, getPostedByAdminLabel, isFormerMemberComment, isCommentEdited } from '../comment-display';
+import { formatDate, formatTime } from '@/lib/format-date';
+import { trackEvent } from '@/lib/analytics';
+import type { CommentActions } from '../hooks/use-comment-actions';
+import { useReturnFocus } from '../hooks/use-return-focus';
+import type { BoardComment, CategoryOption } from '../comment-types';
+import { CommentEditFormWeb } from './comment-edit-form-web';
+import { CommentDeleteConfirmWeb } from './comment-delete-confirm-web';
 
 interface CommentCardWebProps {
   comment: {
@@ -18,6 +26,11 @@ interface CommentCardWebProps {
     // when present — see comment-display.ts::getPostedByAdminLabel.
     postedByAdmin?: { id: number; username: string; firstName?: string | null; lastName?: string | null } | null;
     createdAt: string;
+    // Feature 13: edited label + what the server lets this viewer do with the comment.
+    updatedAt?: string | null;
+    isMine?: boolean;
+    canEdit?: boolean;
+    canDelete?: boolean;
   };
   index: number;
   /** מוצג רק למנהלי צוות/ראשי צוותים — ראו product-backlog/02-comment-highlighting.md §2. */
@@ -29,9 +42,15 @@ interface CommentCardWebProps {
   onPropose?: (commentId: number) => void;
   /** פיצ'ר 20: המשתמש כבר הציע את ההערה הזו (אותו חבר לא מציע פעמיים). */
   isProposed?: boolean;
+  /** פיצ'ר 13: עריכה/מחיקה. כשלא מועבר (למשל בכרטיסים בלי לוח) אין תפריט. */
+  actions?: CommentActions;
+  /** פיצ'ר 13: הקטגוריות שאפשר לבחור בעריכה (כולל הנוכחית של ההערה). */
+  categoryOptions?: CategoryOption[];
+  /** פיצ'ר 13: עוגן המדריך על התפריט — רק על ההערה הראשונה שאפשר לערוך. */
+  guideAnchor?: boolean;
 }
 
-export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamLogo, onPropose, isProposed }: CommentCardWebProps) {
+export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamLogo, onPropose, isProposed, actions, categoryOptions = [], guideAnchor }: CommentCardWebProps) {
   const t = useTheme();
   const isKeep = comment.type === 'KEEP';
   const accent = isKeep ? t.color.status.success : t.color.status.danger;
@@ -39,9 +58,28 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamL
   const categoryLabel = getCommentCategoryLabel(comment);
   const authorName = getCommentAuthorName(comment);
   const postedByAdminLabel = getPostedByAdminLabel(comment);
+  const boardComment = comment as BoardComment;
+  const isEditing = actions?.editingId === comment.id;
+  const isDeleting = actions?.deletingId === comment.id;
+  const ownError = actions?.error?.id === comment.id ? (actions.error?.message ?? null) : null;
+  const menuItems: ActionMenuItem[] = [
+    ...(actions && comment.canEdit ? [{ key: 'edit', icon: 'edit' as const, label: Strings.retroBoard.editCommentButton, onPress: () => actions.startEdit(boardComment) }] : []),
+    ...(actions && comment.canDelete ? [{ key: 'delete', icon: 'trash' as const, label: Strings.retroBoard.deleteCommentButton, tone: 'danger' as const, onPress: () => actions.askDelete(boardComment) }] : []),
+  ];
+  const menu = menuItems.length > 0 && !isEditing ? (
+    <ActionMenu
+      label={Strings.retroBoard.commentMenuLabel}
+      items={menuItems}
+      onOpen={() => trackEvent('comment_menu_opened', { canEdit: !!comment.canEdit, canDelete: !!comment.canDelete })}
+    />
+  ) : null;
+  // Keyboard: when the editor / delete confirmation closes, focus returns to this card's "⋯" button.
+  const cardRef = useRef<HTMLDivElement>(null);
+  useReturnFocus(isEditing || isDeleting, cardRef);
 
   return (
     <Box
+      ref={cardRef}
       sx={{
         // הדגשת הערה היא סימון סמנטי — נשארת בצבע האפליקציה גם בתוך אזור הצוות (פיצ'ר 19, החלטה #11).
         backgroundColor: isHighlighted ? t.color.appAccent.subtle : t.color.surface,
@@ -52,7 +90,17 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamL
       }}
     >
       <Box sx={{ padding: `${t.space[4]}px`, display: 'flex', flexDirection: 'column', gap: `${t.space[2]}px`, textAlign: 'start' }}>
-        {(categoryLabel || canHighlight || isHighlighted) && (
+        {isEditing && actions ? (
+          <CommentEditFormWeb
+            comment={boardComment}
+            categoryOptions={categoryOptions}
+            busy={actions.busy}
+            error={ownError}
+            onSave={(patch) => actions.saveEdit(boardComment, patch)}
+            onCancel={actions.cancelEdit}
+          />
+        ) : (<>
+        {(categoryLabel || canHighlight || isHighlighted || menu) && (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: `${t.space[2]}px` }}>
             {categoryLabel ? (
               <Box
@@ -82,6 +130,7 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamL
               <Box />
             )}
 
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: `${t.space[1]}px` }}>
             {canHighlight ? (
               <Box
                 component="button"
@@ -104,6 +153,8 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamL
             ) : isHighlighted ? (
               <Icon name="star" size="sm" tone="appAccent" />
             ) : null}
+            {menu ? (guideAnchor ? <GuideAnchor name="board-comment-menu">{menu}</GuideAnchor> : menu) : null}
+            </Box>
           </Box>
         )}
 
@@ -144,10 +195,23 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamL
             <bdi>
               {new Date(comment.createdAt).toLocaleDateString('he-IL')} · {new Date(comment.createdAt).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
             </bdi>
+            {isCommentEdited(comment) ? (
+              <Box component="span" title={Strings.retroBoard.editedTitle(`${formatDate(comment.updatedAt!)} ${formatTime(comment.updatedAt!)}`)}>
+                {' · '}{Strings.retroBoard.editedLabel}
+              </Box>
+            ) : null}
           </Typography>
         </Box>
 
-        {onPropose && (
+        {isDeleting && actions ? (
+          <CommentDeleteConfirmWeb
+            isModeration={comment.isMine === false}
+            busy={actions.busy}
+            error={ownError}
+            onConfirm={() => actions.confirmDelete(boardComment)}
+            onCancel={actions.cancelDelete}
+          />
+        ) : onPropose && (
           // פיצ'ר 20: שורת פעולה נפרדת מתחת לפרטי ההערה (קו מפריד), עם תווית שמסבירה מה הכפתור עושה.
           <Box
             sx={{
@@ -172,6 +236,7 @@ export function CommentCardWeb({ comment, canHighlight, onToggleHighlight, teamL
             </Typography>
           </Box>
         )}
+        </>)}
       </Box>
     </Box>
   );

@@ -24,6 +24,11 @@ export interface OnboardingStatus {
   hints?: OnboardingHints;
   /** Feature 22: a brand-new user whose interactive guide was never auto-opened. */
   guideAutoStart?: boolean;
+  /**
+   * Feature 13: TeamMember.isAdmin in the team of `hints.teamId` (not a plain team leader). Gates the guide
+   * steps about the admin-only panels. Absent from an older server = false.
+   */
+  isAdmin?: boolean;
 }
 
 /** Where a CTA leads. `focus-points` needs a team the user manages (resolved by the dashboard). */

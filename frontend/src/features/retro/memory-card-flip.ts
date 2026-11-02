@@ -23,6 +23,8 @@ export interface MemoryCardComment {
   // so it needs the same "posted on behalf of" indicator as the regular board.
   postedByAdmin?: { id: number; username: string; firstName?: string | null; lastName?: string | null } | null;
   createdAt: string;
+  // Feature 13: set once the comment was really edited — the revealed card shows "נערכה".
+  updatedAt?: string | null;
 }
 
 export const MEMORY_CARD_COMPACT_SIZE = 140;

@@ -27,7 +27,9 @@ export function WhatsNewCardWeb({ onboarding }: { onboarding: OnboardingState })
           {feature.effectiveCta !== 'none' && feature.ctaLabel ? (
             <Button variant="secondary" size="sm" onPress={onboarding.onWhatsNewCta}>{feature.ctaLabel}</Button>
           ) : null}
-          <Button variant="ghost" size="sm" onPress={onboarding.onWhatsNewDismiss}>{S.whatsNewDismissButton}</Button>
+          <Box sx={{ marginInlineStart: 'auto' }}>
+            <Button variant="ghost" size="sm" onPress={onboarding.onWhatsNewDismiss}>{S.whatsNewDismissButton}</Button>
+          </Box>
         </Box>
       </Card>
     </Box>

@@ -20,6 +20,13 @@ export interface ButtonProps {
   type?: 'button' | 'submit';
   /** בטלפון מוצג רק האייקון (הטקסט נשאר כתווית נגישות). דורש `icon` וטקסט מחרוזת. */
   iconOnlyOnMobile?: boolean;
+  /** שם נגיש מפורש (למשל כשכמה כפתורים זהים בדף ונבדלים רק בישות שהם פועלים עליה). חייב להכיל את הטקסט הגלוי. */
+  ariaLabel?: string;
+  /** כפתור שפותח/סוגר אזור: מצב נוכחי + מזהה האזור. */
+  ariaExpanded?: boolean;
+  ariaControls?: string;
+  /** מיקוד אוטומטי כשהכפתור מופיע (למשל אישור מחיקה שנפתח אחרי לחיצה). */
+  autoFocus?: boolean;
 }
 
 const ICON_TONE_BY_VARIANT = {
@@ -43,6 +50,10 @@ export function Button({
   icon,
   type = 'button',
   iconOnlyOnMobile = false,
+  ariaLabel,
+  ariaExpanded,
+  ariaControls,
+  autoFocus,
 }: ButtonProps) {
   const t = useTheme();
   const pad = size === 'sm' ? { py: '7px', px: '14px' } : { py: '10px', px: '18px' };
@@ -79,7 +90,10 @@ export function Button({
     <MuiButton
       type={type}
       onClick={onPress}
-      aria-label={iconOnlyOnMobile && typeof children === 'string' ? children : undefined}
+      aria-label={ariaLabel ?? (iconOnlyOnMobile && typeof children === 'string' ? children : undefined)}
+      aria-expanded={ariaExpanded}
+      aria-controls={ariaControls}
+      autoFocus={autoFocus}
       disabled={disabled || loading}
       fullWidth={fullWidth}
       disableElevation

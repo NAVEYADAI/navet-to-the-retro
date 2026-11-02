@@ -26,7 +26,9 @@ export function WhatsNewCardNative({ onboarding }: { onboarding: OnboardingState
         {feature.effectiveCta !== 'none' && feature.ctaLabel ? (
           <ActionButtonNative testID="whats-new-cta" label={feature.ctaLabel} onPress={onboarding.onWhatsNewCta} />
         ) : null}
-        <ActionButtonNative testID="whats-new-dismiss" variant="ghost" label={S.whatsNewDismissButton} onPress={onboarding.onWhatsNewDismiss} />
+        <View style={{ marginLeft: 'auto' }}>
+          <ActionButtonNative testID="whats-new-dismiss" variant="ghost" label={S.whatsNewDismissButton} onPress={onboarding.onWhatsNewDismiss} />
+        </View>
       </View>
     </CardNative>
   );

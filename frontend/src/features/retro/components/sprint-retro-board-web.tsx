@@ -6,6 +6,12 @@ import { getBackendUrl } from '@/api/config';
 import { useTheme } from '@/design/theme-context';
 import { Page, PageHeader, Grid, Card, Button, Field, Segmented, Icon, ActionMenu, type ActionMenuItem } from '@/components/ui';
 import { CommentCardWeb } from './comment-card-web';
+import { WriteAccessNoticeWeb } from './write-access-notice-web';
+import { AdminCommentToolsWeb } from './admin-comment-tools-web';
+import { useCommentActions } from '../hooks/use-comment-actions';
+import { useWriteAccess } from '../hooks/use-write-access';
+import { COMMENT_MAX_LENGTH } from '../comment-types';
+import { editCategoryOptions } from '../comment-display';
 import { useDeleteSprint } from '../hooks/use-delete-sprint';
 import { RetroWheelToggle } from './retro-wheel-toggle';
 import { CommentFilterBarWeb } from './comment-filter-bar-web';
@@ -54,6 +60,17 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   // Feature 20: this sprint's improvement points + my ratings/proposals.
   const focus = useSprintFocusPoints(sprint.id, token);
+  // Feature 13: may I write here right now (write window / admin extension)? + edit/delete of one comment.
+  const writeAccess = useWriteAccess(sprint.id, token);
+  const [deletedRefreshKey, setDeletedRefreshKey] = useState(0);
+  const commentActions = useCommentActions({
+    token,
+    onUpdated: (updated) => setComments((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))),
+    onDeleted: (id) => {
+      setComments((prev) => prev.filter((c) => c.id !== id));
+      setDeletedRefreshKey((k) => k + 1);
+    },
+  });
 
   // Local copy of the sprint's own editable fields — kept separate from the `sprint` prop so a
   // successful edit reflects immediately without waiting for the parent to refetch and pass a
@@ -91,6 +108,12 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
   const [isBehalfPickerOpen, setIsBehalfPickerOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A locked board kept open only by an extension refuses anonymous notes (the timestamps would identify the
+  // writer): the option disappears and a pending "anonymous" choice is dropped.
+  const anonymousAllowed = writeAccess.anonymousAllowed;
+  useEffect(() => {
+    if (!anonymousAllowed) setIsAnonymous(false);
+  }, [anonymousAllowed]);
 
   // Comment list filters (distinct from the compose-form state above)
   const [filterCategories, setFilterCategories] = useState<string[]>([]);
@@ -149,7 +172,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
         content: content.trim(),
         type,
         categoryId: categoryId ? Number(categoryId) : undefined,
-        isAnonymous: onBehalfOfUserId ? false : isAnonymous,
+        isAnonymous: onBehalfOfUserId || !anonymousAllowed ? false : isAnonymous,
         onBehalfOfUserId: onBehalfOfUserId ? Number(onBehalfOfUserId) : undefined
       }, {
         headers: {
@@ -258,6 +281,26 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
   // Same permission as creating a sprint in the first place (sprints.service.ts::create) — no
   // one should be able to edit a sprint they couldn't have created.
   const canEditSprint = !!myMembership?.isAdmin;
+  // Feature 13 §13.0 decision #5: the deleted-comments and write-extension panels are for team admins
+  // only (isAdmin) — a plain team leader does not get them.
+  const isTeamAdmin = !!myMembership?.isAdmin;
+  // The guide's "edit/delete" anchor sits on the first comment this viewer may edit or delete.
+  const firstActionableId = comments.find((c) => c.canEdit || c.canDelete)?.id;
+  const renderCard = (comment: any, index: number) => (
+    <CommentCardWeb
+      key={comment.id}
+      comment={comment}
+      index={index}
+      canHighlight={canHighlight}
+      onToggleHighlight={handleToggleHighlight}
+      teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }}
+      onPropose={handlePropose}
+      isProposed={focus.proposedIds.includes(comment.id)}
+      actions={commentActions}
+      categoryOptions={editCategoryOptions(teamCategories, comment.category)}
+      guideAnchor={comment.id === firstActionableId}
+    />
+  );
   // Feature 14: deleting a sprint is admin-only, like editing it; the confirmation names how many comments go with it.
   const deleteSprint = useDeleteSprint({ teamId: team.id, sprintId: sprintData.id, token, commentCount: comments.length, onDeleted: onBack });
 
@@ -333,7 +376,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                 size="sm"
                 icon="refresh"
                 iconOnlyOnMobile
-                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); }}
+                onPress={() => { trackEvent('refresh_clicked', { screen: 'retro_board' }); fetchComments(); focus.refresh(); writeAccess.refresh(); }}
                 disabled={isLoading}
               >
                 {Strings.common.refreshButton}
@@ -427,9 +470,23 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
         <SprintLengthHistoryPanelWeb teamId={team.id} sprintId={sprintData.id} token={token} refreshKey={historyRefreshKey} />
       )}
 
+      {isTeamAdmin && (
+        <AdminCommentToolsWeb
+          sprintId={sprintData.id}
+          token={token}
+          members={team.members}
+          deletedRefreshKey={deletedRefreshKey}
+          onExtensionsChanged={writeAccess.refresh}
+        />
+      )}
+
       <SprintFocusPointsSection focus={focus} />
 
+      {/* Feature 13: locked board / "open until" notice */}
+      <WriteAccessNoticeWeb access={writeAccess.access} />
+
       {/* Compose form */}
+      {!writeAccess.isLoading && writeAccess.canWrite && (
       <GuideAnchor name="board-compose">
       <Card>
         <Typography sx={{ ...t.type.cardTitle, color: t.color.text }}>
@@ -451,6 +508,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
           onChangeText={setContent}
           placeholder={type === 'KEEP' ? Strings.retroBoard.notePlaceholderKeep : Strings.retroBoard.notePlaceholderImprove}
           rows={3}
+          maxLength={COMMENT_MAX_LENGTH}
         />
 
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: `${t.space[4]}px`, alignItems: { xs: 'stretch', sm: 'flex-end' }, flexWrap: 'wrap' }}>
@@ -489,7 +547,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
               }}
               options={[
                 { value: 'identified', label: Strings.retroBoard.identifiedToggleLabel, icon: 'eye' },
-                { value: 'anonymous', label: Strings.retroBoard.anonymousToggleLabel, icon: 'eye-off' },
+                ...(anonymousAllowed ? [{ value: 'anonymous', label: Strings.retroBoard.anonymousToggleLabel, icon: 'eye-off' as const }] : []),
                 ...(canPostOnBehalf
                   ? [{
                       value: 'onBehalf',
@@ -499,6 +557,12 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                   : []),
               ]}
             />
+
+            {!anonymousAllowed ? (
+              <Typography data-testid="anonymous-locked-hint" sx={{ ...t.type.caption, color: t.color.textMuted, maxWidth: 360 }}>
+                {Strings.retroBoard.anonymousLockedHint}
+              </Typography>
+            ) : null}
 
             {isBehalfPickerOpen && (
               <>
@@ -558,6 +622,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
         </Box>
       </Card>
       </GuideAnchor>
+      )}
 
       {/* Filters */}
       {!isLoading && !loadError && comments.length > 0 && (
@@ -612,18 +677,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                 {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyKeepText}
               </Typography>
             ) : (
-              keepComments.map((comment, index) => (
-                <CommentCardWeb
-                  key={comment.id}
-                  comment={comment}
-                  index={index}
-                  canHighlight={canHighlight}
-                  onToggleHighlight={handleToggleHighlight}
-                  teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }}
-                  onPropose={handlePropose}
-                  isProposed={focus.proposedIds.includes(comment.id)}
-                />
-              ))
+              keepComments.map(renderCard)
             )}
           </Box>
 
@@ -652,18 +706,7 @@ export function SprintRetroBoardWeb({ sprint, team, token, user, onBack, onOpenS
                 {isFilterActive ? Strings.retroBoard.noMatchingCommentsText : Strings.retroBoard.emptyImproveText}
               </Typography>
             ) : (
-              improveComments.map((comment, index) => (
-                <CommentCardWeb
-                  key={comment.id}
-                  comment={comment}
-                  index={index}
-                  canHighlight={canHighlight}
-                  onToggleHighlight={handleToggleHighlight}
-                  teamLogo={{ teamId: team.id, name: team.name, logoUpdatedAt: team.logoUpdatedAt }}
-                  onPropose={handlePropose}
-                  isProposed={focus.proposedIds.includes(comment.id)}
-                />
-              ))
+              improveComments.map(renderCard)
             )}
           </Box>
         </Grid>

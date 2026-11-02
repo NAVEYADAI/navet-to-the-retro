@@ -8,9 +8,10 @@ import { Collapse as MuiCollapse } from '@mui/material';
  */
 const DURATION_MS = 220;
 
-export function Collapse({ open, children }: { open: boolean; children: React.ReactNode }) {
+export function Collapse({ open, children, id }: { open: boolean; children: React.ReactNode; id?: string }) {
   return (
     <MuiCollapse
+      {...(id ? ({ id } as object) : {})}
       in={open}
       timeout={DURATION_MS}
       unmountOnExit

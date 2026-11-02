@@ -13,6 +13,29 @@ const APPROVER_EMAIL = 'lironka13@gmail.com';
 const DAY = 24 * 60 * 60 * 1000;
 const S = Strings.onboarding;
 const FP = S.features['focus-points'];
+// Feature 13 added two cards (since 2026-10-26, newer than focus-points): "edit/delete a note" for ALL,
+// "deleted notes + write extensions" for MANAGEMENT. The dashboard shows ONE card at a time, newest first:
+// ALL users: edit-delete; managers: edit-delete -> moderation -> focus-points.
+const CED = S.features['comment-edit-delete'];
+const MOD = S.features['comment-moderation'];
+
+/**
+ * Closes the card on top. "Seen" is stored on close; the NEXT card waits for the next dashboard entry
+ * (§21.0 #15, one card per visit), so this reloads and waits for the status before returning.
+ */
+async function dismissWhatsNew(page: Page) {
+  const card = page.getByTestId('whats-new-card');
+  const key = await card.getAttribute('data-feature-key');
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/onboarding/seen-features') && r.ok()),
+    card.getByRole('button', { name: S.whatsNewDismissButton }).click(),
+  ]);
+  // closed immediately, in place ...
+  await expect(page.locator(`[data-testid="whats-new-card"][data-feature-key="${key}"]`)).toHaveCount(0);
+  await expect(whatsNew(page)).toHaveCount(0);
+  // ... and the following card shows up on the next entry
+  await reloadSettled(page);
+}
 
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 const day = (offset: number) => new Date(Date.now() + offset * DAY).toISOString().slice(0, 10);
@@ -83,8 +106,11 @@ test.describe('Onboarding — checklist and what\'s new', () => {
     expect(await page.getByTestId('onboarding-step').evaluateAll((els) => els.map((e) => e.getAttribute('data-step-key'))))
       .toEqual(['create-team', 'invite-member', 'open-sprint', 'close-sprint', 'pick-focus-point']);
     await expect(page.locator('[data-testid="onboarding-step"][data-done="true"]')).toHaveCount(0);
-    // A brand-new user manages nothing yet, so the management-only announcement is not for them.
-    await expect(whatsNew(page)).toHaveCount(0);
+    // A brand-new user manages nothing yet, so the management-only announcements are not for them —
+    // only the card for everyone (edit / delete a note) is.
+    await expect(whatsNew(page)).toHaveCount(1);
+    await expect(whatsNew(page)).toHaveAttribute('data-feature-key', 'comment-edit-delete');
+    await expect(whatsNew(page)).not.toContainText(S.managementOnlyBadge);
     // phone width: the card never scrolls the page sideways
     expect(await noSidewaysScroll(page)).toBe(true);
     // RTL: the title block sits at the start (right) and "הסתר" at the end (left) of the header row.
@@ -175,9 +201,12 @@ test.describe('Onboarding — checklist and what\'s new', () => {
     for (const key of ['create-team', 'invite-member', 'open-sprint', 'close-sprint', 'pick-focus-point']) {
       await expect(step(page, key)).toHaveCount(0);
     }
-    // the management-only "improvement points" card is never rendered for a plain member
-    await expect(whatsNew(page)).toHaveCount(0);
+    // the management-only cards (improvement points, deleted notes + extensions) are never rendered for a
+    // plain member: the only card is the one for everyone, and it carries no "management only" badge
+    await expect(whatsNew(page)).toHaveCount(1);
+    await expect(whatsNew(page)).toHaveAttribute('data-feature-key', 'comment-edit-delete');
     await expect(page.getByRole('heading', { name: FP.title })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: MOD.title })).toHaveCount(0);
     await expect(page.getByText(S.managementOnlyBadge)).toHaveCount(0);
 
     // The first-comment step opens the sprint that is running today (the status hints say which one).
@@ -196,20 +225,32 @@ test.describe('Onboarding — checklist and what\'s new', () => {
     await gotoDashboardSettled(page);
     await expect(page.getByRole('heading', { level: 1, name: Strings.teamList.myTeamsHeader })).toBeVisible();
     await expect(checklist(page)).toHaveCount(0);
-    await expect(whatsNew(page)).toHaveCount(0);
+    // the checklist is done, but the member's one announcement is still waiting
+    await expect(whatsNew(page)).toHaveAttribute('data-feature-key', 'comment-edit-delete');
 
-    // --- Team leader: the improvement-points card, once, management-only ---
+    // --- Team leader: three cards, one at a time, newest first; the last two are management-only ---
     await loginAndGoto(page, leader.token);
     await expect(whatsNew(page)).toHaveCount(1);
+    await expect(whatsNew(page)).toHaveAttribute('data-feature-key', 'comment-edit-delete');
+    await expect(whatsNew(page).getByRole('heading', { name: CED.title })).toBeVisible();
+    await expect(whatsNew(page)).not.toContainText(S.managementOnlyBadge);
+    // Just seeing the card (even after a reload) does not use it up.
+    await page.reload();
+    await expect(whatsNew(page)).toHaveAttribute('data-feature-key', 'comment-edit-delete');
+    expect(await noSidewaysScroll(page)).toBe(true);
+
+    // Closing a card records "seen" and reveals the next one.
+    await dismissWhatsNew(page);
+    await expect(whatsNew(page)).toHaveAttribute('data-feature-key', 'comment-moderation');
+    await expect(whatsNew(page).getByRole('heading', { name: MOD.title })).toBeVisible();
+    await expect(whatsNew(page)).toContainText(S.managementOnlyBadge);
+    await dismissWhatsNew(page);
     await expect(whatsNew(page)).toHaveAttribute('data-feature-key', 'focus-points');
     await expect(whatsNew(page).getByRole('heading', { name: FP.title })).toBeVisible();
     await expect(whatsNew(page)).toContainText(S.managementOnlyBadge);
-    // Just seeing the card (even after a reload) does not use it up.
-    await page.reload();
-    await expect(whatsNew(page)).toHaveCount(1);
     expect(await noSidewaysScroll(page)).toBe(true);
 
-    // Closing it records "seen": it does not come back after a reload, nor from another session.
+    // Closing the last one: it does not come back after a reload, nor from another session.
     await whatsNew(page).getByRole('button', { name: S.whatsNewDismissButton }).click();
     await expect(whatsNew(page)).toHaveCount(0);
     await reloadSettled(page);
@@ -251,17 +292,33 @@ test.describe('Onboarding — checklist and what\'s new', () => {
     }
     await expect(page.getByText(S.managementOnlyBadge)).toHaveCount(0);
     await expect(page.getByRole('button', { name: FP.cta })).toHaveCount(0);
+    // the member's tour ends on the "edit / delete a note" step (for everyone) and has no moderation step at all
+    await expect(tourStep).toHaveAttribute('data-step-key', 'comment-edit-delete');
+    await expect(page.locator('[data-testid="tour-step"][data-step-key="comment-moderation"]')).toHaveCount(0);
     await page.getByRole('button', { name: S.tourFinish }).click();
     await expect(tourStep).toHaveCount(0);
 
     // --- Leader: one more step (management only) at the end, its button opens the improvement points ---
     await loginAndGoto(page, leader.token);
     await openTour();
+    // Feature 13: the tour reads oldest-first, so the two newest (management-only "deleted notes + write
+    // extensions" last) come after the improvement points — walk until the improvement-points step.
+    const lastKeys: string[] = [];
     while (await page.getByRole('button', { name: S.tourNext }).count()) {
+      lastKeys.push((await tourStep.getAttribute('data-step-key'))!);
       await page.getByRole('button', { name: S.tourNext }).click();
     }
-    await expect(tourStep).toHaveAttribute('data-step-key', 'focus-points');
+    lastKeys.push((await tourStep.getAttribute('data-step-key'))!);
+    expect(lastKeys.slice(-3)).toEqual(['focus-points', 'comment-edit-delete', 'comment-moderation']);
+    await expect(tourStep).toHaveAttribute('data-step-key', 'comment-moderation');
     // (the dashboard's "what's new" card behind the dialog carries the same badge, so scope to the step)
+    await expect(tourStep.getByText(S.managementOnlyBadge)).toBeVisible();
+    await expect(tourStep.getByText(MOD.title)).toBeVisible();
+    await page.getByRole('button', { name: S.tourBack }).click();
+    await expect(tourStep).toHaveAttribute('data-step-key', 'comment-edit-delete');
+    await expect(tourStep.getByText(S.managementOnlyBadge)).toHaveCount(0); // for everyone
+    await page.getByRole('button', { name: S.tourBack }).click();
+    await expect(tourStep).toHaveAttribute('data-step-key', 'focus-points');
     await expect(tourStep.getByText(S.managementOnlyBadge)).toBeVisible();
     await page.getByRole('button', { name: FP.cta }).click();
     await expect(page).toHaveURL(new RegExp(`/team/${team.id}/focus-points$`));
@@ -275,6 +332,10 @@ test.describe('Onboarding — checklist and what\'s new', () => {
     const team = await approvedTeam(request, leader.token, `E2E OB Cta ${suffix}`, approver);
 
     await loginAndGoto(page, leader.token);
+    // the improvement-points card sits behind the two newer feature-13 cards
+    await dismissWhatsNew(page);
+    await dismissWhatsNew(page);
+    await expect(whatsNew(page)).toHaveAttribute('data-feature-key', 'focus-points');
     await whatsNew(page).getByRole('button', { name: FP.cta }).click();
     await expect(page).toHaveURL(new RegExp(`/team/${team.id}/focus-points$`));
 

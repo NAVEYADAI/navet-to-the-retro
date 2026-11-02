@@ -131,6 +131,39 @@ describe('OnboardingService', () => {
     });
   });
 
+  describe('getStatus - isAdmin (feature 13: guide hides admin-only panel steps)', () => {
+    it('a team admin -> true', async () => {
+      setup({ memberships: [asAdmin(5)] });
+      expect((await service.getStatus(1, now)).isAdmin).toBe(true);
+    });
+
+    it('a team leader who is not an admin -> false (the panels are admin-only)', async () => {
+      setup({ memberships: [asLead(5)] });
+      const res = await service.getStatus(1, now);
+      expect(res.track).toBe('MANAGEMENT');
+      expect(res.isAdmin).toBe(false);
+    });
+
+    it('a plain member, and a user with no team -> false', async () => {
+      setup({ memberships: [asMember(5)] });
+      expect((await service.getStatus(1, now)).isAdmin).toBe(false);
+      setup();
+      expect((await service.getStatus(1, now)).isAdmin).toBe(false);
+    });
+
+    it('is taken in the team the guide leads to: leader there + admin of a later team -> false', async () => {
+      setup({ memberships: [asLead(2), asAdmin(3)] });
+      const res = await service.getStatus(1, now);
+      expect(res.hints.teamId).toBe(2);
+      expect(res.isAdmin).toBe(false);
+    });
+
+    it('a team awaiting approval does not make the user an admin', async () => {
+      setup({ memberships: [{ ...asAdmin(9), team: { status: 'PENDING_APPROVAL', deletedAt: null } }] });
+      expect((await service.getStatus(1, now)).isAdmin).toBe(false);
+    });
+  });
+
   describe('getStatus - hints (targets for the checklist buttons)', () => {
     it('no team: every hint is null and no sprint lookup happens', async () => {
       setup();
@@ -291,20 +324,24 @@ describe('OnboardingService', () => {
     });
 
     it('only features from 2026-10-15 onward are "new"; management-only ones need management', async () => {
+      // feature 13 added "comment-edit-delete" (ALL) and "comment-moderation" (MANAGEMENT), both since 2026-10-26 — newer than focus-points
       setup({ memberships: [asMember(5)] });
-      expect((await service.getStatus(1, now)).unseenFeatureKeys).toEqual([]);
+      expect((await service.getStatus(1, now)).unseenFeatureKeys).toEqual(['comment-edit-delete']);
       jest.resetAllMocks();
       setup({ memberships: [asLead(5)] });
-      expect((await service.getStatus(1, now)).unseenFeatureKeys).toEqual(['focus-points']);
+      expect((await service.getStatus(1, now)).unseenFeatureKeys).toEqual(['comment-edit-delete', 'comment-moderation', 'focus-points']);
     });
 
     it('a user with no team does not get management-only features', async () => {
       setup();
-      expect((await service.getStatus(1, now)).unseenFeatureKeys).toEqual([]);
+      expect((await service.getStatus(1, now)).unseenFeatureKeys).toEqual(['comment-edit-delete']);
     });
 
     it('drops keys already seen', async () => {
       setup({ memberships: [asLead(5)], state: { checklistDismissedAt: null, seenFeatureKeys: ['focus-points'] } });
+      expect((await service.getStatus(1, now)).unseenFeatureKeys).toEqual(['comment-edit-delete', 'comment-moderation']);
+      jest.resetAllMocks();
+      setup({ memberships: [asLead(5)], state: { checklistDismissedAt: null, seenFeatureKeys: ['focus-points', 'comment-edit-delete', 'comment-moderation'] } });
       expect((await service.getStatus(1, now)).unseenFeatureKeys).toEqual([]);
     });
   });

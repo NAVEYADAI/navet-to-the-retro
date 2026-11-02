@@ -2,11 +2,22 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CommentsService } from './comments.service';
 import { PrismaService } from '../prisma.service';
 import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { SprintLockedException } from '../sprints/sprint-write-window.util';
+
+// Sprint dates are midnight UTC of a calendar day; `endDate` N days ago puts the sprint N days past its end.
+const dayOffset = (days: number) => {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+};
 
 describe('CommentsService', () => {
   let service: CommentsService;
 
-  const sprint = { id: 1, teamId: 100 };
+  const sprint = { id: 1, teamId: 100, startDate: dayOffset(-5), endDate: dayOffset(5) };
+  // Ended 10 days ago: past the 3-day write window.
+  const lockedSprint = { ...sprint, startDate: dayOffset(-20), endDate: dayOffset(-10) };
   const member = { userId: 10, teamId: sprint.teamId, isAdmin: false, role: 'DEVELOPER', status: 'ACTIVE' };
   const admin = { userId: 20, teamId: sprint.teamId, isAdmin: true, role: 'DEVELOPER', status: 'ACTIVE' };
   const teamLeader = { userId: 30, teamId: sprint.teamId, isAdmin: false, role: 'TEAM_LEADER', status: 'ACTIVE' };
@@ -27,6 +38,10 @@ describe('CommentsService', () => {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    // Feature 13: write extensions (only queried once the board is locked).
+    sprintWriteExtension: {
+      findFirst: jest.fn(),
+    },
     // Feature 3 (team comment categories): categoryId validation in create().
     teamCommentCategory: {
       findFirst: jest.fn(),
@@ -45,7 +60,8 @@ describe('CommentsService', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
+    mockPrismaService.teamMember.findMany.mockResolvedValue([]);
   });
 
   describe('create', () => {
@@ -92,6 +108,18 @@ describe('CommentsService', () => {
         await expect(service.create(sprint.id, dto as any, member.userId)).rejects.toThrow(BadRequestException);
         expect(mockPrismaService.sprint.findUnique).not.toHaveBeenCalled();
         expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+      });
+
+      it('rejects content longer than 2000 characters on create (400, Hebrew message), accepts exactly 2000', async () => {
+        const err = await service.create(sprint.id, { content: 'x'.repeat(2001), type: 'KEEP' }, member.userId).catch(e => e);
+        expect(err).toBeInstanceOf(BadRequestException);
+        expect(err.message).toBe('ההערה ארוכה מדי (עד 2000 תווים)');
+        expect(mockPrismaService.sprint.findUnique).not.toHaveBeenCalled();
+
+        mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.comment.create.mockResolvedValue({ id: 1 });
+        await expect(service.create(sprint.id, { content: 'x'.repeat(2000), type: 'KEEP' }, member.userId)).resolves.toBeDefined();
       });
 
       it('accepts IMPROVE, null categoryId and boolean isAnonymous', async () => {
@@ -426,6 +454,558 @@ describe('CommentsService', () => {
       mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
       await expect(service.setHighlighted(1, { isHighlighted: true }, admin.userId)).rejects.toThrow(NotFoundException);
       expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---- Feature 13 (product-backlog/13-comment-edit-delete.md) ----
+  describe('feature 13 — write window on create', () => {
+    it('rejects a comment on a sprint that ended more than 3 days ago (403, Hebrew message)', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(lockedSprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue(null);
+
+      const err = await service.create(sprint.id, createDto, member.userId).catch(e => e);
+      expect(err).toBeInstanceOf(SprintLockedException);
+      expect(err).toBeInstanceOf(ForbiddenException);
+      expect(err.message).toBe('הלוח נעול לכתיבה — הספרינט הסתיים');
+      expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+    });
+
+    it('allows it on a locked sprint when the user has an active extension', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(lockedSprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue({ userId: member.userId, expiresAt: dayOffset(2) });
+      mockPrismaService.comment.create.mockResolvedValue({ id: 1 });
+
+      await expect(service.create(sprint.id, createDto, member.userId)).resolves.toBeDefined();
+      expect(mockPrismaService.sprintWriteExtension.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ sprintId: sprint.id, userId: member.userId, expiresAt: { gt: expect.any(Date) } }) })
+      );
+    });
+
+    it('an expired extension is filtered out by the query (expiresAt > now) and the write is refused', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(lockedSprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue(null); // expired -> not returned
+
+      await expect(service.create(sprint.id, createDto, member.userId)).rejects.toThrow(SprintLockedException);
+    });
+
+    it('does not even look for extensions inside the window', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.comment.create.mockResolvedValue({ id: 1 });
+
+      await service.create(sprint.id, createDto, member.userId);
+      expect(mockPrismaService.sprintWriteExtension.findFirst).not.toHaveBeenCalled();
+    });
+
+    describe('anonymous comments once the board is locked (security: timestamps would identify the writer)', () => {
+      const anonDto = { ...createDto, isAnonymous: true };
+
+      it('rejects isAnonymous:true when writing relies on an extension (403, Hebrew message)', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(lockedSprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue({ userId: member.userId, expiresAt: dayOffset(2) });
+
+        const err = await service.create(sprint.id, anonDto, member.userId).catch(e => e);
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect(err.message).toBe('אי אפשר לפרסם הערה אנונימית אחרי שהלוח ננעל — מועד הפרסום היה חושף מי כתב אותה');
+        expect(mockPrismaService.comment.create).not.toHaveBeenCalled();
+      });
+
+      it('still allows a NAMED comment through the extension', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(lockedSprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue({ userId: member.userId, expiresAt: dayOffset(2) });
+        mockPrismaService.comment.create.mockResolvedValue({ id: 1 });
+
+        await expect(service.create(sprint.id, { ...createDto, isAnonymous: false }, member.userId)).resolves.toBeDefined();
+      });
+
+      it('allows an anonymous comment inside the normal window', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.comment.create.mockResolvedValue({ id: 1 });
+
+        await service.create(sprint.id, anonDto, member.userId);
+        expect(mockPrismaService.comment.create).toHaveBeenCalledWith(
+          expect.objectContaining({ data: expect.objectContaining({ isAnonymous: true }) })
+        );
+      });
+
+      it('on a locked sprint without an extension the lock error comes first, not the anonymity one', async () => {
+        mockPrismaService.sprint.findUnique.mockResolvedValue(lockedSprint);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue(null);
+
+        await expect(service.create(sprint.id, anonDto, member.userId)).rejects.toThrow(SprintLockedException);
+      });
+    });
+
+    it('marks the created comment as the creator\'s own and editable', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.comment.create.mockResolvedValue({ id: 1 });
+
+      const result: any = await service.create(sprint.id, createDto, member.userId);
+      expect(result).toMatchObject({ isMine: true, canEdit: true, canDelete: true });
+    });
+  });
+
+  describe('feature 13 — getCommentsForSprint: deleted filter and isMine/canEdit', () => {
+    const rows = [
+      { id: 1, content: 'mine named', isAnonymous: false, authorId: member.userId, postedByAdminId: null, author: { id: member.userId } },
+      { id: 2, content: 'mine anon', isAnonymous: true, authorId: member.userId, postedByAdminId: null, author: { id: member.userId, username: 'me' } },
+      { id: 3, content: 'theirs anon', isAnonymous: true, authorId: 6, postedByAdminId: null, author: { id: 6, username: 'liron' } },
+      { id: 4, content: 'posted in my name by an admin', isAnonymous: false, authorId: member.userId, postedByAdminId: admin.userId, author: { id: member.userId } },
+      { id: 5, content: 'theirs', isAnonymous: false, authorId: 6, postedByAdminId: null, author: { id: 6 } },
+    ];
+
+    it('queries only comments that are not soft-deleted', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.comment.findMany.mockResolvedValue([]);
+
+      await service.getCommentsForSprint(sprint.id, member.userId);
+
+      expect(mockPrismaService.comment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sprintId: sprint.id, deletedAt: null } })
+      );
+    });
+
+    it('flags the requester\'s own comments (including an anonymous one) without leaking authorId (BUG-02)', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.comment.findMany.mockResolvedValue(rows);
+
+      const result: any[] = await service.getCommentsForSprint(sprint.id, member.userId);
+      const byId = Object.fromEntries(result.map(r => [r.id, r]));
+
+      expect(byId[1]).toMatchObject({ isMine: true, canEdit: true, canDelete: true });
+      expect(byId[2]).toMatchObject({ isMine: true, canEdit: true, canDelete: true });
+      expect(byId[2]).not.toHaveProperty('authorId');
+      expect(byId[2].author.username).toBe('Anonymous');
+      expect(byId[3]).toMatchObject({ isMine: false, canEdit: false, canDelete: false });
+      expect(byId[3]).not.toHaveProperty('authorId');
+      expect(byId[4]).toMatchObject({ isMine: true, canEdit: true }); // "in whose name" side
+      expect(byId[5]).toMatchObject({ isMine: false, canEdit: false });
+      // the flags must not differ between two anonymous comments in any way other than isMine/canEdit/canDelete
+      expect(Object.keys(byId[2]).sort()).toEqual(Object.keys(byId[3]).sort());
+    });
+
+    it('the poster (postedByAdminId) sees the comment as theirs', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.comment.findMany.mockResolvedValue(rows);
+
+      const result: any[] = await service.getCommentsForSprint(sprint.id, admin.userId);
+      expect(result.find(r => r.id === 4)).toMatchObject({ isMine: true, canEdit: true });
+    });
+
+    it('on a locked sprint nothing is editable, but an admin may still delete (moderation)', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(lockedSprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue(null);
+      mockPrismaService.comment.findMany.mockResolvedValue(rows);
+
+      const result: any[] = await service.getCommentsForSprint(sprint.id, admin.userId);
+      expect(result.every(r => r.canEdit === false)).toBe(true);
+      expect(result.every(r => r.canDelete === true)).toBe(true);
+    });
+
+    it('a plain member on a locked sprint cannot edit or delete even their own comment', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(lockedSprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue(null);
+      mockPrismaService.comment.findMany.mockResolvedValue(rows);
+
+      const result: any[] = await service.getCommentsForSprint(sprint.id, member.userId);
+      expect(result.find(r => r.id === 1)).toMatchObject({ isMine: true, canEdit: false, canDelete: false });
+    });
+
+    it('with an active extension the member can edit their own comments on a locked sprint', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(lockedSprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue({ expiresAt: dayOffset(1) });
+      mockPrismaService.comment.findMany.mockResolvedValue(rows);
+
+      const result: any[] = await service.getCommentsForSprint(sprint.id, member.userId);
+      expect(result.find(r => r.id === 1)).toMatchObject({ canEdit: true, canDelete: true });
+      expect(result.find(r => r.id === 5)).toMatchObject({ canEdit: false, canDelete: false });
+    });
+  });
+
+  describe('feature 13 — update', () => {
+    const own = {
+      id: 50, teamId: sprint.teamId, sprintId: sprint.id, authorId: member.userId, postedByAdminId: null,
+      content: 'old', type: 'KEEP', categoryId: null, isAnonymous: false, isHighlighted: true, deletedAt: null,
+      sprint: { id: sprint.id, endDate: sprint.endDate, deletedAt: null, team: { deletedAt: null } },
+    };
+    const lockedOwn = { ...own, sprint: { ...own.sprint, endDate: lockedSprint.endDate } };
+
+    beforeEach(() => {
+      mockPrismaService.comment.update.mockImplementation(async ({ data }: any) => ({
+        ...own, ...data, author: { id: own.authorId, username: 'me' }, postedByAdmin: null, category: null,
+      }));
+    });
+
+    it('the writer edits the content, stamping updatedAt and keeping the highlight', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+
+      const result: any = await service.update(own.id, { content: 'new' }, member.userId);
+
+      const call = mockPrismaService.comment.update.mock.calls[0][0];
+      expect(call.where).toEqual({ id: own.id });
+      expect(call.data.content).toBe('new');
+      expect(call.data.updatedAt).toBeInstanceOf(Date);
+      expect(call.data).not.toHaveProperty('isHighlighted');
+      expect(call.data).not.toHaveProperty('isAnonymous');
+      expect(result.isHighlighted).toBe(true);
+    });
+
+    it('moves the comment to the other column', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+
+      await service.update(own.id, { type: 'IMPROVE' }, member.userId);
+
+      expect(mockPrismaService.comment.update.mock.calls[0][0].data).toMatchObject({ type: 'IMPROVE' });
+    });
+
+    it('does not stamp updatedAt when nothing actually changes', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+
+      await service.update(own.id, { content: 'old', type: 'KEEP', categoryId: null }, member.userId);
+
+      expect(mockPrismaService.comment.update.mock.calls[0][0].data).toEqual({});
+    });
+
+    it('someone else cannot edit it (403)', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ ...member, userId: 99 });
+
+      await expect(service.update(own.id, { content: 'x' }, 99)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+
+    it('not even an admin or team leader can rewrite someone else\'s comment', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      await expect(service.update(own.id, { content: 'x' }, admin.userId)).rejects.toThrow(ForbiddenException);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(teamLeader);
+      await expect(service.update(own.id, { content: 'x' }, teamLeader.userId)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+
+    it('the admin who posted it in someone\'s name may edit it', async () => {
+      const onBehalf = { ...own, authorId: 77, postedByAdminId: admin.userId };
+      mockPrismaService.comment.findUnique.mockResolvedValue(onBehalf);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+
+      await expect(service.update(own.id, { content: 'fixed' }, admin.userId)).resolves.toBeDefined();
+    });
+
+    it('the person it was posted for (authorId) may edit it too', async () => {
+      const onBehalf = { ...own, authorId: member.userId, postedByAdminId: admin.userId };
+      mockPrismaService.comment.findUnique.mockResolvedValue(onBehalf);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+
+      await expect(service.update(own.id, { content: 'fixed' }, member.userId)).resolves.toBeDefined();
+    });
+
+    it('editing my anonymous comment works and does not leak authorId (BUG-02)', async () => {
+      const anon = { ...own, isAnonymous: true };
+      mockPrismaService.comment.findUnique.mockResolvedValue(anon);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.comment.update.mockResolvedValue({ ...anon, content: 'new', author: { id: member.userId, username: 'me' }, postedByAdmin: null, category: null });
+
+      const result: any = await service.update(own.id, { content: 'new' }, member.userId);
+
+      expect(result).not.toHaveProperty('authorId');
+      expect(result.author.username).toBe('Anonymous');
+      expect(result).toMatchObject({ isMine: true, canEdit: true, content: 'new' });
+    });
+
+    it('rejects changing isAnonymous (400), either way, before touching the DB', async () => {
+      await expect(service.update(own.id, { isAnonymous: false } as any, member.userId)).rejects.toThrow(BadRequestException);
+      await expect(service.update(own.id, { content: 'x', isAnonymous: true } as any, member.userId)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.comment.findUnique).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['an empty body', {}],
+      ['blank content', { content: '  ' }],
+      ['non-string content', { content: 5 }],
+      ['unknown type', { type: 'LOVE' }],
+      ['null type', { type: null }],
+      ['string categoryId', { categoryId: '3' }],
+    ])('rejects %s with 400', async (_l, dto) => {
+      await expect(service.update(own.id, dto as any, member.userId)).rejects.toThrow(BadRequestException);
+      expect(mockPrismaService.comment.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('rejects content longer than 2000 characters (400) before touching the DB', async () => {
+      const err = await service.update(own.id, { content: 'x'.repeat(2001) }, member.userId).catch(e => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(err.message).toBe('ההערה ארוכה מדי (עד 2000 תווים)');
+      expect(mockPrismaService.comment.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('PATCH can never change anonymity, even on a locked sprint with an extension (400)', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(lockedOwn);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue({ userId: member.userId, expiresAt: dayOffset(2) });
+      await expect(service.update(own.id, { content: 'x', isAnonymous: true } as any, member.userId)).rejects.toThrow('לא ניתן לשנות אנונימיות של הערה קיימת');
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+
+    it('outside the write window it is locked (403)', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(lockedOwn);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue(null);
+
+      await expect(service.update(own.id, { content: 'x' }, member.userId)).rejects.toThrow(SprintLockedException);
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+
+    it('with an active extension it is allowed on a locked sprint', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(lockedOwn);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue({ expiresAt: dayOffset(1) });
+
+      await expect(service.update(own.id, { content: 'x' }, member.userId)).resolves.toBeDefined();
+    });
+
+    it('an expired extension does not help (query returns nothing)', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(lockedOwn);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue(null);
+
+      await expect(service.update(own.id, { type: 'IMPROVE' }, member.userId)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('404 for a missing, soft-deleted, or other-team comment (BUG-40)', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(null);
+      await expect(service.update(1, { content: 'x' }, member.userId)).rejects.toThrow(NotFoundException);
+
+      mockPrismaService.comment.findUnique.mockResolvedValue({ ...own, deletedAt: new Date() });
+      await expect(service.update(own.id, { content: 'x' }, member.userId)).rejects.toThrow(NotFoundException);
+
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+      await expect(service.update(own.id, { content: 'x' }, 999)).rejects.toThrow(NotFoundException);
+
+      mockPrismaService.teamMember.findUnique.mockResolvedValue({ ...member, status: 'REMOVED' });
+      await expect(service.update(own.id, { content: 'x' }, member.userId)).rejects.toThrow(NotFoundException);
+    });
+
+    it('404 when the sprint or its team is soft-deleted', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.comment.findUnique.mockResolvedValue({ ...own, sprint: { ...own.sprint, deletedAt: new Date() } });
+      await expect(service.update(own.id, { content: 'x' }, member.userId)).rejects.toThrow(NotFoundException);
+      mockPrismaService.comment.findUnique.mockResolvedValue({ ...own, sprint: { ...own.sprint, team: { deletedAt: new Date() } } });
+      await expect(service.update(own.id, { content: 'x' }, member.userId)).rejects.toThrow(NotFoundException);
+    });
+
+    describe('category', () => {
+      const category = { id: 5, teamId: sprint.teamId, label: 'x', isEnabled: true };
+
+      it('moves to an enabled category of the same team', async () => {
+        mockPrismaService.comment.findUnique.mockResolvedValue(own);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.teamCommentCategory.findFirst.mockResolvedValue(category);
+
+        await service.update(own.id, { categoryId: 5 }, member.userId);
+
+        expect(mockPrismaService.teamCommentCategory.findFirst).toHaveBeenCalledWith({ where: { id: 5, teamId: sprint.teamId } });
+        expect(mockPrismaService.comment.update.mock.calls[0][0].data).toMatchObject({ categoryId: 5 });
+      });
+
+      it('404 for a category of another team, 400 for a disabled one', async () => {
+        mockPrismaService.comment.findUnique.mockResolvedValue(own);
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+        mockPrismaService.teamCommentCategory.findFirst.mockResolvedValue(null);
+        await expect(service.update(own.id, { categoryId: 9 }, member.userId)).rejects.toThrow(NotFoundException);
+        mockPrismaService.teamCommentCategory.findFirst.mockResolvedValue({ ...category, isEnabled: false });
+        await expect(service.update(own.id, { categoryId: 5 }, member.userId)).rejects.toThrow(BadRequestException);
+        expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+      });
+
+      it('null clears the category without validation', async () => {
+        mockPrismaService.comment.findUnique.mockResolvedValue({ ...own, categoryId: 5 });
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+
+        await service.update(own.id, { categoryId: null }, member.userId);
+
+        expect(mockPrismaService.teamCommentCategory.findFirst).not.toHaveBeenCalled();
+        expect(mockPrismaService.comment.update.mock.calls[0][0].data).toMatchObject({ categoryId: null });
+      });
+
+      it('keeping the current (since disabled) category is not re-validated', async () => {
+        mockPrismaService.comment.findUnique.mockResolvedValue({ ...own, categoryId: 5 });
+        mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+
+        await service.update(own.id, { content: 'new', categoryId: 5 }, member.userId);
+
+        expect(mockPrismaService.teamCommentCategory.findFirst).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('feature 13 — remove (soft delete)', () => {
+    const own = {
+      id: 60, teamId: sprint.teamId, sprintId: sprint.id, authorId: member.userId, postedByAdminId: null,
+      isAnonymous: false, deletedAt: null,
+      sprint: { id: sprint.id, endDate: sprint.endDate, deletedAt: null, team: { deletedAt: null } },
+    };
+    const lockedOwn = { ...own, sprint: { ...own.sprint, endDate: lockedSprint.endDate } };
+    const othersOld = { ...lockedOwn, authorId: 6 };
+
+    it('the writer deletes their comment: soft delete with deletedAt + deletedById', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.comment.update.mockResolvedValue({});
+
+      await service.remove(own.id, member.userId);
+
+      expect(mockPrismaService.comment.update).toHaveBeenCalledWith({
+        where: { id: own.id },
+        data: { deletedAt: expect.any(Date), deletedById: member.userId },
+      });
+    });
+
+    it('the poster-in-name may delete it too', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue({ ...own, authorId: 77, postedByAdminId: teamLeader.userId });
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(teamLeader);
+      mockPrismaService.comment.update.mockResolvedValue({});
+
+      await expect(service.remove(own.id, teamLeader.userId)).resolves.toBeDefined();
+    });
+
+    it('someone else (plain member) cannot delete it', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+
+      await expect(service.remove(own.id, 99)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+
+    it('a team leader (non-admin) cannot delete someone else\'s comment', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(teamLeader);
+
+      await expect(service.remove(own.id, teamLeader.userId)).rejects.toThrow(ForbiddenException);
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+
+    it('an admin deletes someone else\'s comment from an old, locked sprint (moderation ignores the window)', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(othersOld);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.comment.update.mockResolvedValue({});
+
+      await service.remove(othersOld.id, admin.userId);
+
+      expect(mockPrismaService.comment.update).toHaveBeenCalledWith({
+        where: { id: othersOld.id },
+        data: { deletedAt: expect.any(Date), deletedById: admin.userId },
+      });
+    });
+
+    it('an admin may delete their own comment on a locked sprint too', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue({ ...lockedOwn, authorId: admin.userId });
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.comment.update.mockResolvedValue({});
+
+      await expect(service.remove(own.id, admin.userId)).resolves.toBeDefined();
+    });
+
+    it('the writer cannot delete their own comment once the board is locked; an extension reopens it', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue(lockedOwn);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue(null);
+      await expect(service.remove(own.id, member.userId)).rejects.toThrow(SprintLockedException);
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+
+      mockPrismaService.sprintWriteExtension.findFirst.mockResolvedValue({ expiresAt: dayOffset(1) });
+      mockPrismaService.comment.update.mockResolvedValue({});
+      await expect(service.remove(own.id, member.userId)).resolves.toBeDefined();
+    });
+
+    it('404 for an already-deleted comment, a non-member (BUG-40), or a deleted sprint', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue({ ...own, deletedAt: new Date() });
+      await expect(service.remove(own.id, admin.userId)).rejects.toThrow(NotFoundException);
+
+      mockPrismaService.comment.findUnique.mockResolvedValue(own);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+      await expect(service.remove(own.id, 999)).rejects.toThrow(NotFoundException);
+
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.comment.findUnique.mockResolvedValue({ ...own, sprint: { ...own.sprint, deletedAt: new Date() } });
+      await expect(service.remove(own.id, admin.userId)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('feature 13 — setHighlighted on a soft-deleted comment', () => {
+    it('404s', async () => {
+      mockPrismaService.comment.findUnique.mockResolvedValue({ id: 1, teamId: sprint.teamId, deletedAt: new Date(), sprint: { deletedAt: null, team: { deletedAt: null } } });
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      await expect(service.setHighlighted(1, { isHighlighted: true }, admin.userId)).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.comment.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('feature 13 — getDeletedComments', () => {
+    const deletedAt = new Date('2026-10-20T10:00:00Z');
+    const base = { content: 'c', postedByAdminId: null, deletedAt, author: { id: 5, username: 'nave' } };
+
+    it('is admin only (a team leader / plain member gets 403, an outsider 404)', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(teamLeader);
+      await expect(service.getDeletedComments(sprint.id, teamLeader.userId)).rejects.toThrow(ForbiddenException);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(member);
+      await expect(service.getDeletedComments(sprint.id, member.userId)).rejects.toThrow(ForbiddenException);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(null);
+      await expect(service.getDeletedComments(sprint.id, 999)).rejects.toThrow(NotFoundException);
+      expect(mockPrismaService.comment.findMany).not.toHaveBeenCalled();
+    });
+
+    it('lists deleted comments, newest deletion first, with who deleted and when', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.comment.findMany.mockResolvedValue([
+        { ...base, id: 1, isAnonymous: false, authorId: 5, deletedById: admin.userId, deletedBy: { id: admin.userId, username: 'boss' } },
+      ]);
+
+      const result: any[] = await service.getDeletedComments(sprint.id, admin.userId);
+
+      expect(mockPrismaService.comment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { sprintId: sprint.id, deletedAt: { not: null } }, orderBy: { deletedAt: 'desc' } })
+      );
+      expect(result[0]).toMatchObject({ id: 1, deletedAt, deletedBy: { username: 'boss' }, deletedByAuthor: false });
+    });
+
+    it('keeps anonymous comments masked and never names the deleter when the writer deleted it themselves (BUG-02)', async () => {
+      mockPrismaService.sprint.findUnique.mockResolvedValue(sprint);
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.comment.findMany.mockResolvedValue([
+        { ...base, id: 2, isAnonymous: true, authorId: 6, deletedById: 6, deletedBy: { id: 6, username: 'liron' } },
+        { ...base, id: 3, isAnonymous: true, authorId: 6, deletedById: admin.userId, deletedBy: { id: admin.userId, username: 'boss' } },
+      ]);
+
+      const [selfDeleted, moderated]: any[] = await service.getDeletedComments(sprint.id, admin.userId);
+
+      for (const r of [selfDeleted, moderated]) {
+        expect(r).not.toHaveProperty('authorId');
+        expect(r).not.toHaveProperty('deletedById');
+        expect(r.author.username).toBe('Anonymous');
+      }
+      expect(selfDeleted.deletedBy).toBeNull();
+      expect(selfDeleted.deletedByAuthor).toBe(true);
+      expect(moderated.deletedBy).toMatchObject({ username: 'boss' });
+      expect(JSON.stringify([selfDeleted, moderated])).not.toContain('liron');
     });
   });
 });

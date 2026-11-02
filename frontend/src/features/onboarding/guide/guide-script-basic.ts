@@ -24,6 +24,12 @@ export const BASIC_STEPS: GuideStep[] = [
   // The retro board — real when there is an active sprint, a client-side demo otherwise.
   { id: 'board-write', audience: 'ALL', requires: (c) => c.hasActiveSprint, route: (c) => sprintPath(c.teamId!, c.activeSprintId!), anchor: 'board-compose', advanceOn: { type: 'signal', name: 'comment-posted' } },
   { id: 'board-comments', audience: 'ALL', requires: (c) => c.hasActiveSprint, anchor: 'board-comments', advanceOn: { type: 'next' } },
+  // Feature 13: edit / delete menu on the user's own note (the anchor is on the first note they may touch; the step
+  // falls back to a centred note when they have none). The two panels exist only for team admins (isAdmin), so a
+  // plain team leader never gets those steps.
+  { id: 'board-edit', audience: 'ALL', requires: (c) => c.hasActiveSprint, anchor: 'board-comment-menu', advanceOn: { type: 'next' } },
+  { id: 'board-write-extensions', audience: 'MANAGEMENT', requires: (c) => c.isTeamAdmin && c.hasActiveSprint, anchor: 'board-write-extensions', advanceOn: { type: 'next' } },
+  { id: 'board-deleted-comments', audience: 'MANAGEMENT', requires: (c) => c.isTeamAdmin && c.hasActiveSprint, anchor: 'board-deleted-comments', advanceOn: { type: 'next' } },
   { id: 'board-demo-write', audience: 'ALL', requires: (c) => !c.hasActiveSprint, demo: true, anchor: 'demo-compose', advanceOn: { type: 'signal', name: 'comment-posted' } },
   { id: 'board-demo-comments', audience: 'ALL', requires: (c) => !c.hasActiveSprint, demo: true, anchor: 'demo-comments', advanceOn: { type: 'next' } },
 

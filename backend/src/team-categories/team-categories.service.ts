@@ -49,6 +49,7 @@ export class TeamCategoriesService {
         by: ['categoryId'],
         where: {
           teamId,
+          deletedAt: null, // Feature 13: soft-deleted comments do not count
           categoryId: { not: null },
           ...(sprintIds ? { sprintId: { in: sprintIds } } : {})
         },

@@ -11,7 +11,7 @@ jest.mock('@/lib/sprint-routes', () => ({
 }));
 
 const status = (over: Partial<OnboardingStatus> = {}, hints: Partial<NonNullable<OnboardingStatus['hints']>> = {}): OnboardingStatus => ({
-  track: 'MANAGEMENT', steps: [], checklistComplete: false, checklistDismissed: false, unseenFeatureKeys: [],
+  track: 'MANAGEMENT', isAdmin: true, steps: [], checklistComplete: false, checklistDismissed: false, unseenFeatureKeys: [],
   hints: { teamId: 7, activeSprintId: 40, endedSprintId: 31, ...hints }, ...over,
 });
 const ids = (ctx: GuideContext, steps = BASIC_STEPS) => filterSteps(steps, ctx).map((s) => s.id);
@@ -41,13 +41,25 @@ describe('basic guide — which steps each user gets', () => {
   it('a manager with a team, an active and a finished sprint: the whole real flow, on web', () => {
     expect(ids(ctxOf(status()))).toEqual([
       'welcome', 'members-toggle', 'add-member', 'add-member-modal', 'add-member-close', 'sprint-new',
-      'board-write', 'board-comments', 'summary', 'focus-points', 'done',
+      'board-write', 'board-comments', 'board-edit', 'board-write-extensions', 'board-deleted-comments', 'summary', 'focus-points', 'done',
     ]);
+  });
+
+  it('a team head who is not a team admin skips the two admin-panel steps (isAdmin must be exactly true)', () => {
+    for (const isAdmin of [false, undefined]) {
+      const list = ids(ctxOf(status({ isAdmin })));
+      expect(list).toContain('board-edit');
+      expect(list).not.toContain('board-write-extensions');
+      expect(list).not.toContain('board-deleted-comments');
+    }
+    expect(ids(ctxOf(status({ isAdmin: true })))).toEqual(expect.arrayContaining(['board-write-extensions', 'board-deleted-comments']));
+    expect(ctxOf(status({ track: 'MEMBER', isAdmin: true })).isTeamAdmin).toBe(false);
+    expect(ctxOf(null).isTeamAdmin).toBe(false);
   });
 
   it('on native the add-member dialog is explained instead of opened, and creating a team is on the dashboard', () => {
     expect(ids(ctxOf(status(), 'native'))).toEqual([
-      'welcome', 'members-toggle', 'add-member-native', 'sprint-new', 'board-write', 'board-comments', 'summary', 'focus-points', 'done',
+      'welcome', 'members-toggle', 'add-member-native', 'sprint-new', 'board-write', 'board-comments', 'board-edit', 'board-write-extensions', 'board-deleted-comments', 'summary', 'focus-points', 'done',
     ]);
     expect(ids(ctxOf(null, 'native'))).not.toContain('new-team');
     const create = BASIC_STEPS.find((s) => s.id === 'create-team-form')!;
@@ -56,7 +68,7 @@ describe('basic guide — which steps each user gets', () => {
   });
 
   it('a plain member never gets management steps', () => {
-    expect(ids(ctxOf(status({ track: 'MEMBER' })))).toEqual(['welcome', 'members-toggle', 'board-write', 'board-comments', 'summary', 'done']);
+    expect(ids(ctxOf(status({ track: 'MEMBER' })))).toEqual(['welcome', 'members-toggle', 'board-write', 'board-comments', 'board-edit', 'summary', 'done']);
   });
 
   it('a team without an active sprint falls back to the demo board; without a finished one, to the info note', () => {

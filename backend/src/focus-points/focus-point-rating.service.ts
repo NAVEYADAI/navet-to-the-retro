@@ -34,7 +34,7 @@ export class FocusPointRatingService {
       where: { id: commentId },
       include: { sprint: { select: { deletedAt: true } }, team: { select: { deletedAt: true } } }
     });
-    if (!comment || isDeleted(comment.team) || isDeleted(comment.sprint)) {
+    if (!comment || isDeleted(comment) || isDeleted(comment.team) || isDeleted(comment.sprint)) {
       throw new NotFoundException('Comment not found');
     }
     const membership = await this.prisma.teamMember.findUnique({ where: { userId_teamId: { userId: requesterId, teamId: comment.teamId } } });
@@ -55,7 +55,7 @@ export class FocusPointRatingService {
   async myProposedCommentIds(sprintId: number, requesterId: number) {
     await loadSprintForMember(this.prisma, sprintId, requesterId);
     const rows = await this.prisma.focusPointProposal.findMany({
-      where: { userId: requesterId, comment: { sprintId } }, select: { commentId: true }
+      where: { userId: requesterId, comment: { sprintId, deletedAt: null } }, select: { commentId: true }
     });
     return rows.map((r) => r.commentId);
   }

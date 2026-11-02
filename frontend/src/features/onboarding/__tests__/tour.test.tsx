@@ -35,7 +35,9 @@ describe('getTourSteps', () => {
     const manager = getTourSteps(true);
     expect(manager.length).toBeGreaterThan(member.length);
     expect(manager.map((s) => s.since)).toEqual([...manager.map((s) => s.since)].sort());
-    expect(manager[manager.length - 1].key).toBe('focus-points');
+    // Same-day features keep registry order: the newest management card is last.
+    expect(manager[manager.length - 1].key).toBe('comment-moderation');
+    expect(manager.map((m) => m.key).indexOf('focus-points')).toBeLessThan(manager.length - 1);
   });
 });
 
@@ -65,7 +67,7 @@ describe('tour (web)', () => {
     mounted = await mountWeb(<Harness managedTeamId={4} />);
     const steps = getTourSteps(true);
     await clickText(document.body, S.tourButton);
-    for (let i = 1; i < steps.length; i++) await clickText(document.body, S.tourNext);
+    for (let i = 0; i < steps.findIndex((s) => s.key === 'focus-points'); i++) await clickText(document.body, S.tourNext);
     expect(document.body.textContent).toContain(S.managementOnlyBadge);
     await clickText(document.body, Strings.onboarding.features['focus-points'].cta);
     expect(mockOpenFocusPoints).toHaveBeenCalledWith(4);

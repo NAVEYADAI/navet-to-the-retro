@@ -100,6 +100,9 @@ describe('registry', () => {
     expect(keys).toEqual(expect.arrayContaining(['focus-points', 'telegram', 'google-calendar', 'comment-categories', 'team-logo', 'phantom-members', 'pptx-export']));
     expect(FEATURE_REGISTRY.find((f) => f.key === 'focus-points')).toMatchObject({ audience: 'MANAGEMENT', cta: 'focus-points', since: '2026-10-15' });
     expect(FEATURE_REGISTRY.find((f) => f.key === 'phantom-members')?.audience).toBe('MANAGEMENT');
+    // Feature 13: everyone hears about edit/delete; only management about the admin panels.
+    expect(FEATURE_REGISTRY.find((f) => f.key === 'comment-edit-delete')).toMatchObject({ audience: 'ALL', since: '2026-10-26' });
+    expect(FEATURE_REGISTRY.find((f) => f.key === 'comment-moderation')).toMatchObject({ audience: 'MANAGEMENT', since: '2026-10-26' });
     for (const f of FEATURE_REGISTRY) {
       expect(f.title).toBeTruthy();
       expect(f.description).toBeTruthy();

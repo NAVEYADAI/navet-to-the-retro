@@ -1,7 +1,7 @@
 import { advance, currentStep, goBack, isFirstStep, isInteractive, isLastStep, pressTargetOf, startSession } from '../guide/guide-machine';
 import type { GuideContext, GuideStep } from '../guide/guide-types';
 
-const ctx: GuideContext = { platform: 'web', isManagement: true, hasTeam: true, canManage: true, teamId: 1, activeSprintId: 2, endedSprintId: 3, hasActiveSprint: true, hasEndedSprint: true };
+const ctx: GuideContext = { platform: 'web', isManagement: true, hasTeam: true, canManage: true, isTeamAdmin: true, teamId: 1, activeSprintId: 2, endedSprintId: 3, hasActiveSprint: true, hasEndedSprint: true };
 const steps: GuideStep[] = [
   { id: 'a', audience: 'ALL', advanceOn: { type: 'next' } },
   { id: 'b', audience: 'ALL', anchor: 'btn', advanceOn: { type: 'press' } },

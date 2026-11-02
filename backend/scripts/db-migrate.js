@@ -175,18 +175,30 @@ function normalizeSql(sql) {
 }
 
 /** Marks the first (baseline) migration as applied on a database that predates migrations — only when that is provably safe. */
-function adoptPredatingDb(url) {
+function adoptPredatingDb(url, manualHint = 'PROD_DATABASE_URL=… npm run migrate:baseline-prod --prefix backend') {
   const [first, ...later] = migrationFolders();
   if (!first) fail('There are no migrations to use as a baseline.');
   const script = driftScript(url);
   if (script.status !== 0) fail(`Could not compare the database with the schema:\n${tail(script)}`);
-  const missing = normalizeSql(script.stdout || '');
-  const expected = normalizeSql(later.map((m) => fs.readFileSync(path.join(migrationsDir, m, 'migration.sql'), 'utf8')).join('\n'));
+  // Compared as a set of statements: Prisma's diff orders them differently from the migration files, and the same
+  // statements are what matter. A DB lacking exactly those statements is exactly "baseline + the later migrations".
+  // An index that a later migration creates and a still-later one drops leaves no trace in the diff, so such pairs cancel.
+  const statements = (sql) => {
+    const list = normalizeSql(sql).split(';').map((s) => s.trim()).filter(Boolean);
+    for (const drop of list.filter((s) => /^DROP INDEX /i.test(s))) {
+      const name = drop.replace(/^DROP INDEX\s+/i, '');
+      const created = list.findIndex((s) => new RegExp(`^CREATE (UNIQUE )?INDEX ${name.replace(/"/g, '"')} ON `, 'i').test(s));
+      if (created !== -1) list.splice(created, 1) && list.splice(list.indexOf(drop), 1);
+    }
+    return list.sort().join(';\n');
+  };
+  const missing = statements(script.stdout || '');
+  const expected = statements(later.map((m) => fs.readFileSync(path.join(migrationsDir, m, 'migration.sql'), 'utf8')).join('\n'));
   if (missing !== expected) {
     console.error(`\nThe database lacks:\n${(script.stdout || '').trim() || '(nothing)'}\n\nThe later migrations contain:\n${expected || '(nothing)'}\n`);
     fail(
       'The database has no migration history and it is NOT exactly "baseline + the later migrations", so it will not be adopted automatically. ' +
-        'Inspect the difference above, then mark the baseline yourself: PROD_DATABASE_URL=… npm run migrate:baseline-prod --prefix backend',
+        `Inspect the difference above, then mark the baseline yourself: ${manualHint}`,
     );
   }
   console.log(`The database predates migrations and is exactly the baseline plus ${later.length} later migration(s) — marking ${first} as applied (nothing is executed for it).`);
@@ -199,6 +211,9 @@ function requireDevEnv() {
   const url = process.env.DATABASE_URL || '';
   if (process.env.APP_ENV !== 'development') return { skip: 'APP_ENV is not "development"' };
   if (!url) return { skip: 'DATABASE_URL is not set' };
+  // The production branch is known by its endpoint id (scripts/env-policy.json) — this holds in the dev container too,
+  // where PROD_DATABASE_URL is never present.
+  if (require('./env-check').classifyDb(url).kind === 'production') return { fatal: 'DATABASE_URL points at the PRODUCTION database (scripts/env-policy.json) — this is the development migrate. Run `npm run env:check` for the fix.' };
   const prod = process.env.PROD_DATABASE_URL;
   if (prod && hostOf(prod) === hostOf(url)) return { fatal: 'DATABASE_URL has the same host as PROD_DATABASE_URL — that is production, not development.' };
   return { url: toDirect(url) };
@@ -250,13 +265,16 @@ function main() {
     let r = deploy(dev.url, 'the development DB');
     if (r.status !== 0 && /P3005/.test(`${r.stderr}${r.stdout}`)) {
       // A dev DB built by the old `db push`. If it already matches the schema it is fully migrated; adopt it as such.
-      if (drift(dev.url).status !== 0) {
-        fail('The development DB predates migrations and does not match schema.prisma, so it cannot be adopted automatically. Mark the baseline yourself: `npx prisma migrate resolve --applied <first migration folder>`, then run this again.');
-      }
-      console.log('The development DB predates migrations and already matches the schema — marking every migration as applied.');
-      for (const m of migrationFolders()) {
-        const res = prisma(['migrate', 'resolve', '--applied', m, '--schema', schemaPath], dev.url);
-        if (res.status !== 0) fail(`Could not mark ${m} as applied:\n${tail(res)}`);
+      if (drift(dev.url).status === 0) {
+        console.log('The development DB predates migrations and already matches the schema — marking every migration as applied.');
+        for (const m of migrationFolders()) {
+          const res = prisma(['migrate', 'resolve', '--applied', m, '--schema', schemaPath], dev.url);
+          if (res.status !== 0) fail(`Could not mark ${m} as applied:\n${tail(res)}`);
+        }
+      } else {
+        // Built by `db push` before the later migrations existed: adopt it only when it is provably "baseline + exactly the
+        // later migrations" (the same check as the production release); the deploy below then applies just those.
+        adoptPredatingDb(dev.url, 'mark the first migration as applied on the dev DB, or rebuild the dev branch from the migrations');
       }
       r = deploy(dev.url, 'the development DB');
     }

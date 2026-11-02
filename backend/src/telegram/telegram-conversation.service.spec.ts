@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma.service';
 import { TelegramApiService } from './telegram-api.service';
 import { CommentsService } from '../comments/comments.service';
 import { TeamCategoriesService } from '../team-categories/team-categories.service';
+import { SprintLockedException } from '../sprints/sprint-write-window.util';
+import { SPRINT_LOCKED_MESSAGE } from './telegram-messages';
 
 describe('TelegramConversationService', () => {
   let service: TelegramConversationService;
@@ -676,6 +678,25 @@ describe('TelegramConversationService', () => {
       expect(mockPrisma.userMessagingLink.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { lastProcessedUpdateId: 7 } });
       expect(mockPrisma.userMessagingLink.update).not.toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ pendingCommentContent: null }) })
+      );
+    });
+
+    // Feature 13
+    it('tells the user the board is locked (Hebrew), drops the draft and the context, and does not say "try again"', async () => {
+      const linkAwaitingCategory = {
+        ...linkWithContext,
+        pendingCommentContent: 'late comment',
+        pendingCommentType: 'KEEP' as const,
+      };
+      seedLink(linkAwaitingCategory);
+      mockCommentsService.create.mockRejectedValue(new SprintLockedException());
+
+      await service.handleTextMessage(linkAwaitingCategory, 'דלג', 8);
+
+      expect(mockTelegramApi.sendMessage).toHaveBeenCalledWith('555', SPRINT_LOCKED_MESSAGE);
+      expect(mockTelegramApi.sendMessage).not.toHaveBeenCalledWith('555', expect.stringContaining('לא נשמר'));
+      expect(mockPrisma.userMessagingLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 1 }, data: expect.objectContaining({ pendingCommentContent: null, pendingCommentType: null, activeSprintId: null }) })
       );
     });
   });

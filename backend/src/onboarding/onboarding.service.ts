@@ -81,6 +81,11 @@ export class OnboardingService {
       this.isGuideAutoStart(userId, state?.guideAutoStartedAt ?? null, activeTeamMemberships.map((m) => m.teamId)),
     ]);
 
+    // Same `isAdmin` the board panels read (`myMembership.isAdmin` of the team being viewed), taken in
+    // the team the guide leads to (`hints.teamId`) — not "admin of any team": being admin of an
+    // unrelated team does not make a panel appear on this team's board.
+    const isAdmin = activeTeamMemberships.some((m) => m.teamId === hints.teamId && m.isAdmin === true);
+
     const seen = new Set(state?.seenFeatureKeys ?? []);
     const canSeeManagementFeatures = managementMemberships.length > 0;
     const unseenFeatureKeys = ONBOARDING_FEATURES
@@ -98,6 +103,7 @@ export class OnboardingService {
       checklistDismissed: !!state?.checklistDismissedAt,
       unseenFeatureKeys,
       hints,
+      isAdmin,
       guideAutoStart,
     };
   }
@@ -137,6 +143,8 @@ export class OnboardingService {
   }
 
   private async memberSteps(userId: number, joined: boolean): Promise<OnboardingStepDto[]> {
+    // Feature 13: soft-deleted comments deliberately still count here (and in isGuideAutoStart) —
+    // "wrote a first comment" is a milestone the user reached, deleting the note does not undo it.
     const [commentCount, telegramCount] = await Promise.all([
       this.prisma.comment.count({
         where: { authorId: userId, team: { deletedAt: null }, sprint: { deletedAt: null } },

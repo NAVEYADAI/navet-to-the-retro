@@ -47,6 +47,10 @@ export const ASK_KEEP_OR_IMPROVE_RETRY_MESSAGE = '🤔 לא הבנתי, בחר/�
 
 export const CREATE_FAILED_MESSAGE = '😕 <b>לא נשמר</b> - נסה/י שוב.';
 
+// Feature 13 §13.0 decision #1: the sprint's write window closed (3 days after its end date) and the
+// user has no extension — retrying is pointless, so the bot says why and drops the draft.
+export const SPRINT_LOCKED_MESSAGE = '🔒 <b>הלוח נעול לכתיבה</b> - הספרינט הסתיים ולא ניתן להוסיף בו הערות. אם חשוב לך להוסיף, פנה/י למנהל הצוות.';
+
 export const CANCELLED_MESSAGE = '🗑️ <b>ההערה נמחקה.</b>';
 export const NOTHING_TO_CANCEL_MESSAGE = 'אין מה למחוק.';
 

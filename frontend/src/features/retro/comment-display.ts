@@ -23,6 +23,8 @@ export interface DisplayableComment {
   // Feature 11 (product-backlog/11-team-leave-and-removal.md §11.0 decision #4): computed by the
   // server, `false` once the author left/was removed. Never sent on masked anonymous comments.
   authorIsActiveMember?: boolean;
+  // Feature 13: stamped by the server only when the comment was really changed after posting.
+  updatedAt?: string | null;
 }
 
 // Exported (not just used internally) so other per-user display needs — e.g. SprintLengthHistoryPanel
@@ -39,6 +41,21 @@ export function getCommentCategoryLabel(comment: Pick<DisplayableComment, 'categ
 /** Feature 11 — the author left the team (shown as a "לא בצוות" tag next to their name). */
 export function isFormerMemberComment(comment: Pick<DisplayableComment, 'isAnonymous' | 'authorIsActiveMember'>): boolean {
   return !comment.isAnonymous && comment.authorIsActiveMember === false;
+}
+
+/** Feature 13 — the "נערכה" label (board and memory game). */
+export function isCommentEdited(comment: Pick<DisplayableComment, 'updatedAt'>): boolean {
+  return !!comment.updatedAt;
+}
+
+/** Category options for the edit form: enabled categories, plus the comment's current one even if disabled since. */
+export function editCategoryOptions(
+  teamCategories: { id: number; label: string; isEnabled: boolean }[],
+  current: { id: number; label: string } | null | undefined,
+): { value: string; label: string }[] {
+  const options = teamCategories.filter((c) => c.isEnabled || c.id === current?.id).map((c) => ({ value: String(c.id), label: c.label }));
+  if (current && !options.some((o) => o.value === String(current.id))) options.push({ value: String(current.id), label: current.label });
+  return options;
 }
 
 export function getCommentAuthorName(comment: Pick<DisplayableComment, 'isAnonymous' | 'author'>): string {

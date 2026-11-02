@@ -3,9 +3,9 @@
   "bash": [
     {
       "id": "real-db-http",
-      "action": "deny",
+      "action": "ask",
       "match": "\\b(curl|wget|http|httpie|nc|telnet)\\b.*(localhost|127\\.0\\.0\\.1|\\[::1\\]|host\\.docker\\.internal):5005",
-      "message": "Port 5005 is the dev backend. Until backend/.env has been switched to the development branch (npm run env:set-dev-db, run by Nave) it talks to the REAL production database. Use the isolated e2e backend on 5006. After the switch this rule can be relaxed to 'ask'."
+      "message": "Port 5005 is the dev backend, now connected to the DEVELOPMENT Neon branch (verified by `npm run env:check`). Prefer the isolated e2e backend on 5006; use 5005 only for read-only checks, and run `npm run env:check` first — if it reports the production database, this is the REAL production data and must not be touched."
     },
     {
       "id": "neon-url",
@@ -67,6 +67,11 @@
     }
   ],
   "watch": [
+    {
+      "path": "(^|/)(docker-compose\\.yml|backend/scripts/env-(check\\.js|policy\\.json)|backend/\\.env\\.example|backend/Dockerfile\\.dev)$",
+      "message": "The environment definition changed. Below is `npm run env:check` (names and verdicts only, never values). Fix every ✖ before touching a database; `npm run migrate:dev` runs the same check first and stops on an error.",
+      "run": ["npm", "run", "env:check", "--silent"]
+    },
     {
       "path": "(^|/)prisma/schema\\.prisma$",
       "message": "Schema changed. Create the migration: `npm run migrate:new --prefix backend -- <snake_case_name>` (diffs the isolated test DB against the schema and writes prisma/migrations/<ts>_<name>/migration.sql). Read the generated SQL and tell Nave in Hebrew what it does to real data — additive changes (new table / optional column) are safe; DROP / SET NOT NULL / TYPE need a data plan (backup, backfill) in the same file and a `-- destructive-ok: <reason>` line, and the release step refuses them without it. Then `npm run migrate:sync --prefix backend` applies it to the test and development DBs. Production gets it at the next deploy."

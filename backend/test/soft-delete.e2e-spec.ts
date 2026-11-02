@@ -11,6 +11,10 @@ jest.setTimeout(60000);
 
 const DAY = 24 * 60 * 60 * 1000;
 
+// Feature 13: comments can only be written within 3 days of a sprint's end, so the sprints that these
+// tests write comments into end yesterday (a fixed past date would be locked).
+const isoDay = (offsetDays: number) => new Date(Date.now() + offsetDays * DAY).toISOString().slice(0, 10);
+
 // Feature 14 (product-backlog/14-sprint-and-team-deletion.md). The approver is an allowlisted real
 // address — safe only because this suite runs against the isolated test database.
 describe('Sprint and team soft delete (e2e)', () => {
@@ -56,7 +60,7 @@ describe('Sprint and team soft delete (e2e)', () => {
 
   async function createSprint(teamId: number, name: string) {
     const res = await api().post(`/teams/${teamId}/sprints`).set(auth(adminToken))
-      .send({ name, startDate: '2026-01-01', endDate: '2026-01-14' }).expect(201);
+      .send({ name, startDate: isoDay(-14), endDate: isoDay(-1) }).expect(201);
     return res.body.id as number;
   }
 

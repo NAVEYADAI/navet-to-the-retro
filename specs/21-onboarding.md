@@ -12,7 +12,7 @@
 
 | Endpoint | תשובה | הערות |
 |---|---|---|
-| `GET /onboarding/status` | `{ track, steps: [{key, done, optional}], checklistComplete, checklistDismissed, unseenFeatureKeys, hints: { teamId, activeSprintId, endedSprintId }, guideAutoStart }` | 200. `endedSprintId` (פיצ'ר 22) = הספרינט האחרון של אותו צוות שהסתיים (`endDate` לפני תחילת היום UTC) ושלא נמחק. `guideAutoStart` = אין `guideAutoStartedAt` **וגם** למשתמש אין שום הערה ואין ספרינט (לא נמחק) באף צוות פעיל שלו — כדי שמשתמש קיים לא יקבל מדריך ביום הפריסה |
+| `GET /onboarding/status` | `{ track, steps: [{key, done, optional}], checklistComplete, checklistDismissed, unseenFeatureKeys, hints: { teamId, activeSprintId, endedSprintId }, isAdmin, guideAutoStart }` | 200. `isAdmin` (פיצ'ר 13) = `TeamMember.isAdmin` (מנהל צוות, לא ראש צוות) בצוות ש-`hints.teamId` מצביע עליו — אותה הגדרה כמו `myMembership.isAdmin` בלוח; המדריך מסתיר לפיו את צעדי הפאנלים למנהל בלבד. `endedSprintId` (פיצ'ר 22) = הספרינט האחרון של אותו צוות שהסתיים (`endDate` לפני תחילת היום UTC) ושלא נמחק. `guideAutoStart` = אין `guideAutoStartedAt` **וגם** למשתמש אין שום הערה ואין ספרינט (לא נמחק) באף צוות פעיל שלו — כדי שמשתמש קיים לא יקבל מדריך ביום הפריסה |
 | `POST /onboarding/dismiss-checklist` | `{ checklistDismissed: true }` | 201, upsert |
 | `POST /onboarding/restore-checklist` | `{ checklistDismissed: false }` | 201, "הצג שוב" בהגדרות (החלטה #13); לא היה ברשימת §21.1 אבל נדרש ל-§21.2 |
 | `POST /onboarding/guide-started` | `{ guideAutoStart: false }` | 201 (פיצ'ר 22); idempotent: הקריאה הראשונה רושמת `guideAutoStartedAt`, הבאות לא משנות אותה |
@@ -44,7 +44,7 @@
 
 ## 5. "מה חדש" (`unseenFeatureKeys`)
 
-הרישום בצד שרת: `onboarding-features.ts` (`key`, `audience`, `since`; כותרות/טקסטים/CTA ב-frontend `registry.ts`). מוחזרים רק מפתחות עם `since >= 2026-10-15` (`WHATS_NEW_SINCE`, החלטה #12), שלא ב-`seenFeatureKeys`, ושה-audience שלהם מתאים: `MANAGEMENT` רק למי שיש לו חברות הנהלה פעילה; `MEMBER`/`ALL` לכולם. ממוינים לפי `since` יורד (הרישום שובר שוויון). כרגע רק `focus-points` (הנהלה) עונה על הסף.
+הרישום בצד שרת: `onboarding-features.ts` (`key`, `audience`, `since`; כותרות/טקסטים/CTA ב-frontend `registry.ts`). מוחזרים רק מפתחות עם `since >= 2026-10-15` (`WHATS_NEW_SINCE`, החלטה #12), שלא ב-`seenFeatureKeys`, ושה-audience שלהם מתאים: `MANAGEMENT` רק למי שיש לו חברות הנהלה פעילה; `MEMBER`/`ALL` לכולם. ממוינים לפי `since` יורד (הרישום שובר שוויון). כרגע עונים על הסף: `comment-edit-delete` (כולם, 2026-10-26, פיצ'ר 13), `comment-moderation` (הנהלה, 2026-10-26, פיצ'ר 13) ו-`focus-points` (הנהלה, 2026-10-15). שני הראשונים באותו `since`, ולכן סדר הרישום קובע: `comment-edit-delete` קודם.
 
 ## 6. Edge cases לבדיקה
 

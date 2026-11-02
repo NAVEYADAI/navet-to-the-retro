@@ -45,8 +45,13 @@ export function PillPickerNative({ label, options, value, onChange }: {
   );
 }
 
-export function LabeledInputNative({ label, value, onChangeText, multiline, placeholder, keyboardType }: {
+export function LabeledInputNative({ label, value, onChangeText, multiline, placeholder, keyboardType, maxLength, ltr, autoFocus }: {
   label: string; value: string; onChangeText: (v: string) => void; multiline?: boolean; placeholder?: string; keyboardType?: 'default' | 'number-pad';
+  /** Character cap (the server enforces the same one). */
+  maxLength?: number;
+  /** Dates / ids typed in Latin digits: left-aligned and left-to-right inside the RTL screen. */
+  ltr?: boolean;
+  autoFocus?: boolean;
 }) {
   const t = useTheme();
   return (
@@ -60,8 +65,11 @@ export function LabeledInputNative({ label, value, onChangeText, multiline, plac
         placeholder={placeholder}
         placeholderTextColor={t.color.textMuted}
         keyboardType={keyboardType}
+        maxLength={maxLength}
+        autoFocus={autoFocus}
         style={[rnText(t.type.body), {
-          borderWidth: 1, borderRadius: t.radius.field, paddingHorizontal: t.space[2], paddingVertical: t.space[2], textAlign: 'right',
+          borderWidth: 1, borderRadius: t.radius.field, paddingHorizontal: t.space[2], paddingVertical: t.space[2],
+          textAlign: ltr ? 'left' : 'right', ...(ltr ? { writingDirection: 'ltr' as const } : {}),
           color: t.color.text, borderColor: t.color.borderStrong, backgroundColor: t.color.surface,
           minHeight: multiline ? 80 : t.layout.minTouchTarget, textAlignVertical: multiline ? 'top' : 'center',
         }]}
@@ -71,8 +79,12 @@ export function LabeledInputNative({ label, value, onChangeText, multiline, plac
 }
 
 /** Primary / secondary action button used across the native focus-points screens. */
-export function ActionButtonNative({ label, onPress, variant = 'secondary', disabled, loading }: {
+export function ActionButtonNative({ label, onPress, variant = 'secondary', disabled, loading, accessibilityLabel, expanded }: {
   label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'ghost' | 'danger'; disabled?: boolean; loading?: boolean;
+  /** Explicit accessible name (must contain the visible label), e.g. when many identical buttons differ only by their target. */
+  accessibilityLabel?: string;
+  /** For a button that opens / closes a region. */
+  expanded?: boolean;
 }) {
   const t = useTheme();
   const isPrimary = variant === 'primary';
@@ -80,6 +92,8 @@ export function ActionButtonNative({ label, onPress, variant = 'secondary', disa
   return (
     <TouchableOpacity
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={expanded === undefined ? undefined : { expanded }}
       onPress={onPress}
       disabled={disabled || loading}
       style={{

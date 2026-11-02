@@ -21,6 +21,8 @@ export const WHATS_NEW_SINCE = '2026-10-15';
 
 // Order matters only as a tie-break between features with the same `since`.
 export const ONBOARDING_FEATURES: OnboardingFeature[] = [
+  { key: 'comment-edit-delete', audience: 'ALL', since: '2026-10-26' },
+  { key: 'comment-moderation', audience: 'MANAGEMENT', since: '2026-10-26' },
   { key: 'focus-points', audience: 'MANAGEMENT', since: '2026-10-15' },
   { key: 'team-logo', audience: 'ALL', since: '2026-10-13' },
   { key: 'telegram', audience: 'ALL', since: '2026-09-28' },

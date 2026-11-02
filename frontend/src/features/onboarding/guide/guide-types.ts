@@ -25,6 +25,8 @@ export interface GuideContext {
   hasTeam: boolean;
   /** Management track AND has a team to manage. */
   canManage: boolean;
+  /** Feature 13: a team admin (TeamMember.isAdmin) of the managed team — a plain team leader is not. */
+  isTeamAdmin: boolean;
   teamId: number | null;
   activeSprintId: number | null;
   endedSprintId: number | null;

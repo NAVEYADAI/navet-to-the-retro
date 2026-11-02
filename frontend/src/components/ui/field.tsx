@@ -18,6 +18,10 @@ export interface FieldProps {
   required?: boolean;
   rows?: number;
   options?: { value: string; label: string }[];
+  /** תקרת תווים בשדה טקסט/טקסטאריה (השרת אוכף את אותה תקרה). */
+  maxLength?: number;
+  /** מיקוד אוטומטי כשהשדה מופיע (למשל טופס עריכה שנפתח אחרי לחיצה). */
+  autoFocus?: boolean;
 }
 
 /**
@@ -36,6 +40,8 @@ export function Field({
   required,
   rows = 4,
   options = [],
+  maxLength,
+  autoFocus,
 }: FieldProps) {
   const t = useTheme();
   const borderColor = error ? t.color.status.danger.fg : t.color.borderStrong;
@@ -57,13 +63,14 @@ export function Field({
         onChange={(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChangeText(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
+        autoFocus={autoFocus}
         select={type === 'select'}
         multiline={type === 'textarea'}
         minRows={type === 'textarea' ? rows : undefined}
         type={isPassword ? (showPassword ? 'text' : 'password') : type === 'select' || type === 'textarea' ? undefined : type}
         size="small"
-        slotProps={
-          isPassword
+        slotProps={{
+          ...(isPassword
             ? {
                 input: {
                   endAdornment: (
@@ -108,8 +115,9 @@ export function Field({
                   },
                 },
               }
-            : undefined
-        }
+            : undefined),
+          ...(maxLength ? { htmlInput: { maxLength } } : {}),
+        }}
         sx={{
           '& .MuiInputBase-root': {
             ...t.type.body,

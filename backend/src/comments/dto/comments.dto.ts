@@ -18,3 +18,19 @@ export class CreateCommentDto {
 export class UpdateHighlightDto {
   isHighlighted!: boolean;
 }
+
+// Feature 13 §13.0 technical default #3: only content / column (`type`) / category are editable.
+// `isAnonymous` is deliberately part of the shape only so the service can REJECT it explicitly
+// (switching anonymous -> named after people saw the note could expose the writer).
+export class UpdateCommentDto {
+  content?: string;
+  type?: CommentType;
+  categoryId?: number | null;
+  isAnonymous?: boolean;
+}
+
+export class CreateWriteExtensionDto {
+  userId!: number;
+  // Date-only ("2026-10-30") = end of that day in Israel time; a full ISO string is taken literally.
+  expiresAt!: string;
+}

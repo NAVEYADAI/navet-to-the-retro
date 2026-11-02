@@ -46,6 +46,9 @@ model User {
   members                   TeamMember[]
   comments                  Comment[]                  @relation("CommentAuthor")
   commentsPostedAsAdmin     Comment[]                  @relation("CommentPostedByAdmin")
+  commentsDeleted           Comment[]                  @relation("CommentDeletedBy")
+  writeExtensions           SprintWriteExtension[]     @relation("WriteExtensionUser")
+  writeExtensionsGranted    SprintWriteExtension[]     @relation("WriteExtensionGrantedBy")
   createdInvites            TeamInvite[]
   googleCalendarConnections GoogleCalendarConnection[]
   sprintLengthChanges       SprintLengthChange[]
@@ -327,6 +330,7 @@ model Sprint {
   team                 Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
   deletedBy            User?                @relation("SprintDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   comments             Comment[]
+  writeExtensions      SprintWriteExtension[]
   googleEvents         SprintGoogleEvent[]
   lengthChanges        SprintLengthChange[]
   focusPointSelections FocusPointSprint[]
@@ -378,14 +382,42 @@ model Comment {
   // the same way regardless. See scripts/backfill-team-comment-categories.js for how pre-existing
   // teams' comments were migrated from the old `category` enum to this field.
   categoryId      Int?
+  // Feature 13 (product-backlog/13-comment-edit-delete.md): `updatedAt` is set only when the author
+  // actually edits content/type/category (null = never edited; the UI shows "נערכה"). Soft delete:
+  // `deletedAt` hides the comment from the board, summary, export, memory game and focus points, but
+  // the row stays; `deletedById` (SetNull) is who removed it (author/poster, or an admin moderating).
+  updatedAt       DateTime?
+  deletedAt       DateTime?
+  deletedById     Int?
 
   author              User                 @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  deletedBy           User?                @relation("CommentDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
   postedByAdmin       User?                @relation("CommentPostedByAdmin", fields: [postedByAdminId], references: [id], onDelete: SetNull)
   team                Team                 @relation(fields: [teamId], references: [id], onDelete: Cascade)
   sprint              Sprint               @relation(fields: [sprintId], references: [id], onDelete: Cascade)
   category            TeamCommentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   focusPointSources   FocusPointSource[]
   focusPointProposals FocusPointProposal[]
+
+  @@index([sprintId, deletedAt])
+}
+
+// Feature 13 (product-backlog/13-comment-edit-delete.md §13.0 decision #2): an admin opens the write
+// window of ONE sprint for ONE member until `expiresAt` (write + edit + delete of that member's own
+// comments). Revoking deletes the row. Not a soft-delete model: nothing else references it.
+model SprintWriteExtension {
+  id          Int      @id @default(autoincrement())
+  sprintId    Int
+  userId      Int
+  grantedById Int?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  sprint    Sprint @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  user      User   @relation("WriteExtensionUser", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User?  @relation("WriteExtensionGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([sprintId, userId])
 }
 
 // Feature 20 (product-backlog/20-issue-tracking.md): improvement points tracked across sprints.

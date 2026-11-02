@@ -1,4 +1,5 @@
 import { clearFocusPointIdentity } from '../focus-points/focus-point-identity.util';
+import { clearWriteExtensions } from '../comments/write-extension-cleanup.util';
 import { Injectable, Logger, ConflictException, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
@@ -549,6 +550,7 @@ export class TeamsService {
       await tx.teamMember.delete({ where: { id: memberId } });
       await this.resetTelegramContext(tx, lockedTarget.userId, teamId);
       await clearFocusPointIdentity(tx, lockedTarget.userId, teamId);
+      await clearWriteExtensions(tx, lockedTarget.userId, teamId);
     });
 
     await this.cleanupCalendarAfterMemberLeft(targetMember.userId, teamId);
@@ -613,6 +615,7 @@ export class TeamsService {
       await tx.teamMember.delete({ where: { id: me.id } });
       await this.resetTelegramContext(tx, requesterId, teamId);
       await clearFocusPointIdentity(tx, requesterId, teamId);
+      await clearWriteExtensions(tx, requesterId, teamId);
     });
 
     await this.cleanupCalendarAfterMemberLeft(requesterId, teamId);

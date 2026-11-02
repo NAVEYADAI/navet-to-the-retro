@@ -187,6 +187,14 @@ test.describe('Interactive guide', () => {
     await expect(page.getByText(note).first()).toBeVisible();
     await nextButton(page).click();
 
+    // feature 13: the edit/delete menu of the note just written, then the two team-admin panels
+    await stepIs(page, 'board-edit');
+    await nextButton(page).click();
+    await stepIs(page, 'board-write-extensions');
+    await nextButton(page).click();
+    await stepIs(page, 'board-deleted-comments');
+    await nextButton(page).click();
+
     await stepIs(page, 'summary');
     await expect(page).toHaveURL(new RegExp(`/team/${teamId}/sprint/${endedId}/summary$`));
     await nextButton(page).click();
@@ -203,6 +211,55 @@ test.describe('Interactive guide', () => {
     // the note the guide asked for is a real comment on the real sprint
     const comments = await (await request.get(`${BACKEND_URL}/sprints/${activeId}/comments`, { headers: auth(leader.token) })).json();
     expect(comments.map((c: { content: string }) => c.content)).toContain(note);
+  });
+
+  test('a team head who is not a team admin skips the two admin-panel steps (write extensions, deleted comments)', async ({ page, request }) => {
+    test.setTimeout(300_000);
+    const suffix = `${Date.now()}_${test.info().project.name.replace(/\s+/g, '')}_head`;
+    const leader = await register(request, `e2e_pw_gd_hl_${suffix}`);
+    const head = await register(request, `e2e_pw_gd_hh_${suffix}`);
+    const approver = await approverToken(request, `e2e_pw_gd_appr4_${suffix}`);
+    const teamId = await approvedTeam(request, leader.token, approver, `E2E GD Head ${suffix}`);
+    await joinViaInvite(request, teamId, leader.token, head.token);
+    const activeId = await sprint(request, leader.token, teamId, 'Active', day(-2), day(8));
+    await sprint(request, leader.token, teamId, 'Ended', day(-30), day(-16));
+    // TEAM_LEADER without the admin permission: management track, but not a team admin
+    const members = await (await request.get(`${BACKEND_URL}/teams/${teamId}/members`, { headers: auth(leader.token) })).json();
+    const headRow = members.find((m: { userId?: number; user?: { id: number } }) => (m.userId ?? m.user?.id) === head.id);
+    const promote = await request.patch(`${BACKEND_URL}/teams/${teamId}/members/${headRow.id}`, { headers: auth(leader.token), data: { role: 'TEAM_LEADER', isAdmin: false } });
+    expect(promote.ok()).toBeTruthy();
+    const status = await (await request.get(`${BACKEND_URL}/onboarding/status`, { headers: auth(head.token) })).json();
+    expect(status.track).toBe('MANAGEMENT');
+    expect(status.isAdmin).toBe(false);
+
+    await loginAndGoto(page, head.token);
+    await expect(page.getByRole('heading', { level: 1, name: Strings.teamList.myTeamsHeader })).toBeVisible();
+    await page.getByTestId('guide-menu-trigger').getByRole('button').click();
+    await page.getByTestId('guide-menu-basic').click();
+    await stepIs(page, 'welcome');
+    await nextButton(page).click();
+    await stepIs(page, 'members-toggle');
+    await page.getByRole('button', { name: /^.*חברים/ }).first().click();
+    await stepIs(page, 'add-member');
+    await page.getByRole('button', { name: Strings.teamList.addMemberToggle }).click();
+    await stepIs(page, 'add-member-modal');
+    await nextButton(page).click();
+    await stepIs(page, 'add-member-close');
+    await page.getByRole('dialog').filter({ hasText: Strings.teamList.addMemberModalTitle }).getByRole('button', { name: Strings.teamList.closeModalLabel }).click();
+    await stepIs(page, 'sprint-new');
+    await nextButton(page).click();
+    await stepIs(page, 'board-write');
+    await expect(page).toHaveURL(new RegExp(`/team/${teamId}/sprint/${activeId}$`));
+    await page.getByRole('textbox').first().fill(`e2e head note ${suffix}`);
+    await page.getByRole('button', { name: Strings.retroBoard.postNoteButton }).click();
+    await stepIs(page, 'board-comments');
+    await nextButton(page).click();
+    await stepIs(page, 'board-edit');
+    await nextButton(page).click();
+    // not a team admin: the guide goes straight on to the summary, the admin-panel steps never appear
+    await stepIs(page, 'summary');
+    await page.keyboard.press('Escape');
+    await expect(bubble(page)).toHaveCount(0);
   });
 
   test('a plain member sees no management steps; Esc leaves, and starting again begins at step 1', async ({ page, request }) => {

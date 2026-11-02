@@ -24,6 +24,8 @@ export function buildGuideContext(status: OnboardingStatus | null, platform: Gui
     isManagement,
     hasTeam,
     canManage: isManagement && hasTeam,
+    // Strictly `=== true`: no status / an older server / a plain team leader never sees admin-only steps.
+    isTeamAdmin: isManagement && hasTeam && status?.isAdmin === true,
     teamId,
     activeSprintId,
     endedSprintId,

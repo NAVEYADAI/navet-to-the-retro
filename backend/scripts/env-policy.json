@@ -1,0 +1,6 @@
+{
+  "$comment": "Read by scripts/env-check.js. Host identifiers only (no credentials): they are the Neon endpoint ids that appear in server logs. development = the Neon branch 'development'; production = the Neon branch 'production' (must never be a DATABASE_URL on this machine).",
+  "developmentHosts": ["ep-nameless-grass-b28m9jkm"],
+  "productionHosts": ["ep-floral-bar-b2f1wwul"],
+  "devContainer": "navet-to-the-retro-backend-1"
+}

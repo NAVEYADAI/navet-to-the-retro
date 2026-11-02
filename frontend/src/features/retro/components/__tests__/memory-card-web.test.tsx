@@ -136,6 +136,20 @@ describe('MemoryCardWeb', () => {
     expect(getCard().style.zIndex).toBe('1');
   });
 
+  it('Feature 13: an edited comment shows "נערכה" once flipped; an untouched one does not', async () => {
+    mount({ ...baseComment, updatedAt: '2026-08-05T09:00:00.000Z' });
+    click();
+    await waitPastSingleClickWindow();
+    expect(container.textContent).toContain(Strings.retroBoard.editedLabel);
+    act(() => { root.unmount(); });
+    container.remove();
+
+    mount({ ...baseComment, updatedAt: null });
+    click();
+    await waitPastSingleClickWindow();
+    expect(container.textContent).not.toContain(Strings.retroBoard.editedLabel);
+  });
+
   it('an anonymous comment shows "אנונימי" instead of the real author name once flipped', async () => {
     mount({ ...baseComment, id: 2, isAnonymous: true });
     click();

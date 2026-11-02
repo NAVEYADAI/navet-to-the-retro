@@ -67,8 +67,11 @@ test.describe('Focus points', () => {
     }
 
     const day = (offset: number) => new Date(Date.now() + offset * DAY).toISOString().slice(0, 10);
+    // Feature 13: a board locks for writing 3 days after the sprint ends, and the comment below is posted
+    // through the API — so the sprint ended 2 days ago (already over, which opens the rating window, but
+    // still inside the write window; with a timezone margin on both sides).
     const sprint = (await (await request.post(`${BACKEND_URL}/teams/${team.id}/sprints`, {
-      headers: auth(leader.token), data: { name: `E2E FP Sprint ${suffix}`, startDate: day(-28), endDate: day(-15) },
+      headers: auth(leader.token), data: { name: `E2E FP Sprint ${suffix}`, startDate: day(-16), endDate: day(-2) },
     })).json()).id as number;
     await request.post(`${BACKEND_URL}/sprints/${sprint}/comments`, { headers: auth(members[0].token), data: { content: comment, type: 'IMPROVE' } });
 

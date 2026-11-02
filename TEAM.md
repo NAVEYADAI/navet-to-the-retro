@@ -45,6 +45,7 @@ monorepo עם npm workspaces. פריסה: Fly.io.
 | frontend e2e | `npx playwright test [spec...]` מתוך `frontend/` — מרים backend מבודד על 5006 ו-web על 8086 (`reuseExistingServer:false`) |
 | **שינוי סכמה → מיגרציה** | אחרי עריכת `schema.prisma`: `npm run migrate:new --prefix backend -- <snake_case_name>` — משווה את DB הבדיקות (עם כל המיגרציות הקיימות) לסכמה וכותב `backend/prisma/migrations/<ts>_<name>/migration.sql`; מאמת שהמיגרציה משחזרת את הסכמה. קוראים את ה-SQL, עושים commit לתיקייה |
 | סכמה → בדיקות **ופיתוח** | `npm run migrate:sync --prefix backend` = `migrate:test` + `migrate:dev` (מחיל מיגרציות; `migrate:test` נכשל גם אם ב-`schema.prisma` יש שינוי בלי מיגרציה). **אוטומטי:** DB הבדיקות לפני כל `test:e2e`/`start:e2e`; DB הפיתוח בעליית קונטיינר ה-backend ובכל שינוי של `schema.prisma`/מיגרציה (`Dockerfile.dev` → `scripts/dev-schema-sync.sh`; לא חוסם את עליית השרת אם מסרב). `migrate:dev` מסרב אם `APP_ENV` אינו `development` או אם ה-host שווה ל-`PROD_DATABASE_URL` |
+| בדיקת סביבה | `npm run env:check` (מהשורש): מדווח **שמות ופסקי דין בלבד, אף פעם לא ערכים** — קבצי env חסרים/לא ב-gitignore/הרשאות, משתנים חובה חסרים, `APP_ENV`, האם `DATABASE_URL` מצביע על development / **production** / בדיקות (לפי `backend/scripts/env-policy.json`), התאמה בין `.env` שבשורש ל-`backend/.env`, ומה הקונטיינר שרץ באמת טען. מריצים לפני עבודה עם DB ולפני שמחמירים את ה-guard. משתנה חדש → מוסיפים ל-`SPEC` ב-`backend/scripts/env-check.js` |
 | בדיקת מיגרציות (סטטית) | `npm run migrate:check --prefix backend` (רץ גם בתחילת `deploy.sh` וגם ב-release של Fly): `DROP TABLE/COLUMN/TYPE`, `TRUNCATE`, `DELETE`, `SET NOT NULL`, שינוי טיפוס — נעצרים עד שהקובץ מכיל שורה `-- destructive-ok: <סיבה>` |
 | בדיקות של מנגנון המיגרציות | `npm run test:scripts --prefix backend` (יחידה) |
 | baseline ל-production | **אוטומטי בפריסה הראשונה** (release step מאמץ DB בלי היסטוריה רק אם הוא בדיוק "baseline + המיגרציות המאוחרות"; אחרת נעצר). ידני, רק אם נעצר: `PROD_DATABASE_URL=… npm run migrate:baseline-prod --prefix backend` (**נוה, בטרמינל שלו**) |
@@ -70,10 +71,10 @@ monorepo עם npm workspaces. פריסה: Fly.io.
 - שדה חדש עם `@default()` על טבלה קיימת מסווג שורות ישנות בשקט (מלכודת ה-backfill) — לתכנן backfill ולעצור.
 - לא `git push`, לא deploy, לא לקרוא קבצי `.env*`.
 - **הכללים האלה נאכפים ב-hook, לא רק כהוראה:** `.claude/guard.json` נקרא על ידי ה-hooks של plugin `dev-team` ומונע (deny) / מבקש אישור (ask)
-  לפני פקודת shell: curl אל 5005, `prisma db push|migrate|studio` בלי `.env.test`, קריאת `.env`, `psql` שאינו על 5433, הרצת `set-dev-db`,
-  (deny); ו-ask על חיבור ל-`neon.tech`, `fly deploy`/`deploy.sh`, `migrate:baseline-prod`/`PROD_DATABASE_URL`, ומחיקת ה-volume של
+  לפני פקודת shell: `prisma db push|migrate|studio` בלי `.env.test`, קריאת `.env`, `psql` שאינו על 5433, הרצת `set-dev-db`,
+  (deny); ו-ask על curl אל 5005 (backend הפיתוח; מאז 27.10.2026 מחובר לענף development — לפני זה deny), חיבור ל-`neon.tech`, `fly deploy`/`deploy.sh`, `migrate:baseline-prod`/`PROD_DATABASE_URL`, ומחיקת ה-volume של
   postgres-test. לפני עריכת קובץ `prisma/migrations/*/migration.sql` קיים: ask. אחרי עריכת `schema.prisma` ה-hook מזכיר ל-Claude ליצור מיגרציה
-  ולהסביר אותה. לעדכון כלל — לערוך את הקובץ. ה-hook הוא רשת ביטחון נגד תקלות, לא sandbox.
+  ולהסביר אותה; אחרי עריכת `docker-compose.yml`/`env-check.js`/`env-policy.json` הוא מריץ `npm run env:check` ומציג את התוצאה. **החסימה לפי מצב הסביבה נעשית בסקריפטים, לא ב-guard** (ה-guard מבין רק regex על הפקודה): `npm run migrate:dev` (ולכן גם `migrate:sync`) מריץ קודם `env:check --gate` ונעצר בשגיאה, ו-`db-migrate.js dev` מסרב ל-`DATABASE_URL` שמצביע על production לפי `backend/scripts/env-policy.json`, גם בתוך הקונטיינר. לעדכון כלל — לערוך את הקובץ. ה-hook הוא רשת ביטחון נגד תקלות, לא sandbox.
 - לא להמיר מסך קיים למערכת העיצוב כתוספת אגבית למשימה אחרת — זו עבודה ממוקדת (`UI-MIGRATION-BACKLOG.md`).
 
 ## Backlog

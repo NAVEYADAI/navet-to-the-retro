@@ -305,8 +305,9 @@ export class SprintsService {
     // Feature 3 (team comment categories): `category` is now a relation, not a flat enum column
     // — join the label directly so the builder never needs a separate categories lookup (same
     // reasoning as getCommentsForSprint below).
+    // Feature 13: soft-deleted comments are not part of the summary.
     const comments = await this.prisma.comment.findMany({
-      where: { sprintId },
+      where: { sprintId, deletedAt: null },
       select: { content: true, type: true, category: { select: { label: true } } }
     });
 
@@ -346,7 +347,7 @@ export class SprintsService {
 
     const sprint = await this.prisma.sprint.findFirst({
       where: { id: sprintId, teamId, deletedAt: null },
-      include: { _count: { select: { comments: true } } }
+      include: { _count: { select: { comments: { where: { deletedAt: null } } } } }
     });
     if (!sprint) {
       throw new NotFoundException('Sprint not found');
@@ -411,7 +412,7 @@ export class SprintsService {
     const sprints = await this.prisma.sprint.findMany({
       where: { teamId, deletedAt: { not: null } },
       orderBy: { deletedAt: 'desc' },
-      include: { _count: { select: { comments: true } } }
+      include: { _count: { select: { comments: { where: { deletedAt: null } } } } }
     });
     return sprints.map(({ _count, ...sprint }) => ({
       ...sprint,

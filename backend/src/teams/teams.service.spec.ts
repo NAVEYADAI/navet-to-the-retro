@@ -59,6 +59,8 @@ describe('TeamsService', () => {
     // Feature 20: a leaving member's ratings/proposals lose their identity (the scores stay).
     focusPointRating: { updateMany: jest.fn() },
     focusPointProposal: { updateMany: jest.fn() },
+    // Feature 13: a leaving/removed member's write extensions on the team's sprints are deleted.
+    sprintWriteExtension: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
     // Feature 11: the Telegram bot's sticky team context is cleared when its user leaves the team.
     userMessagingLink: {
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -711,6 +713,17 @@ describe('TeamsService', () => {
       }));
     });
 
+    it('deletes the removed member\'s write extensions on this team\'s sprints (feature 13)', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
+      mockPrismaService.teamMember.findFirst.mockResolvedValue(regular);
+
+      await service.removeMember(mockTeam.id, regular.id, admin.userId);
+
+      expect(mockPrismaService.sprintWriteExtension.deleteMany).toHaveBeenCalledWith({
+        where: { userId: regular.userId, sprint: { teamId: mockTeam.id } },
+      });
+    });
+
     it('promotes the chosen member when an admin removes the last team leader', async () => {
       const newLeader = { ...regular, id: 40, user: { isPhantom: false } };
       mockPrismaService.teamMember.findUnique.mockResolvedValue(admin);
@@ -755,6 +768,17 @@ describe('TeamsService', () => {
       expect(mockPrismaService.focusPointProposal.updateMany).toHaveBeenCalledWith({
         where: { userId: me.userId, comment: { teamId: mockTeam.id } },
         data: { userId: null },
+      });
+    });
+
+    it('deletes the leaving member\'s write extensions on this team\'s sprints (feature 13)', async () => {
+      mockPrismaService.teamMember.findUnique.mockResolvedValue(me);
+      mockPrismaService.teamMember.count.mockResolvedValueOnce(3);
+
+      await service.leaveTeam(mockTeam.id, me.userId);
+
+      expect(mockPrismaService.sprintWriteExtension.deleteMany).toHaveBeenCalledWith({
+        where: { userId: me.userId, sprint: { teamId: mockTeam.id } },
       });
     });
 

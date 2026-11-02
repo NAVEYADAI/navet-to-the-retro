@@ -17,7 +17,7 @@ describe('Onboarding (e2e)', () => {
   const tracker = new E2eCleanupTracker();
 
   const mk = (n: string) => ({ username: `test_e2e_ob_${n}`, email: `test_e2e_ob_${n}@example.com`, password: 'password123' });
-  const users = { fresh: mk('fresh'), lead: mk('lead'), member: mk('member'), mixed: mk('mixed'), pending: mk('pending'), gone: mk('gone') };
+  const users = { fresh: mk('fresh'), lead: mk('lead'), member: mk('member'), mixed: mk('mixed'), pending: mk('pending'), gone: mk('gone'), plead: mk('plead') };
   const approver = { username: 'test_e2e_ob_approver', email: 'lironka13@gmail.com', password: 'password123' };
 
   const tok: Record<string, string> = {};
@@ -89,7 +89,7 @@ describe('Onboarding (e2e)', () => {
       expect(body.steps.every((s: any) => s.done === false && s.optional === false)).toBe(true);
       expect(body.checklistComplete).toBe(false);
       expect(body.checklistDismissed).toBe(false);
-      expect(body.unseenFeatureKeys).toEqual([]); // management-only features are not announced to someone who manages nothing
+      expect(body.unseenFeatureKeys).toEqual(['comment-edit-delete']); // feature 13 "edit/delete" is for ALL; the management-only cards (moderation, focus points) are not announced to someone who manages nothing
       expect(await prisma.userOnboardingState.count({ where: { userId: id.fresh } })).toBe(0);
     });
 
@@ -99,15 +99,15 @@ describe('Onboarding (e2e)', () => {
       const body = await status('pending');
       expect(body.track).toBe('MANAGEMENT');
       expect(stepMap(body)['create-team']).toBe(false);
-      expect(body.unseenFeatureKeys).toEqual([]);
+      expect(body.unseenFeatureKeys).toEqual(['comment-edit-delete']);
     });
 
-    it('the team leader of an approved team: management track, create-team done, focus-points announced', async () => {
+    it('the team leader of an approved team: management track, create-team done, all three announcements (edit/delete, moderation, focus points)', async () => {
       teamA = await approvedTeam('lead', 'ob-team-a');
       const body = await status('lead');
       expect(body.track).toBe('MANAGEMENT');
       expect(stepMap(body)).toEqual({ 'create-team': true, 'invite-member': false, 'open-sprint': false, 'close-sprint': false, 'pick-focus-point': false });
-      expect(body.unseenFeatureKeys).toEqual(['focus-points']);
+      expect(body.unseenFeatureKeys).toEqual(['comment-edit-delete', 'comment-moderation', 'focus-points']);
     });
 
     it('management steps follow real data: invite, open sprint, ended sprint, focus point', async () => {
@@ -140,11 +140,13 @@ describe('Onboarding (e2e)', () => {
         { key: 'connect-telegram', done: false, optional: true },
       ]);
       expect(body.checklistComplete).toBe(false);
-      expect(body.unseenFeatureKeys).toEqual([]); // the improvement-points announcement is management-only
+      expect(body.unseenFeatureKeys).toEqual(['comment-edit-delete']); // the improvement-points and moderation announcements are management-only
     });
 
     it('a comment completes the required member steps; Telegram is optional and a revoked link does not count', async () => {
-      await api().post(`/sprints/${pastSprint}/comments`).set(auth(tok.member)).send({ content: 'ob comment', type: 'KEEP' }).expect(201);
+      // Feature 13: pastSprint ended months ago (board locked for the API), so the comment is inserted directly.
+      const author = await prisma.user.findFirstOrThrow({ where: { username: users.member.username } });
+      await prisma.comment.create({ data: { content: 'ob comment', type: 'KEEP', authorId: author.id, teamId: teamA, sprintId: pastSprint } });
       let body = await status('member');
       expect(stepMap(body)['first-comment']).toBe(true);
       expect(body.checklistComplete).toBe(true); // connect-telegram is still false
@@ -160,12 +162,12 @@ describe('Onboarding (e2e)', () => {
     it('mixed user (plain member of one team, leader of another) gets the management track and the management announcement', async () => {
       await joinViaInvite(teamA, 'lead', 'mixed'); // plain member of A
       expect((await status('mixed')).track).toBe('MEMBER');
-      expect((await status('mixed')).unseenFeatureKeys).toEqual([]);
+      expect((await status('mixed')).unseenFeatureKeys).toEqual(['comment-edit-delete']);
 
       teamM = await approvedTeam('mixed', 'ob-team-mixed');
       const body = await status('mixed');
       expect(body.track).toBe('MANAGEMENT');
-      expect(body.unseenFeatureKeys).toEqual(['focus-points']);
+      expect(body.unseenFeatureKeys).toEqual(['comment-edit-delete', 'comment-moderation', 'focus-points']);
       // management steps are about the team they manage (teamM: empty), not teamA which is full of data
       expect(stepMap(body)).toEqual({ 'create-team': true, 'invite-member': false, 'open-sprint': false, 'close-sprint': false, 'pick-focus-point': false });
     });
@@ -177,7 +179,7 @@ describe('Onboarding (e2e)', () => {
       const body = await status('gone');
       expect(body.track).toBe('MANAGEMENT');
       expect(body.steps.every((s: any) => s.done === false)).toBe(true);
-      expect(body.unseenFeatureKeys).toEqual([]);
+      expect(body.unseenFeatureKeys).toEqual(['comment-edit-delete']);
     });
   });
 
@@ -239,9 +241,9 @@ describe('Onboarding (e2e)', () => {
       expect((await prisma.userOnboardingState.findUnique({ where: { userId: id.lead } }))!.seenFeatureKeys).toEqual(['focus-points']);
 
       tok.lead = await login('lead');
-      expect((await status('lead')).unseenFeatureKeys).toEqual([]);
+      expect((await status('lead')).unseenFeatureKeys).toEqual(['comment-edit-delete', 'comment-moderation']);
       // seen state belongs to the user: another manager still gets the announcement
-      expect((await status('mixed')).unseenFeatureKeys).toEqual(['focus-points']);
+      expect((await status('mixed')).unseenFeatureKeys).toEqual(['comment-edit-delete', 'comment-moderation', 'focus-points']);
     });
 
     it('rejects a malformed body with 400 and writes nothing', async () => {
@@ -269,6 +271,35 @@ describe('Onboarding (e2e)', () => {
       expect(await prisma.userOnboardingState.count({ where: { userId: id.fresh } })).toBe(1);
       await prisma.user.delete({ where: { id: id.fresh } });
       expect(await prisma.userOnboardingState.count({ where: { userId: id.fresh } })).toBe(0);
+    });
+  });
+
+  // Feature 13: the guide hides the admin-only panel steps (write extensions, deleted comments) from
+  // everyone who is not a team ADMIN in the team it leads to. Same definition as the board's
+  // `myMembership.isAdmin` (TeamMember.isAdmin) — a team leader is not enough.
+  describe('isAdmin (feature 13)', () => {
+    it('true for the team admin; false for a plain member and for a non-admin team leader', async () => {
+      const invite = await api().post(`/teams/${teamA}/invites`).set(auth(tok.lead)).send({ role: 'TEAM_LEADER' }).expect(201);
+      await api().post(`/invites/${invite.body.token}/consume`).set(auth(tok.plead)).expect(201);
+      const pleadMember = await prisma.teamMember.findFirstOrThrow({ where: { userId: id.plead, teamId: teamA } });
+      expect(pleadMember).toMatchObject({ role: 'TEAM_LEADER', isAdmin: false });
+
+      expect((await status('lead')).isAdmin).toBe(true);
+      const leader = await status('plead');
+      expect(leader.track).toBe('MANAGEMENT');
+      expect(leader.isAdmin).toBe(false);
+      expect((await status('member')).isAdmin).toBe(false);
+    });
+
+    it('is taken in the team the guide leads to: the creator of teamM is its admin', async () => {
+      const mixed = await status('mixed');
+      expect(mixed.hints.teamId).toBe(teamM);
+      expect(mixed.isAdmin).toBe(true);
+    });
+
+    it('promoting the leader to admin flips it', async () => {
+      await prisma.teamMember.updateMany({ where: { userId: id.plead, teamId: teamA }, data: { isAdmin: true } });
+      expect((await status('plead')).isAdmin).toBe(true);
     });
   });
 });

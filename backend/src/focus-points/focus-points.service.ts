@@ -41,7 +41,7 @@ export class FocusPointsService {
 
   private async assertCommentsInTeam(teamId: number, commentIds: number[]) {
     if (commentIds.length === 0) return;
-    const found = await this.prisma.comment.count({ where: { id: { in: commentIds }, teamId } });
+    const found = await this.prisma.comment.count({ where: { id: { in: commentIds }, teamId, deletedAt: null } });
     if (found !== commentIds.length) {
       throw new BadRequestException('אחת ההערות שנבחרו לא שייכת לצוות זה');
     }
@@ -204,12 +204,12 @@ export class FocusPointsService {
     await assertManager(this.prisma, teamId, requesterId);
     const groups = await this.prisma.focusPointProposal.groupBy({
       by: ['commentId'],
-      where: { status: 'PENDING', comment: { teamId } },
+      where: { status: 'PENDING', comment: { teamId, deletedAt: null } }, // Feature 13: not for deleted comments
       _count: { _all: true }
     });
     if (groups.length === 0) return [];
     const comments = await this.prisma.comment.findMany({
-      where: { id: { in: groups.map((g) => g.commentId) } },
+      where: { id: { in: groups.map((g) => g.commentId) }, deletedAt: null },
       select: { id: true, content: true, type: true, sprintId: true, category: { select: { label: true } }, sprint: { select: { name: true } } }
     });
     const byId = new Map(comments.map((c) => [c.id, c]));
@@ -225,8 +225,8 @@ export class FocusPointsService {
   }
 
   async dismissProposals(commentId: number, requesterId: number) {
-    const comment = await this.prisma.comment.findUnique({ where: { id: commentId }, select: { teamId: true } });
-    if (!comment) throw new NotFoundException('Comment not found');
+    const comment = await this.prisma.comment.findUnique({ where: { id: commentId }, select: { teamId: true, deletedAt: true } });
+    if (!comment || comment.deletedAt) throw new NotFoundException('Comment not found');
     await assertManager(this.prisma, comment.teamId, requesterId);
     const dismissed = await this.prisma.focusPointProposal.updateMany({ where: { commentId, status: 'PENDING' }, data: { status: 'DISMISSED' } });
     logFocusEvent(this.logger, 'proposals_dismissed', { teamId: comment.teamId, commentId, count: dismissed.count, byManager: requesterId });
@@ -244,12 +244,13 @@ export class FocusPointsService {
       where: { teamId, ...(includeMerged ? {} : { status: { not: 'MERGED' } }) },
       orderBy: [{ createdAt: 'asc' }],
       include: {
-        sources: { select: { comment: { select: { id: true, content: true, type: true, sprintId: true } } } },
+        // Feature 13: a soft-deleted comment no longer shows as a source (nor counts as a mention).
+        sources: { where: { comment: { deletedAt: null } }, select: { comment: { select: { id: true, content: true, type: true, sprintId: true } } } },
         tasks: { orderBy: { id: 'asc' }, include: { assignee: { select: { id: true, username: true, firstName: true, lastName: true } } } },
         selections: { select: { sprintId: true } },
         // NEVER select userId / reason of a rating here (#15).
         ratings: { select: { sprintId: true, sprintEndedAt: true, score: true } },
-        _count: { select: { mergedFrom: true, proposals: { where: { status: 'PENDING' } } } }
+        _count: { select: { mergedFrom: true, proposals: { where: { status: 'PENDING', comment: { deletedAt: null } } } } }
       }
     });
 

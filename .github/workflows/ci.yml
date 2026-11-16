@@ -69,13 +69,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - run: npm install --legacy-peer-deps
-      # frontend/package.json maps `react` to frontend/node_modules/react for Jest. A fresh install hoists
-      # react to the root node_modules instead, and every suite then fails with "Could not locate module
-      # react". Remove this step once the mapping no longer depends on where npm happens to put react.
-      - name: put react where the Jest config expects it
-        run: |
-          mkdir -p frontend/node_modules
-          [ -e frontend/node_modules/react ] || ln -s ../../node_modules/react frontend/node_modules/react
       - name: component tests
         run: npm run test --prefix frontend
 

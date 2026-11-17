@@ -46,8 +46,12 @@ async function joinViaInvite(request: APIRequestContext, teamId: number, leaderT
   expect(res.ok()).toBeTruthy();
 }
 
+// The token goes in from an empty page of the same origin, so the app starts exactly once, already signed in.
+// Setting it on the app's own page is a race on a slow machine: that first page can still pick the token up,
+// use up the once-ever auto-start, and then be thrown away by the second navigation.
 async function loginAndGoto(page: Page, token: string, path = '/') {
-  await page.goto('/');
+  await page.route('**/__e2e-blank', (route) => route.fulfill({ contentType: 'text/html', body: '<!doctype html>' }));
+  await page.goto('/__e2e-blank');
   await page.evaluate((t) => localStorage.setItem('userToken', t), token);
   await page.goto(path);
 }

@@ -98,7 +98,8 @@ test.describe('Phantom members (product-backlog/09-phantom-members.md)', () => {
     await page.getByText(Strings.teamList.addPhantomMemberButton).click();
 
     // Appears in the member list with the distinguishing "not registered" badge.
-    await expect(page.getByText(Strings.teamList.phantomBadge)).toBeVisible();
+    // exact: the hint in the add-member dialog quotes the same words, and it can still be on screen while the dialog closes.
+    await expect(page.getByText(Strings.teamList.phantomBadge, { exact: true })).toBeVisible();
     await expect(page.getByText('Phanto Mm')).toBeVisible();
 
     // --- Post a KEEP comment "on behalf of" the phantom ---

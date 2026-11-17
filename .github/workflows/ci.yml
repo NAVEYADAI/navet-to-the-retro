@@ -96,6 +96,7 @@ jobs:
           DATABASE_URL=postgresql://test:test@localhost:5433/navet_test
           BACKEND_PORT=5006
           JWT_SECRET=ci-only-not-a-secret
+          TELEGRAM_WEBHOOK_SECRET=e2e-test-telegram-webhook-secret
           EOF
       - name: generate the Prisma client
         working-directory: backend

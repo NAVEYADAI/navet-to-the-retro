@@ -69,26 +69,5 @@
     "test": "jest",
     "test:e2e": "playwright test"
   },
-  "jest": {
-    "preset": "jest-expo",
-    "testTimeout": 20000,
-    "testPathIgnorePatterns": [
-      "<rootDir>/node_modules/",
-      "<rootDir>/e2e/"
-    ],
-    "moduleDirectories": [
-      "node_modules",
-      "<rootDir>/node_modules",
-      "<rootDir>/../node_modules"
-    ],
-    "moduleNameMapper": {
-      "\\.(css|sass|scss)$": "<rootDir>/jest/css-mock.js",
-      "^framer-motion$": "<rootDir>/jest/framer-motion-mock.js",
-      "^react$": "<rootDir>/node_modules/react",
-      "^react/(.*)$": "<rootDir>/node_modules/react/$1",
-      "^@react-native-async-storage/async-storage$": "@react-native-async-storage/async-storage/jest/async-storage-mock",
-      "^lucide-react-native$": "<rootDir>/../node_modules/lucide-react-native/dist/cjs/lucide-react-native.js"
-    }
-  },
   "private": true
 }

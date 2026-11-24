@@ -36,8 +36,10 @@ async function globalTeardown() {
     );
   }
 
+  // Resolved the way the backend itself would find it: npm may install @prisma/client in backend/node_modules
+  // or hoist it to the workspace root, depending on the install.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { PrismaClient } = require(path.join(backendDir, 'node_modules/@prisma/client'));
+  const { PrismaClient } = require(require.resolve('@prisma/client', { paths: [backendDir] }));
   const prisma = new (PrismaClient as any)({ datasources: { db: { url: testUrl } } });
   try {
     await prisma.user.deleteMany({ where: { username: { startsWith: 'e2e_pw_' } } });
